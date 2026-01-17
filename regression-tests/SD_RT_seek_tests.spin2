@@ -70,7 +70,7 @@ PUB go() | result, bytesRead, idx, fileSize, expectedByte, actualByte
     debug("  Buffer filled with position pattern (0-255 repeating)")
     debug("   -> pass")
 
-    utils.startTest(@"Create test file with ", udec_(TEST_FILE_SIZE), " bytes")
+    utils.startTest(@"Create test file with 2048 bytes")
     result := sd.newFile(@testSeek)
     utils.evaluateBool(result, @"newFile()", true)
 
