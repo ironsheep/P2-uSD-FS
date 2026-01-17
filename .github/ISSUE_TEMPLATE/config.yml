@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Parallax Forums
+    url: https://forums.parallax.com/
+    about: Ask questions and discuss P2 development on the Parallax Forums
+  - name: P2 Documentation
+    url: https://propeller.parallax.com/p2.html
+    about: Official Propeller 2 documentation and resources

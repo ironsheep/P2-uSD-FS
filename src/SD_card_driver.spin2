@@ -119,6 +119,126 @@ PUB mount(_cs,_mosi,_miso,_sck) : result | reserved                             
   else
     debug("  [mount] FAIL: initCard() returned false")
 
+PUB initCardOnly(_cs, _mosi, _miso, _sck) : result                              '' initialize SD card without mounting filesystem
+'' Use this for low-level operations like formatting. Does NOT read filesystem.
+'' Returns true if card initialized successfully, false otherwise.
+  longmove(@cs, @_cs, 4)
+  pinh(cs)                                                                      '  CS HIGH = deselected
+  pinh(mosi)
+  pinh(sck)
+
+  debug("  [initCardOnly] Pins: CS=P", udec_(cs), " MOSI=P", udec_(mosi), " MISO=P", udec_(miso), " SCK=P", udec_(sck))
+  closeFile()
+  sec_in_buf := -1
+  result := initCard()
+  if result
+    debug("  [initCardOnly] Card initialized successfully")
+  else
+    debug("  [initCardOnly] Card initialization failed")
+
+PUB cardSizeSectors() : result | csd[4], c_size, read_bl_len, c_size_mult       '' get total sectors on card by reading CSD register
+'' Returns total number of 512-byte sectors on the card.
+'' Must call initCardOnly() or mount() first.
+  ' Read CSD using CMD9
+  result := readCSD(@csd)
+  if result == 0
+    debug("  [cardSizeSectors] Failed to read CSD")
+    return 0
+
+  ' CSD structure version is in bits [127:126] (byte 0, bits 7:6)
+  if (csd.byte[0] >> 6) == 0
+    ' CSD Version 1.0 (SDSC)
+    ' C_SIZE is bits [73:62] (12 bits)
+    ' READ_BL_LEN is bits [83:80] (4 bits)
+    ' C_SIZE_MULT is bits [49:47] (3 bits)
+    read_bl_len := csd.byte[5] & $0F
+    c_size := (csd.byte[6] & $03) << 10
+    c_size |= csd.byte[7] << 2
+    c_size |= csd.byte[8] >> 6
+    c_size_mult := (csd.byte[9] & $03) << 1
+    c_size_mult |= csd.byte[10] >> 7
+    ' Capacity = (C_SIZE + 1) * 2^(C_SIZE_MULT + 2) * 2^READ_BL_LEN bytes
+    ' Sectors = Capacity / 512
+    result := (c_size + 1) << (c_size_mult + 2 + read_bl_len - 9)
+    debug("  [cardSizeSectors] CSD v1.0: C_SIZE=", udec(c_size), " MULT=", udec(c_size_mult), " BL_LEN=", udec(read_bl_len))
+  else
+    ' CSD Version 2.0 (SDHC/SDXC)
+    ' C_SIZE is bits [69:48] (22 bits)
+    ' Capacity = (C_SIZE + 1) * 512KB
+    c_size := (csd.byte[7] & $3F) << 16
+    c_size |= csd.byte[8] << 8
+    c_size |= csd.byte[9]
+    ' Sectors = (C_SIZE + 1) * 1024 (each unit is 512KB = 1024 sectors)
+    result := (c_size + 1) * 1024
+    debug("  [cardSizeSectors] CSD v2.0: C_SIZE=", udec(c_size))
+
+  debug("  [cardSizeSectors] Total sectors: ", udec(result))
+
+PUB writeSectorRaw(sector, p_buffer) : result                                   '' write a sector at absolute LBA address
+'' Low-level sector write for formatting/partitioning. Bypasses filesystem.
+'' @param sector - absolute LBA sector number
+'' @param p_buffer - pointer to 512 bytes of data to write
+  bytemove(@buf, p_buffer, 512)
+  result := writeSector(sector)
+  if result
+    debug("  [writeSectorRaw] Wrote sector ", udec(sector))
+  else
+    debug("  [writeSectorRaw] FAILED to write sector ", udec(sector))
+
+PUB readSectorRaw(sector, p_buffer) : result                                    '' read a sector at absolute LBA address
+'' Low-level sector read for verification. Bypasses filesystem.
+'' @param sector - absolute LBA sector number
+'' @param p_buffer - pointer to 512-byte buffer to receive data
+  sec_in_buf := -1                                                              '  force re-read
+  readSector(sector)
+  bytemove(p_buffer, @buf, 512)
+  result := true
+  debug("  [readSectorRaw] Read sector ", udec(sector))
+
+PRI readCSD(p_csd) : result | t, i                                              '' read CSD register using CMD9
+'' Reads the 16-byte CSD register into p_csd buffer
+'' Returns true on success, false on failure
+  transfer(-1, 8)
+  pinl(cs)
+  transfer(-1, 8)
+  transfer($40 | 9, 8)                                                          '  CMD9 = SEND_CSD
+  transfer(0, 32)                                                               '  argument = 0
+  transfer($AF, 8)                                                              '  CRC (approximate)
+
+  ' Wait for response
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  if result <> $00
+    pinh(cs)
+    return false
+
+  ' Wait for data token ($FE)
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result == $FE
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  ' Read 16 bytes of CSD data
+  repeat i from 0 to 15
+    byte[p_csd + i] := transfer(-1, 8)
+
+  ' Read and discard 2-byte CRC
+  transfer(-1, 16)
+
+  pinh(cs)
+  return true
+
 PUB newFile(name_ptr) : result | temp                                           '' create and open a new file in the current directory
   closeFile()
   if searchDirectory(name_ptr)                                                  '  search directory for available entry - set entry address

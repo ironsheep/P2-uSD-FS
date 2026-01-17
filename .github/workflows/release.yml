@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnut-ts compiler
+        run: npm install -g pnut-ts
+
+      - name: Compile to verify build
+        run: |
+          pnut-ts src/SD_card_driver.spin2
+          pnut-ts -I src src/SD_format_utility.spin2
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          # Remove 'v' prefix for changelog lookup
+          VERSION_NUM="${VERSION#v}"
+
+          # Extract the section for this version from CHANGELOG.md
+          # Finds content between ## [VERSION] and the next ## [ or end of file
+          NOTES=$(awk -v ver="$VERSION_NUM" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]")) found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          # Handle multi-line output for GitHub Actions
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create release archive
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          ARCHIVE_NAME="P2-uSD-FileSystem-${VERSION}"
+
+          # Create release folder with all files at root level
+          mkdir -p "${ARCHIVE_NAME}"
+          cp README.md "${ARCHIVE_NAME}/"
+          cp CHANGELOG.md "${ARCHIVE_NAME}/"
+          cp LICENSE "${ARCHIVE_NAME}/"
+          cp src/SD_card_driver.spin2 "${ARCHIVE_NAME}/"
+          cp src/SD_format_utility.spin2 "${ARCHIVE_NAME}/"
+
+          # Create zip archive
+          zip -r "${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.NOTES }}
+          files: ${{ env.ARCHIVE_NAME }}
+          draft: false
+          prerelease: false

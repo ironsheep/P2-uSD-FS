@@ -1,0 +1,233 @@
+'' =================================================================================================
+''
+''   File....... SD_RT_format_tests.spin2
+''   Purpose.... Regression tests for SD card FAT32 formatter
+''   Author..... Stephen M Moraco
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... JAN 2026
+''   Updated.... 16 JAN 2026
+''
+'' =================================================================================================
+''
+''  This test formats a blank SD card and verifies the FAT32 structure is correct.
+''
+''  REQUIREMENTS:
+''    - A BLANK SD card (all data will be erased!)
+''    - Card must be at least 64MB for FAT32
+''
+''  WARNING: This test ERASES ALL DATA on the card!
+''
+'' =================================================================================================
+
+CON
+
+    _CLKFREQ        = 320_000_000
+
+    ' Pin configuration for P2 Edge with SD card
+    SD_CS   = 60
+    SD_MOSI = 59
+    SD_MISO = 58
+    SD_SCK  = 61
+
+    ' Expected FAT32 constants
+    MBR_SIGNATURE       = $AA55
+    PARTITION_TYPE_FAT32_LBA = $0C
+    FSINFO_SIG1         = $41615252  ' "RRaA"
+    FSINFO_SIG2         = $61417272  ' "rrAa"
+
+OBJ
+
+    utils : "SD_RT_utilities"
+    fmt   : "SD_format_utility"
+    sd    : "SD_card_driver"
+
+VAR
+
+    BYTE    buf[512]
+
+PUB go() | result, sectorsPerFat, dataStart
+
+    debug("==============================================")
+    debug("  SD_RT_format_tests - FAT32 Format Tests")
+    debug("==============================================")
+    debug(" ")
+    debug("WARNING: This test will ERASE ALL DATA on the card!")
+    debug(" ")
+
+    ' ----------------------------------------
+    ' TEST 1: Format card with default label
+    ' ----------------------------------------
+    utils.startTest(@"Format card with default label")
+
+    result := fmt.format(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    utils.evaluateSubBool(result, @"format() returns true", true)
+
+    ' ----------------------------------------
+    ' TEST 2: Verify MBR structure
+    ' ----------------------------------------
+    utils.startTest(@"Verify MBR structure")
+
+    result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    utils.evaluateSubBool(result, @"initCardOnly() returns true", true)
+
+    sd.readSectorRaw(0, @buf)
+
+    ' Check MBR signature at offset $1FE
+    result := WORD[@buf + $1FE]
+    utils.evaluateSubValueHex(result, @"MBR signature = $AA55", MBR_SIGNATURE)
+
+    ' Check partition type at offset $1C2
+    result := buf[$1C2]
+    utils.evaluateSubValueHex(result, @"Partition type = $0C (FAT32 LBA)", PARTITION_TYPE_FAT32_LBA)
+
+    ' Check partition start at offset $1C6 (should be 8192 for 4MB alignment)
+    result := LONG[@buf + $1C6]
+    utils.evaluateSubValue(result, @"Partition start = 8192", 8192)
+
+    ' ----------------------------------------
+    ' TEST 3: Verify VBR (Volume Boot Record)
+    ' ----------------------------------------
+    utils.startTest(@"Verify VBR structure")
+
+    ' Read VBR at sector 8192
+    sd.readSectorRaw(8192, @buf)
+
+    ' Check boot signature at offset $1FE
+    result := WORD[@buf + $1FE]
+    utils.evaluateSubValueHex(result, @"VBR signature = $AA55", MBR_SIGNATURE)
+
+    ' Check bytes per sector at offset $0B (should be 512)
+    result := WORD[@buf + $0B]
+    utils.evaluateSubValue(result, @"Bytes/sector = 512", 512)
+
+    ' Check number of FATs at offset $10 (should be 2)
+    result := buf[$10]
+    utils.evaluateSubValue(result, @"Number of FATs = 2", 2)
+
+    ' Check reserved sectors at offset $0E (should be 32)
+    result := WORD[@buf + $0E]
+    utils.evaluateSubValue(result, @"Reserved sectors = 32", 32)
+
+    ' Check root cluster at offset $2C (should be 2)
+    result := LONG[@buf + $2C]
+    utils.evaluateSubValue(result, @"Root cluster = 2", 2)
+
+    ' Check FSInfo sector at offset $30 (should be 1)
+    result := WORD[@buf + $30]
+    utils.evaluateSubValue(result, @"FSInfo sector = 1", 1)
+
+    ' Check backup boot sector at offset $32 (should be 6)
+    result := WORD[@buf + $32]
+    utils.evaluateSubValue(result, @"Backup boot sector = 6", 6)
+
+    ' Store sectors per FAT for later use
+    sectorsPerFat := LONG[@buf + $24]
+
+    ' Check OEM name at offset $03 (should be "P2FMTER ")
+    debug("  OEM name: ", lstr_(@buf + $03, 8))
+
+    ' ----------------------------------------
+    ' TEST 4: Verify FSInfo sector
+    ' ----------------------------------------
+    utils.startTest(@"Verify FSInfo sector")
+
+    ' Read FSInfo at partition + 1
+    sd.readSectorRaw(8193, @buf)
+
+    ' Check lead signature at offset 0
+    result := LONG[@buf + 0]
+    utils.evaluateSubValueHex(result, @"FSInfo lead signature = $41615252", FSINFO_SIG1)
+
+    ' Check structure signature at offset 484
+    result := LONG[@buf + 484]
+    utils.evaluateSubValueHex(result, @"FSInfo struct signature = $61417272", FSINFO_SIG2)
+
+    ' ----------------------------------------
+    ' TEST 5: Verify FAT initialization
+    ' ----------------------------------------
+    utils.startTest(@"Verify FAT initialization")
+
+    ' Read first FAT sector (partition + reserved = 8192 + 32 = 8224)
+    sd.readSectorRaw(8224, @buf)
+
+    ' FAT[0] should be media type ($0FFFFFF8)
+    result := LONG[@buf + 0]
+    utils.evaluateSubValueHex(result, @"FAT[0] = media type ($0FFFFFF8)", $0FFFFFF8)
+
+    ' FAT[1] should be end of chain ($0FFFFFFF)
+    result := LONG[@buf + 4]
+    utils.evaluateSubValueHex(result, @"FAT[1] = EOC ($0FFFFFFF)", $0FFFFFFF)
+
+    ' FAT[2] should be end of chain (root directory)
+    result := LONG[@buf + 8]
+    utils.evaluateSubValueHex(result, @"FAT[2] = EOC (root dir)", $0FFFFFFF)
+
+    ' ----------------------------------------
+    ' TEST 6: Verify volume label in root directory
+    ' ----------------------------------------
+    utils.startTest(@"Verify volume label in root directory")
+
+    ' Data start = 8192 + 32 + 2*sectorsPerFat
+    dataStart := 8192 + 32 + 2 * sectorsPerFat
+    debug("  Sectors per FAT: ", udec(sectorsPerFat))
+    debug("  Data start (root dir): sector ", udec(dataStart))
+
+    sd.readSectorRaw(dataStart, @buf)
+
+    ' Volume label entry: first 11 bytes should be "P2-XFER    "
+    debug("  Volume label bytes: ", lstr_(@buf, 11))
+
+    ' Attribute byte at offset $0B should be $08 (volume label)
+    result := buf[$0B]
+    utils.evaluateSubValueHex(result, @"Volume label attribute = $08", $08)
+
+    ' ----------------------------------------
+    ' TEST 7: Mount the formatted card
+    ' ----------------------------------------
+    utils.startTest(@"Mount formatted card")
+
+    result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    utils.evaluateSubBool(result, @"mount() returns true", true)
+
+    ' Check volume label
+    debug("  Mounted volume label: ", zstr_(sd.volumeLabel()))
+
+    sd.unmount()
+
+    ' ----------------------------------------
+    ' Summary
+    ' ----------------------------------------
+    utils.ShowTestEndCounts()
+
+    debug(" ")
+    debug("END_SESSION")
+
+CON { license }
+
+{{
+  =================================================================================================
+
+  Terms of Use: MIT License
+
+  Copyright (c) 2026 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  =================================================================================================
+}}
