@@ -13,6 +13,12 @@ src/logs/
 # OBEX downloads
 OBEX/
 
+# Reference files (local only)
+REF/
+
+# Todo MCP data (local only)
+.todo-mcp/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
