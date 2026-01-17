@@ -1,6 +1,7 @@
 # P2 Project specifics
 # Logs
-src/logs/
+logs/
+*/logs/
 
 # Build artifacts
 *.bin

@@ -2,23 +2,15 @@
 #
 # run_test.sh - Compile, download, run, and monitor P2 test files
 #
-# Usage: run_test.sh [basename] [srcdir] [-t timeout] [-m] [-l]
-#        Run without arguments to use defaults below.
+# Usage: ./run_test.sh <test-file> [-t timeout]
 #
-# ============================================================
-# CURRENT TEST CONFIGURATION (edit these for your test)
-# ============================================================
-DEFAULT_BASENAME="RT_smoke_test"
-DEFAULT_SRCDIR="../tests"
-DEFAULT_TIMEOUT="60"
-# ============================================================
+# Examples:
+#   ./run_test.sh ../regression-tests/SD_RT_mount_tests.spin2
+#   ./run_test.sh ../TestCard/SD_RT_testcard_validation.spin2 -t 120
+#   ./run_test.sh ../TestCard/SD_Test_Suite.spin2
 #
-# Arguments (override defaults):
-#   basename  - Source file name without .spin2 extension
-#   srcdir    - Directory containing the source file
-#   -t <sec>  - Timeout in seconds
-#   -m        - (optional) Generate memory map file
-#   -l        - (optional) Generate listing file
+# The script must be run from the tools/ directory.
+# It automatically includes ../src for the SD card driver.
 #
 # Exit codes:
 #   0 - Test completed successfully (END_SESSION found)
@@ -28,10 +20,8 @@ DEFAULT_TIMEOUT="60"
 #   4 - Usage error
 #
 # Requirements:
-#   - Test source MUST have: DEBUG_BAUD = 2_000_000 in CON section
-#   - Test MUST output END_SESSION via debug() when complete
-#
-# Uses pnut-term-ts headless mode for CI/AI agent automation.
+#   - Test source MUST output END_SESSION via debug() when complete
+#   - Uses 2 Mbaud debug serial
 #
 
 set +e
@@ -43,26 +33,30 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# --- Verify we're in tools directory ---
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TOOLS_DIR_NAME="$(basename "$SCRIPT_DIR")"
+
+if [[ "$TOOLS_DIR_NAME" != "tools" ]]; then
+    echo -e "${RED}Error: This script must be run from the tools/ directory${NC}"
+    echo "Current directory: $(pwd)"
+    exit 4
+fi
+
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # --- Functions ---
 
 usage() {
-    echo "Usage: $0 [basename] [srcdir] [-t timeout] [-m] [-l]"
+    echo "Usage: $0 <test-file> [-t timeout]"
     echo ""
-    echo "Run without arguments to use defaults:"
-    echo "  BASENAME: $DEFAULT_BASENAME"
-    echo "  SRCDIR:   $DEFAULT_SRCDIR"
-    echo "  TIMEOUT:  $DEFAULT_TIMEOUT seconds"
+    echo "Examples:"
+    echo "  $0 ../regression-tests/SD_RT_mount_tests.spin2"
+    echo "  $0 ../TestCard/SD_RT_testcard_validation.spin2 -t 120"
     echo ""
-    echo "Arguments (override defaults):"
-    echo "  basename  - Source file name without .spin2 extension"
-    echo "  srcdir    - Directory containing the source file"
-    echo "  -t <sec>  - Timeout in seconds"
-    echo "  -m        - Generate memory map file"
-    echo "  -l        - Generate listing file"
-    echo ""
-    echo "Requirements:"
-    echo "  - Source MUST have: DEBUG_BAUD = 2_000_000 in CON section"
-    echo "  - Test MUST output END_SESSION via debug() when complete"
+    echo "Arguments:"
+    echo "  test-file  - Path to .spin2 test file (relative to tools/)"
+    echo "  -t <sec>   - Timeout in seconds (default: 60)"
     echo ""
     echo "Exit codes:"
     echo "  0 - Test passed (END_SESSION found)"
@@ -73,25 +67,17 @@ usage() {
     exit 4
 }
 
-# --- Parse Arguments (use defaults if not provided) ---
+# --- Parse Arguments ---
 
-BASENAME=""
-SRCDIR=""
-TIMEOUT_SECS=""
-MAP_FLAG=""
-LIST_FLAG=""
+if [[ $# -lt 1 ]]; then
+    usage
+fi
 
-# Parse positional args first (basename, srcdir)
-while [[ $# -gt 0 && ! "$1" == -* ]]; do
-    if [[ -z "$BASENAME" ]]; then
-        BASENAME="$1"
-    elif [[ -z "$SRCDIR" ]]; then
-        SRCDIR="$1"
-    fi
-    shift
-done
+TEST_FILE="$1"
+shift
 
-# Parse optional flags
+TIMEOUT_SECS="60"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -t)
@@ -102,17 +88,33 @@ while [[ $# -gt 0 ]]; do
             TIMEOUT_SECS="$2"
             shift 2
             ;;
-        -m) MAP_FLAG="-m"; shift ;;
-        -l) LIST_FLAG="-l"; shift ;;
         -h|--help) usage ;;
         *) echo -e "${RED}Error: Unknown option: $1${NC}"; usage ;;
     esac
 done
 
-# Apply defaults for any missing values
-BASENAME="${BASENAME:-$DEFAULT_BASENAME}"
-SRCDIR="${SRCDIR:-$DEFAULT_SRCDIR}"
-TIMEOUT_SECS="${TIMEOUT_SECS:-$DEFAULT_TIMEOUT}"
+# --- Validate Arguments ---
+
+# Resolve to absolute path
+if [[ "$TEST_FILE" == /* ]]; then
+    ABS_TEST_FILE="$TEST_FILE"
+else
+    ABS_TEST_FILE="$(cd "$(dirname "$TEST_FILE")" 2>/dev/null && pwd)/$(basename "$TEST_FILE")"
+fi
+
+if [[ ! -f "$ABS_TEST_FILE" ]]; then
+    echo -e "${RED}Error: Test file does not exist: $TEST_FILE${NC}"
+    exit 4
+fi
+
+if [[ ! "$ABS_TEST_FILE" == *.spin2 ]]; then
+    echo -e "${RED}Error: Test file must be a .spin2 file${NC}"
+    exit 4
+fi
+
+# Extract directory and basename
+TEST_DIR="$(dirname "$ABS_TEST_FILE")"
+BASENAME="$(basename "$ABS_TEST_FILE" .spin2)"
 
 # Validate timeout is numeric
 if ! [[ "$TIMEOUT_SECS" =~ ^[0-9]+$ ]]; then
@@ -120,28 +122,25 @@ if ! [[ "$TIMEOUT_SECS" =~ ^[0-9]+$ ]]; then
     usage
 fi
 
-echo -e "${CYAN}Using: BASENAME=$BASENAME, SRCDIR=$SRCDIR, TIMEOUT=$TIMEOUT_SECS${NC}"
+echo -e "${CYAN}Test: $BASENAME${NC}"
+echo -e "${CYAN}From: $TEST_DIR${NC}"
+echo -e "${CYAN}Timeout: ${TIMEOUT_SECS}s${NC}"
+echo ""
 
-# --- Validate Arguments ---
+# --- Setup log directory ---
 
-if [[ ! -d "$SRCDIR" ]]; then
-    echo -e "${RED}Error: Source directory does not exist: $SRCDIR${NC}"
-    exit 4
-fi
-
-SOURCE_FILE="$SRCDIR/$BASENAME.spin2"
-if [[ ! -f "$SOURCE_FILE" ]]; then
-    echo -e "${RED}Error: Source file does not exist: $SOURCE_FILE${NC}"
-    exit 4
-fi
+LOG_DIR="$SCRIPT_DIR/logs"
+mkdir -p "$LOG_DIR"
 
 # --- Compilation ---
 
 echo -e "${GREEN}=== Compiling $BASENAME.spin2 ===${NC}"
 
-cd "$SRCDIR"
+cd "$TEST_DIR"
 
-COMPILE_CMD="pnut-ts -d -I ../src $MAP_FLAG $LIST_FLAG $BASENAME.spin2"
+# Include path points to src/ for the driver
+INCLUDE_PATH="$PROJECT_ROOT/src"
+COMPILE_CMD="pnut-ts -d -I $INCLUDE_PATH $BASENAME.spin2"
 echo "  Command: $COMPILE_CMD"
 
 if ! $COMPILE_CMD; then
@@ -166,23 +165,23 @@ echo "  Timeout: ${TIMEOUT_SECS} seconds"
 echo "  Baud:    2000000"
 echo ""
 
+# Create logs subdirectory in test location for pnut-term-ts
+mkdir -p "./logs"
+
 # Record time before running (to find new log files)
 BEFORE_TIME=$(date +%s)
 
 # Run pnut-term-ts in headless mode
-# Exit codes: 0 = END_SESSION found, 124 = timeout
 pnut-term-ts --headless -r "$BIN_FILE" -b 2000000 --end-marker --timeout "$TIMEOUT_SECS"
 PNUT_EXIT_CODE=$?
 
 echo ""
 
-# --- Find the log file ---
+# --- Find and copy the log file ---
 
-# Find newest headless_*.log created after we started
 LOG_FILE=""
 if [[ -d "./logs" ]]; then
     for f in $(ls -t ./logs/headless_*.log 2>/dev/null); do
-        # Get file modification time
         if [[ "$(uname)" == "Darwin" ]]; then
             FILE_TIME=$(stat -f %m "$f" 2>/dev/null)
         else
@@ -190,6 +189,10 @@ if [[ -d "./logs" ]]; then
         fi
         if [[ "$FILE_TIME" -ge "$BEFORE_TIME" ]]; then
             LOG_FILE="$f"
+            # Copy to tools/logs with descriptive name
+            DEST_LOG="$LOG_DIR/${BASENAME}_$(date +%y%m%d-%H%M%S).log"
+            cp "$LOG_FILE" "$DEST_LOG"
+            LOG_FILE="$DEST_LOG"
             break
         fi
     done
@@ -209,7 +212,6 @@ case $PNUT_EXIT_CODE in
         ;;
 esac
 
-# Output log file path
 if [[ -n "$LOG_FILE" ]]; then
     echo ""
     echo -e "${CYAN}Log file: $LOG_FILE${NC}"

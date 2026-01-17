@@ -141,13 +141,17 @@ For cross-OS compatibility testing, see [TestCard/TEST-CARD-SPECIFICATION.md](Te
 
 ```
 P2-uSD-FileSystem/
-├── src/                    # Source files
-│   ├── SD_card_driver.spin2    # Main SD card driver
-│   └── run_now.sh              # Test runner script
+├── src/                    # Driver deliverable
+│   └── SD_card_driver.spin2    # The SD card driver
 ├── regression-tests/       # Regression test suite
 │   └── SD_RT_*.spin2           # Test files
+├── TestCard/               # Test card validation
+│   ├── TEST-CARD-SPECIFICATION.md
+│   ├── TESTROOT/               # Files to copy to test card
+│   └── SD_*.spin2              # Validation tests
+├── tools/                  # Test scripts
+│   └── run_test.sh             # Test runner
 ├── DOCs/                   # Reference documentation
-├── TestCard/               # Test card specification
 └── *.md                    # Project documentation
 ```
 

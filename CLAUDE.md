@@ -25,40 +25,63 @@ mcp__todo-mcp__context_resume
 - **Development Tools**: VSCode + FlexProp compiler (or PNut)
 - **Version Control**: Git
 
-## Expected Project Structure
-
-When populated, this project will follow the standard Iron Sheep P2 project pattern:
+## Project Structure
 
 ```
-P2-uSD-Study/
-├── *.spin2              # Main Spin2 source files
-├── README.md            # Project documentation
-├── LICENSE
-├── .gitignore
-├── .vscode/             # VSCode settings
-├── .github/             # GitHub workflows
-├── REF/                 # Reference implementations
-├── DOCs/                # Documentation (datasheets, etc.)
-└── RegresssionTests/    # Test files
+P2-uSD-FileSystem/
+├── src/                    # DRIVER DELIVERABLE
+│   └── SD_card_driver.spin2    # The SD card driver (only deliverable file)
+│
+├── regression-tests/       # Regression test suite
+│   ├── SD_RT_utilities.spin2   # Test framework utilities
+│   ├── SD_RT_mount_tests.spin2
+│   ├── SD_RT_file_ops_tests.spin2
+│   ├── SD_RT_read_write_tests.spin2
+│   ├── SD_RT_directory_tests.spin2
+│   └── SD_RT_seek_tests.spin2
+│
+├── TestCard/               # Test card validation
+│   ├── TEST-CARD-SPECIFICATION.md
+│   ├── TESTROOT/               # Files to copy to test card
+│   ├── SD_RT_testcard_validation.spin2
+│   └── SD_Test_Suite.spin2
+│
+├── tools/                  # Scripts (run tests from here)
+│   ├── run_test.sh             # Test runner script
+│   └── logs/                   # Test output logs
+│
+├── DOCs/                   # Reference documentation
+└── *.md                    # Project documentation
 ```
 
 ## ⛔ CRITICAL: NEVER RUN FLEXSPIN DIRECTLY
 
-**If you find yourself about to run `flexspin`, STOP IMMEDIATELY. You are doing it wrong.**
+**If you find yourself about to run `flexspin` or `pnut-ts`, STOP IMMEDIATELY.**
 
-This project has a test infrastructure that handles compilation and deployment to hardware automatically. Always use:
+This project has a test infrastructure that handles compilation and deployment to hardware automatically.
+
+### Running Tests
+
+**Always run from the `tools/` directory:**
 
 ```bash
-./run_now.sh
+cd tools
+
+# Run a regression test
+./run_test.sh ../regression-tests/SD_RT_mount_tests.spin2
+
+# Run test card validation (with longer timeout)
+./run_test.sh ../TestCard/SD_RT_testcard_validation.spin2 -t 120
+./run_test.sh ../TestCard/SD_Test_Suite.spin2 -t 120
 ```
 
-This script:
-1. Compiles the code with flexspin
-2. Downloads to the P2 hardware
+The script:
+1. Compiles with pnut-ts (includes src/ for driver)
+2. Downloads to P2 hardware
 3. Captures debug output in headless mode
-4. Saves logs to the `logs/` directory
+4. Saves logs to `tools/logs/`
 
-**NEVER run flexspin manually. ALWAYS use the test script.**
+**NEVER compile manually. ALWAYS use `./run_test.sh` from tools/.**
 
 ---
 
