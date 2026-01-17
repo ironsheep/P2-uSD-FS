@@ -138,8 +138,8 @@ echo -e "${GREEN}=== Compiling $BASENAME.spin2 ===${NC}"
 
 cd "$TEST_DIR"
 
-# Include path points to src/ for the driver
-INCLUDE_PATH="$PROJECT_ROOT/src"
+# Include path points to src/ for the driver (trailing slash required for pnut-ts)
+INCLUDE_PATH="$PROJECT_ROOT/src/"
 COMPILE_CMD="pnut-ts -d -I $INCLUDE_PATH $BASENAME.spin2"
 echo "  Command: $COMPILE_CMD"
 
