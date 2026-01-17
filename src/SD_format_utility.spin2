@@ -361,8 +361,13 @@ PRI writeBackupBoot() : success
     ' Re-create VBR in buffer
     writeVBR()
 
-    ' Write to sector 6 of partition (backup location)
-    success := sd.writeSectorRaw(partitionStart + 6, @buf)
+    ' Write to sector 6 of partition (backup VBR location)
+    if not sd.writeSectorRaw(partitionStart + 6, @buf)
+        return false
+
+    ' Write backup FSInfo to sector 7
+    writeFSInfo()
+    success := sd.writeSectorRaw(partitionStart + 7, @buf)
 
 PRI initFAT(fatStart) : success | sector, i
     ' Clear buffer

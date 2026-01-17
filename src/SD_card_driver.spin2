@@ -22,6 +22,7 @@ CON  '' flags
   F_OPEN    = decod 0
   F_NEWDIR  = decod 1
   F_NEWDATA = decod 2
+  F_MOUNTED = decod 3
 
 VAR
   long  cs, mosi, miso, sck     ' spi pins
@@ -115,6 +116,7 @@ PUB mount(_cs,_mosi,_miso,_sck) : result | reserved                             
     debug("  [mount] SUCCESS")
     if date_stamp == 0
       setdate(2009,01,27,07,00,00)                                              '  set default date of 1/27/2009 07:00 AM
+    flags |= F_MOUNTED
     return true
   else
     debug("  [mount] FAIL: initCard() returned false")
@@ -303,6 +305,7 @@ PUB newDirectory(name_ptr) : result | temp                                      
   n_sec := clus2sec(firstCluster())
   writeSector(n_sec)                                                            '  write new directory sector
   sec_in_buf := n_sec
+  result := true                                                                '  return success
 
 PUB openFile(name_ptr) : result                                                 '' open file name, returns false if not found
   closeFile()
@@ -334,6 +337,7 @@ PUB unmount() : result                                                          
 '' and all data is flushed. Returns true on success.
   closeFile()                                                                   '  close any open file
   result := updateFSInfo()                                                      '  update FSInfo sector with current values
+  flags := flags & !F_MOUNTED                                                   '  clear mounted flag
   debug("  [unmount] Card unmounted cleanly")
 
 PUB sync() : result                                                             '' flush all pending writes without closing file
@@ -453,6 +457,8 @@ PUB moveFile(name_ptr,dest_folder) : result | bookmark, p_temp, temp_sec        
     dir_sec := temp_sec
 
 PUB freeSpace() : result | cluster                                              '' determine the number of free sectors by counting empty clusters in the FAT
+  if not (flags & F_MOUNTED)                                                    '  check if card is mounted
+    return 0                                                                    '   return 0 if not mounted
   n_sec := fat_sec                                                              '  may take a while to complete depending on volume size , does not count empty space in occupied clusters
   repeat sec_per_fat                                                            '  repeat for every sector in the FAT
     readSector(n_sec++)                                                         '   read a FAT sector

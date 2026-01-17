@@ -54,34 +54,40 @@ P2-uSD-FileSystem/
 └── *.md                    # Project documentation
 ```
 
-## ⛔ CRITICAL: NEVER RUN FLEXSPIN DIRECTLY
+## ⛔ CRITICAL: WORKING DIRECTORY AND TEST EXECUTION
 
-**If you find yourself about to run `flexspin` or `pnut-ts`, STOP IMMEDIATELY.**
-
-This project has a test infrastructure that handles compilation and deployment to hardware automatically.
-
-### Running Tests
-
-**Always run from the `tools/` directory:**
+### ALWAYS cd to tools/ FIRST!
 
 ```bash
-cd tools
+cd /Users/stephen/Projects/Projects-ExtGit/IronSheepProductionsLLC/Propeller2/P2-uSD-Study/tools
+```
 
-# Run a regression test
+**Before running ANY test script, verify you are in the `tools/` directory.**
+The run_test.sh script MUST be executed from tools/ - it will fail otherwise.
+
+### Test Commands (from tools/ directory)
+
+```bash
+# Regression tests
 ./run_test.sh ../regression-tests/SD_RT_mount_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_file_ops_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_read_write_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_directory_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_seek_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_format_tests.spin2 -t 120
 
-# Run test card validation (with longer timeout)
+# Test card validation (longer timeout)
 ./run_test.sh ../TestCard/SD_RT_testcard_validation.spin2 -t 120
 ./run_test.sh ../TestCard/SD_Test_Suite.spin2 -t 120
 ```
 
-The script:
+### What run_test.sh does:
 1. Compiles with pnut-ts (includes src/ for driver)
 2. Downloads to P2 hardware
 3. Captures debug output in headless mode
 4. Saves logs to `tools/logs/`
 
-**NEVER compile manually. ALWAYS use `./run_test.sh` from tools/.**
+**NEVER run flexspin or pnut-ts directly. ALWAYS use `./run_test.sh` from tools/.**
 
 ---
 
