@@ -124,7 +124,7 @@ See [OB4269-API-Reference.md](OB4269-API-Reference.md) for complete API document
 
 ### Regression Tests
 
-The `src/` folder contains regression tests for validating driver functionality:
+The `regression-tests/` folder contains tests for validating driver functionality:
 
 - `SD_RT_mount_tests.spin2` - Mount/unmount cycles
 - `SD_RT_file_ops_tests.spin2` - File create/open/close/delete/rename
@@ -143,11 +143,11 @@ For cross-OS compatibility testing, see [TestCard/TEST-CARD-SPECIFICATION.md](Te
 P2-uSD-FileSystem/
 ├── src/                    # Source files
 │   ├── SD_card_driver.spin2    # Main SD card driver
-│   ├── SD_RT_*.spin2           # Regression tests
 │   └── run_now.sh              # Test runner script
+├── regression-tests/       # Regression test suite
+│   └── SD_RT_*.spin2           # Test files
 ├── DOCs/                   # Reference documentation
 ├── TestCard/               # Test card specification
-├── REF/                    # Reference implementations
 └── *.md                    # Project documentation
 ```
 
