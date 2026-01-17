@@ -1,0 +1,2000 @@
+SD Specifications
+Part 1
+Physical Layer
+Simplified Specification
+Version 9.10
+December 1, 2023
+
+Technical Committee
+SD Card Association
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Revision History
+Date
+
+Version
+
+April 3, 2006
+
+1.10
+
+September 25, 2006
+
+2.00
+
+May 18, 2010
+
+3.01
+
+January 22, 2013
+
+4.10
+
+August 10, 2016
+
+5.00
+
+April 10, 2017
+
+6.00
+
+August 29, 2018
+March 25, 2020
+
+6.00
+7.10
+
+September 23, 2020
+
+8.00
+
+August 22, 2022
+
+9.00
+
+December 1, 2023
+
+9.10
+
+Changes compared to previous issue
+
+Physical Layer Simplified Specification Version 1.10 initial release.
+(Supplementary Notes Ver1.00 is applied.)
+Physical Layer Simplified Specification Version 2.00
+(1) High Capacity Memory Card (SDHC)
+Speed Class 2/4/6
+Physical Layer Simplified Specification Version 3.01
+(1) Extended Capacity Memory Card (SDXC)
+(2) Ultra High Speed I (UHS-I)
+(3) Speed Class 10
+(4) UHS Speed Grade 1
+Current Limit
+Physical Layer Simplified Specification Version 4.10
+(1) UHS-II Interface
+(2) UHS Speed Grade 3
+(3) Power Limit
+Function Extension Specification
+Physical Layer Simplified Specification Version 5.00
+Video Speed Class VSC4/6/10/30/60/90
+Physical Layer Simplified Specification Version 6.00
+(1) Discard and FULE to Erase
+(2) Card Ownership Protection (COP) for Card Lock/Unlock
+(3) Application Performance Class for A1/A2
+(4) Cache
+(5) Self-Maintenance
+(6) Command Queuing
+(7) Simplifed Mechanical Drawings
+ Simplifed Bus Timings
+Revised Disclaimers
+Physical Layer Simplified Specification Version 7.10
+(1) SD Express (PCIe/NVMe interface added) Full size
+(2) microSD Express
+(3) SDUC – Ultra Capacity card (2TB-128TB)
+(4) CPRM security optional
+(5) Applied the Physical 7.10-6.00 Supplementary Notes Version
+32.00
+Physical Layer Simplified Specification Version 8.0
+(1) Full Size SD Express cards with following interface support
+added:
+a. PCIe 4.0 single lane
+b. PCIe 4.0 dual lane
+c. PCIe 3.1 dual lane
+Physical Layer Simplified Specification Version 9.0
+(1) Boot Functionalities
+(2) TCG (Trusted Computing Group) security
+(3) RPMB (Replay Protected Memory Block)
+(4) Updated Write Protection function including Write Protect Until
+Power Cycle
+Physical Layer Simplified Specification Version 9.1
+(1) SD Express Speed Class
+
+i
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Release of SD Simplified Specification/Addendum
+The following conditions apply to the release of the SD Simplified Specification/Addendum by the SD
+Card Association. The Simplified Specification/Addendum is a subset of the complete version of SD
+Specification/Addendum that is owned by the SD Card Association.
+
+Conditions for publication
+Publisher:
+SD Card Association
+5000 Executive Parkway, Suite 302,
+San Ramon, CA 94583 USA
+Telephone: +1 (925) 275-6615,
+Fax: +1 (925) 275-6691
+E-mail: help@sdcard.org
+
+Copyright Holders:
+KIOXIA Corporation
+Panasonic Connect Co., Ltd.
+SanDisk LLC
+The SD Card Association
+Notes:
+The copyright of the previous versions (Version 1.00 and 1.01) and all corrections or non-material
+changes thereto are owned by SD Group.
+The copyright of material changes to the previous versions (Version 1.01) are owned by SD Card
+Association.
+
+Disclaimers:
+This Simplified Specification is made available by the SD Card Association (the “SDA”) at
+https://www.sdcard.org/downloads/pls/index.html (the “Site”) and your access to and/or use of this
+Simplified Specification is subject to the SIMPLIFIED SPECIFICATION TERMS AND CONDITIONS (the
+“Terms”)
+that
+are
+displayed
+by
+clicking
+the
+"Download"
+button
+at
+https://www.sdcard.org/downloads/pls/index.html.
+If you are viewing or have accessed this Simplified Specification via any source, medium, or in any other
+way other than directly from the Site pursuant your acceptance of the Terms, then your access to, viewing
+of, and/or use of the Simplified Specification is in violation of the SDA’s and its licensors’ intellectual
+property rights. Accordingly, unless obtained directly from the Site pursuant to the Terms, immediately
+cease and desist all viewing, using, or accessing the Simplified Specification; destroy any copies of the
+Simplified Specification in your possession, custody or control; and, if you desire access to the Simplified
+Specification, proceed to the Site to obtain access and use of the Simplified Specification in an authorized
+manner pursuant to the Terms.
+Distribution of the Simplified Specification, other than through the Site, is a violation of the Terms and the
+intellectual property rights of the SDA and its licensors. The only rights granted in the Simplified
+Specification are those expressly granted in the Terms. All rights not expressly granted pursuant to your
+acceptance of the Terms are reserved to the SDA and its licensors. Notice is also hereby provided that
+notwithstanding any rights granted by the Terms, any implementation of the Simplified Specifications or
+any portions thereof may require a separate license from the SDA, SD Group, SD-3C, LLC or other third
+parties.
+
+ii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Conventions Used in This Document
+Naming Conventions
+
+ Some terms are capitalized to distinguish their definition from their common English meaning.
+Words not capitalized have their common English meaning.
+
+Numbers and Number Bases
+
+ Hexadecimal numbers are written with a lower case "h" suffix, e.g., FFFFh and 80h.
+ Binary numbers are written with a lower case "b" suffix (e.g., 10b).
+ Binary numbers larger than four digits are written with a space dividing each group of four digits,
+as in 1000 0101 0010b.
+ All other numbers are decimal.
+
+Key Words
+ May:
+ Shall:
+
+Indicates flexibility of choice with no implied recommendation or requirement.
+Indicates a mandatory requirement. Designers shall implement such mandatory
+requirements to ensure interchangeability and to claim conformance with the specification.
+ Should: Indicates a strong recommendation but not a mandatory requirement. Designers should
+give strong consideration to such recommendations, but there is still a choice in
+implementation.
+ Reserved: Indicates a bit, byte, field, and value that are set aside for future standardization or
+other usage. A reserved bit, byte, or field shall be set to zero unless specified differently
+in this specification, or in accordance with a future extension to this or other standards.
+Hosts and Cards are not required to check reserved bits, bytes, or fields for zero values.
+Values that are reserved for future standardization shall not be specified by hosts and
+cards.
+
+Application Notes
+Some sections of this document provide guidance to the host implementers as follows:
+Application Note:
+This is an example of an application note.
+
+iii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Table of Contents
+1. General Description ....................................................................................................... 1
+2. System Features ............................................................................................................ 3
+3. SD Memory Card System Concept ............................................................................... 6
+3.1 Read-Write Property .............................................................................................................. 6
+3.2 Supply Voltage....................................................................................................................... 6
+3.3 Card Capacity ........................................................................................................................ 6
+3.3.1 User Area, Protected Area and Boot Partitions ................................................................ 6
+3.3.2 Card Capacity Classification ............................................................................................ 6
+3.4 Speed Class .......................................................................................................................... 7
+3.5 Bus Topology ......................................................................................................................... 7
+3.5.1 SD Bus (Removed in the Simplified Specification)........................................................... 7
+3.5.2 SPI Bus (Removed in the Simplified Specification) .......................................................... 7
+3.5.3 UHS-II Bus (Removed in the Simplified Specification) ..................................................... 7
+3.5.4 PCIe Bus (Removed in the Simplified Specification) ........................................................ 7
+3.6 Bus Protocol .......................................................................................................................... 8
+3.6.1 SD Bus Protocol .............................................................................................................. 8
+3.6.2 SPI Bus Protocol ........................................................................................................... 11
+3.6.3 UHS-II Bus Protocol ...................................................................................................... 11
+3.6.4 PCIe/NVMe Bus Protocol .............................................................................................. 11
+3.7 SD Memory Card–Pins and Registers ................................................................................. 12
+3.7.1 SD Bus Pin Assignment................................................................................................. 12
+3.7.2 UHS-II Pin Assignment .................................................................................................. 14
+3.7.3 1-Lane SD Express Pin Assignment .............................................................................. 15
+3.7.4 2-Lane SD Express Pin Assignment .............................................................................. 17
+3.8 ROM Card ........................................................................................................................... 19
+3.8.1 Register Setting Requirements ...................................................................................... 19
+3.8.2 Unsupported Commands............................................................................................... 19
+3.8.3 Optional Commands ...................................................................................................... 19
+3.8.4 WP Switch ..................................................................................................................... 19
+3.9 Ultra High Speed Phase I (UHS-I) Card ............................................................................... 20
+3.9.1 UHS-I Card Operation Modes........................................................................................ 20
+3.9.2 UHS-I Card Types ......................................................................................................... 20
+3.9.3 UHS-I Host and Card Combination ................................................................................ 21
+3.9.4 UHS-I Bus Speed Modes Selection Sequence .............................................................. 22
+3.9.5 UHS-I System Block Diagram........................................................................................ 23
+3.9.5.1 Variable Sampling Host ..................................................................................................... 23
+3.9.5.2 Fixed Sampling Host ......................................................................................................... 23
+3.9.6 Summary of Bus Speed Mode for UHS-I Card .............................................................. 24
+3.10 Ultra High Speed Phase II (UHS-II) Card ........................................................................... 25
+3.10.1 UHS-II Card Operation Modes ..................................................................................... 25
+3.10.2 UHS-II Card Type ........................................................................................................ 25
+3.10.3 UHS-II Host and Card Combination ............................................................................. 26
+3.10.4 UHS-II Interface Selection Sequence .......................................................................... 26
+3.10.5 Summary of Bus Speed Mode for UHS-II Card............................................................ 28
+3.11 Application Performance Class .......................................................................................... 29
+3.12 Cache ................................................................................................................................ 30
+3.13 Self Maintenance ............................................................................................................... 30
+3.14 Command Queue .............................................................................................................. 30
+3.15 LV Interface ....................................................................................................................... 31
+3.16 Higher Bus Speed of UHS-II (UHS-III) ............................................................................... 31
+3.17 SD Express Card Type ...................................................................................................... 31
+iv
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.17.1 SD Express Host and Card Combination ..................................................................... 33
+3.17.2 SD Express Interface Selection and Initialization Sequence ........................................ 33
+3.17.3 Summary of Bus Speed Mode for SD Express Card.................................................... 38
+3.18 Features of Non CPRM Card ............................................................................................. 38
+3.19 Boot Functionalities ........................................................................................................... 38
+3.20 TCG Security ..................................................................................................................... 39
+3.21 RPMB ................................................................................................................................ 39
+
+4. SD Memory Card Functional Description .................................................................. 40
+4.1 General................................................................................................................................ 40
+4.2 Card Identification Mode ...................................................................................................... 41
+4.2.1 Card Reset .................................................................................................................... 41
+4.2.2 Operating Condition Validation ...................................................................................... 41
+4.2.3 Card Initialization and Identification Process ................................................................. 43
+4.2.3.1 Initialization Command (ACMD41).................................................................................... 45
+4.2.4 Bus Signal Voltage Switch Sequence ............................................................................ 47
+4.2.4.1 Initialization Sequence for UHS-I ...................................................................................... 47
+4.2.4.2 Timing to Switch Signal Voltage ........................................................................................ 48
+4.2.4.3 Timing of Voltage Switch Error Detection ......................................................................... 48
+4.2.4.4 Voltage Switch Command ................................................................................................. 48
+4.2.4.5 Tuning Command .............................................................................................................. 48
+4.2.4.6 An Example of UHS-I System Block Diagram .................................................................. 49
+4.3 Data Transfer Mode ............................................................................................................. 50
+4.3.1 Wide Bus Selection/Deselection .................................................................................... 52
+4.3.2 2 GByte Card ................................................................................................................ 52
+4.3.3 Data Read ..................................................................................................................... 52
+4.3.4 Data Write ..................................................................................................................... 53
+4.3.5 Erase/Discard/FULE ...................................................................................................... 55
+4.3.5.1 Erase ................................................................................................................................. 55
+4.3.5.2 Discard .............................................................................................................................. 55
+4.3.5.3 Full User Area Logical Erase (FULE) ................................................................................ 56
+4.3.6 Write Protect Management ............................................................................................ 57
+4.3.7 Card Lock/Unlock Operation.......................................................................................... 58
+4.3.7.1 General .............................................................................................................................. 58
+4.3.7.2 Parameter and the Result of CMD42 ................................................................................ 67
+4.3.7.3 Forcing Erase .................................................................................................................... 71
+4.3.7.4 Relation Between ACMD6 and Lock/Unlock State ........................................................... 72
+4.3.7.5 Commands Accepted for Locked Card ............................................................................. 73
+4.3.7.6 Three Types of Lock/Unlock Card ..................................................................................... 76
+4.3.8 Content Protection......................................................................................................... 77
+4.3.9 Application-Specific Commands .................................................................................... 77
+4.3.9.1 Application-Specific Command – APP_CMD (CMD55) .................................................... 77
+4.3.9.2 General Command - GEN_CMD (CMD56)....................................................................... 77
+4.3.10 Switch Function Command .......................................................................................... 78
+4.3.10.1 General ............................................................................................................................ 78
+4.3.10.2 Mode 0 Operation - Check Function ............................................................................... 80
+4.3.10.3 Mode 1 Operation - Set Function .................................................................................... 80
+4.3.10.4 Switch Function Status.................................................................................................... 84
+4.3.10.5 Relationship between CMD6 Data and Other Commands ............................................. 88
+4.3.10.6 Switch Function Flow Example ....................................................................................... 88
+4.3.10.7 Example of Checking ...................................................................................................... 88
+4.3.10.8 Example of Switching ...................................................................................................... 88
+4.3.11 High-Speed Mode (25 MB/sec interface speed) ........................................................... 89
+4.3.12 Command System ....................................................................................................... 89
+4.3.13 Send Interface Condition Command (CMD8) .............................................................. 90
+4.3.14 Command Functional Difference in Card Capacity Types ............................................ 91
+v
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.4 Clock Control ....................................................................................................................... 92
+4.5 Cyclic Redundancy Code (CRC).......................................................................................... 93
+4.6 Error Conditions................................................................................................................... 95
+4.6.1 CRC and Illegal Command ............................................................................................ 95
+4.6.2 Read, Write and Erase Timeout Conditions ................................................................... 95
+4.6.2.1 Read .................................................................................................................................. 95
+4.6.2.2 Write .................................................................................................................................. 95
+4.6.2.3 Erase ................................................................................................................................. 96
+4.7 Commands .......................................................................................................................... 97
+4.7.1 Command Types ........................................................................................................... 97
+4.7.2 Command Format ......................................................................................................... 97
+4.7.3 Command Classes ........................................................................................................ 97
+4.7.4 Detailed Command Description ................................................................................... 102
+4.7.5 Difference of SD Commands Definition in UHS-II ........................................................ 113
+4.8 Card State Transition Table................................................................................................ 114
+4.9 Responses ........................................................................................................................ 117
+4.9.1 R1 (normal response command): ................................................................................ 117
+4.9.2 R1b ............................................................................................................................. 117
+4.9.3 R2 (CID, CSD register) ................................................................................................ 117
+4.9.4 R3 (OCR register) ....................................................................................................... 118
+4.9.5 R6 (Published RCA response) ..................................................................................... 118
+4.9.6 R7 (Card interface condition) ....................................................................................... 119
+4.10 Three Status Information of SD Memory Card ................................................................. 120
+4.10.1 Card Status ............................................................................................................... 120
+4.10.2 SD Status .................................................................................................................. 125
+4.10.2.1 SIZE_OF_PROTECTED_AREA ................................................................................... 126
+4.10.2.2 SPEED_CLASS ............................................................................................................ 127
+4.10.2.3 PERFORMANCE_MOVE.............................................................................................. 127
+4.10.2.4 AU_SIZE ........................................................................................................................ 127
+4.10.2.5 ERASE_SIZE ................................................................................................................ 128
+4.10.2.6 ERASE_TIMEOUT ........................................................................................................ 128
+4.10.2.7 ERASE_OFFSET .......................................................................................................... 129
+4.10.2.8 UHS_SPEED_GRADE .................................................................................................. 129
+4.10.2.9 UHS_AU_SIZE .............................................................................................................. 129
+4.10.2.10 VIDEO_SPEED_CLASS ............................................................................................. 130
+4.10.2.11 VSC_AU_SIZE ............................................................................................................ 131
+4.10.2.12 SUS_ADDR ................................................................................................................. 132
+4.10.2.13 APP_PERF_CLASS .................................................................................................... 133
+4.10.2.14 PERFORMANCE_ENHANCE .................................................................................... 133
+4.10.2.15 Notes for SD Status .................................................................................................... 134
+4.10.3 Task Status ................................................................................................................ 134
+4.11 Memory Array Partitioning ................................................................................................ 136
+4.12 Timings ............................................................................................................................ 136
+4.12.1 Command and Response (Removed in the Simplified Specification) ......................... 136
+4.12.2 Data Read (Removed in the Simplified Specification) ................................................ 136
+4.12.3 Data Write (Removed in the Simplified Specification) ................................................ 136
+4.12.4 Timing Values (Removed in the Simplified Specification) ........................................... 136
+4.12.5 Timing Changes in SDR50, DDR50 and SDR104 Modes (Removed in the Simplified
+Specification) ....................................................................................................................... 136
+4.12.5.1 CRC Status Start Timing (Removed in the Simplified Specification) ........................... 136
+4.12.5.2 Read Block Gap (Removed in the Simplified Specification) ......................................... 136
+4.12.5.3 CMD12 Timing Modification in Write Operation (Removed in the Simplified Specification)
+..................................................................................................................................................... 137
+4.12.5.4 CMD12 Timing Modification in Read Operation (Removed in the Simplified Specification)
+..................................................................................................................................................... 137
+
+vi
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.12.5.5 Timing Values (Removed in the Simplified Specification)............................................. 137
+4.12.6 Detailed Specifications for DDR50 Mode (Removed in the Simplified Specification) . 137
+4.12.6.1 Definition of Odd / Even (Removed in the Simplified Specification) ............................. 137
+4.12.6.2 Protocol Principles (Removed in the Simplified Specification) ..................................... 137
+4.12.6.3 CRC Status Token and Busy Timing of DDR50 (Removed in the Simplified Specification)
+..................................................................................................................................................... 137
+4.12.6.4 CRC16 of DDR50 (Removed in the Simplified Specification) ...................................... 137
+4.12.6.5 Data Access Timing example in DDR50 (Removed in the Simplified Specification).... 137
+4.12.6.6 Clock Control (Removed in the Simplified Specification) ............................................. 137
+4.12.6.7 Reset Command (Removed in the Simplified Specification) ........................................ 137
+4.12.6.8 CMD12 Timing (Removed in the Simplified Specification) ........................................... 137
+4.13 Speed Class Specification ............................................................................................... 138
+4.13.1 Speed Class Specification for SDSC and SDHC ....................................................... 139
+4.13.1.1 Allocation Unit (AU) ....................................................................................................... 139
+4.13.1.2 Recording Unit (RU) ...................................................................................................... 139
+4.13.1.3 Write Performance ........................................................................................................ 139
+4.13.1.4 Read Performance ........................................................................................................ 140
+4.13.1.5 Performance Curve Definition ....................................................................................... 141
+4.13.1.6 Speed Class Definition .................................................................................................. 141
+4.13.1.7 Consideration for Inserting FAT Update during Recording ........................................... 142
+4.13.1.8 Measurement Conditions and Requirements of the Speed Class................................ 143
+4.13.1.9 CMD20 Support............................................................................................................. 144
+4.13.2 Speed Class Specification for SDXC/SDUC .............................................................. 145
+4.13.2.1 Speed Class Parameters .............................................................................................. 145
+4.13.2.2 Write Performance ........................................................................................................ 145
+4.13.2.3 Read Performance ........................................................................................................ 146
+4.13.2.4 FAT Update.................................................................................................................... 146
+4.13.2.5 CI (Continuous Information) Update ............................................................................. 146
+4.13.2.6 Distinction of Data Type ................................................................................................ 147
+4.13.2.7 Measurement Conditions and Requirements of the Speed Class for SDXC/SDUC .... 147
+4.13.2.8 Speed Class Control Command (CMD20).................................................................... 148
+4.13.2.9 Example of Speed Class Recording Sequence ............................................................ 149
+4.13.3 Speed Grade Specification for UHS-I and UHS-II ...................................................... 151
+4.13.3.1 Speed Grade Parameters ............................................................................................. 151
+4.13.3.2 Support of Speed Class Control Command (CMD20) .................................................. 151
+4.13.3.3 Speed Grade Measurement Conditions ....................................................................... 152
+4.13.3.4 Notes for Preparation Time of UHS-I and UHS-II Card ................................................ 152
+4.13.3.5 Host Operating Frequency ............................................................................................ 152
+4.13.4 Video Speed Class Specification ............................................................................... 153
+4.13.4.1 AU Use in Video Speed Class....................................................................................... 153
+4.13.4.2 Video Speed Class Parameters .................................................................................... 157
+4.13.4.3 Video Speed Class Timing ............................................................................................ 158
+4.13.4.4 SD Interface Mode Requirements for Video Speed Classes........................................ 160
+4.13.4.5 Requirements of SD File System for Video Speed Class ............................................. 161
+4.13.4.6 FAT Updates in Video Speed Class .............................................................................. 161
+4.13.4.7 CMD20 in Video Speed Class....................................................................................... 163
+4.13.4.8 Video Speed Class Measurement Conditions .............................................................. 169
+4.13.4.9 Host Operating Frequency ............................................................................................ 170
+4.13.5 SD Express Speed Class Specification ..................................................................... 170
+4.14 Erase Timeout Calculation ............................................................................................... 171
+4.14.1 Erase Unit ................................................................................................................. 171
+4.14.2 Case Analysis of Erase Time Characteristics ............................................................. 171
+4.14.3 Method for Erase Large Areas ................................................................................... 172
+4.14.4 Calculation of Erase Timeout Value Using the Parameter Registers .......................... 172
+4.15 Set Block Count Command.............................................................................................. 173
+4.16 Application Performance Specification ............................................................................. 175
+
+vii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.16.1 Application Performance Classes .............................................................................. 175
+4.16.1.1 Application Performance Class 1 .................................................................................. 175
+4.16.1.2 Application Performance Class 2 .................................................................................. 175
+4.16.2 Application Performance Class Measurement Conditions .......................................... 176
+4.16.2.1 Clock Condition ............................................................................................................. 176
+4.16.2.2 Power Limit .................................................................................................................... 176
+4.16.2.3 Host Operating Frequency ............................................................................................ 176
+4.16.2.4 Application Performance Measurement Conditions Overview ..................................... 176
+4.16.2.5 Sustained Sequential Write Performance Measurement Conditions Overview ........... 177
+4.16.3 Application Performance Class Parameters ............................................................... 178
+4.16.3.1 Performance of Random Write, (PRw) ......................................................................... 178
+4.16.3.2 Performance of Random Read, (PRr)........................................................................... 178
+4.16.3.3 Performance of Sustained Sequential Write, (PSSw) .................................................. 178
+4.17 Cache .............................................................................................................................. 179
+4.18 Self Maintenance ............................................................................................................. 180
+4.18.1 Card Initiated Maintenance ........................................................................................ 180
+4.18.2 Host Initiated Maintenance ........................................................................................ 180
+4.19 Command Queue ............................................................................................................ 182
+4.19.1 Command Queue Mode ............................................................................................ 182
+4.19.1.1 Voluntary CQ Mode ....................................................................................................... 182
+4.19.1.2 Sequential CQ Mode ..................................................................................................... 182
+4.19.2 Command Support in CQ Mode ................................................................................ 183
+4.19.3 CURRENT_STATE for CQ mode ............................................................................... 183
+4.19.4 Card State Machine in CQ Mode ............................................................................... 183
+4.19.5 Task Submission ....................................................................................................... 185
+4.19.6 Queued Task Status Check ....................................................................................... 185
+4.19.7 Execution of Task ...................................................................................................... 186
+4.19.8 Task Management ..................................................................................................... 187
+4.19.9 CQ Commands Error Responses .............................................................................. 187
+4.20 Over 2TB Extension......................................................................................................... 188
+4.20.1 Overview ................................................................................................................... 188
+4.20.2 Over 2TB Support Recognition .................................................................................. 189
+4.20.3 Extension of Memory Addressing .............................................................................. 190
+4.20.4 Extension/Modification for Subsidiary Commands ..................................................... 191
+4.20.4.1 Number of Written Block Command (ACMD22) ........................................................... 191
+4.20.4.2 ACMD23 Number of Write Blocks Pre-erased .............................................................. 191
+4.20.5 Extension for Video Speed Class .............................................................................. 192
+4.20.5.1 CMD20 "Start Recording" Command Sequence .......................................................... 192
+4.20.5.2 FAT Update Command Sequence ................................................................................ 192
+4.20.5.3 CMD20 "DIR Update" Command Sequence ................................................................ 192
+4.20.5.4 CMD20 "Set Free AU" Command Sequence ................................................................ 192
+4.20.5.5 Suspend Address Extension ......................................................................................... 193
+4.20.6 Command Sequence Reset for Error Recovery ......................................................... 193
+4.21 Boot Functionalities ......................................................................................................... 193
+4.21.1 Boot Partition and Partition Selection ........................................................................ 193
+4.21.2 Basic Access to Boot Partitions ................................................................................. 194
+4.21.2.1 Access to Boot Partitions by SD Interface .................................................................... 194
+4.21.2.2 Access to Boot Partitions by PCIe Interface ................................................................. 195
+4.21.3 Fast Boot ................................................................................................................... 195
+4.21.3.1 Overview of Fast Boot ................................................................................................... 195
+4.21.3.2 CV-mode Fast Boot ....................................................................................................... 196
+4.21.3.3 CA-mode Fast Boot ....................................................................................................... 196
+4.21.3.4 Modification of Tuning Blocks Transmission during Fast Boot ..................................... 197
+4.21.4 Boot Partition Protection Using RPMB ....................................................................... 198
+4.21.5 Pre-init mode ............................................................................................................. 198
+
+viii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.22 TCG Security ................................................................................................................... 200
+4.22.1 Protocols over SD interface for TCG Security ............................................................ 200
+4.22.2 MBR Shadowing for SD Card .................................................................................... 200
+4.22.2.1 TCG MBR Table ............................................................................................................ 200
+4.22.2.2 MBRControl Table ......................................................................................................... 201
+4.22.2.3 Pre-boot Authentication Sequence over SD Interface .................................................. 201
+4.23 Replay Protected Memory Block ...................................................................................... 203
+4.23.1 Introduction ............................................................................................................... 203
+4.23.1.1 RPMB Device Configuration Block ............................................................................... 204
+4.23.1.2 RPMB Contents............................................................................................................. 205
+4.23.1.3 RPMB Data Frame ........................................................................................................ 206
+4.23.1.4 RPMB Request and Response Message Types........................................................... 207
+4.23.1.5 RPMB Operation Result ................................................................................................ 208
+4.23.2 Authentication Method ............................................................................................... 209
+4.23.3 RPMB Operations ..................................................................................................... 209
+4.23.3.1 Authentication Key Programming.................................................................................. 210
+4.23.3.2 Read Write Counter Value .............................................................................................211
+4.23.3.3 Authenticated Data Write .............................................................................................. 212
+4.23.3.4 Authenticated Data Read .............................................................................................. 214
+4.23.3.5 Authenticated Device Configuration Block Write .......................................................... 215
+4.23.3.6 Authenticated Device Configuration Block Read .......................................................... 217
+4.23.4 Security Protocol Type and Security Protocol Specific ............................................... 218
+4.23.4.1 Security Protocol 00h .................................................................................................... 218
+4.23.4.2 Security Protocol EAh ................................................................................................... 218
+4.23.4.3 Security Protocol E7h.................................................................................................... 219
+4.23.5 User Area Write Protection States and Authentication Control by RPMB ................... 219
+4.23.5.1 User Area Write Protection States ................................................................................ 219
+4.23.5.2 User Area Write Protection Configuration ..................................................................... 220
+
+5. Card Registers ........................................................................................................... 222
+5.1 OCR register...................................................................................................................... 222
+5.2 CID register ....................................................................................................................... 224
+5.3 CSD Register..................................................................................................................... 225
+5.3.1 CSD_STRUCTURE ..................................................................................................... 225
+5.3.2 CSD Register (CSD Version 1.0) ................................................................................. 226
+5.3.3 CSD Register (CSD Version 2.0) ................................................................................. 233
+5.3.4 CSD Register (CSD Version 3.0) ................................................................................. 237
+5.4 RCA register ...................................................................................................................... 240
+5.5 DSR register (Optional) ..................................................................................................... 240
+5.6 SCR register ...................................................................................................................... 240
+5.7 Function Extension Specification ....................................................................................... 246
+5.7.1 Extension Register Space ........................................................................................... 246
+5.7.2 Extension Register Commands ................................................................................... 247
+5.7.2.1 Extension Register Read Command (Single Block) ....................................................... 247
+5.7.2.2 Extension Register Write Command (Single Block) ....................................................... 249
+5.7.2.3 Multiple Block Data Transfer ........................................................................................... 251
+5.7.2.4 Extension Register Read Command (Multi-Block) ......................................................... 252
+5.7.2.5 Extension Register Write Command (Multi-Block).......................................................... 253
+5.7.2.6 Error Status Indication..................................................................................................... 254
+5.7.3 General Information ..................................................................................................... 256
+5.7.3.1 Common Header Fields .................................................................................................. 257
+5.7.3.2 Function Fields per Function ........................................................................................... 257
+5.7.4 Revision Management ................................................................................................. 259
+5.7.5 Event Indication Method .............................................................................................. 259
+5.7.5.1 FX_EVENT (Bit06 of Card Status) .................................................................................. 259
+5.7.5.2 Function Extension Event (FXE) Register Set ................................................................ 259
+ix
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+5.7.5.3 Event Status Register ..................................................................................................... 260
+5.7.5.4 FX_EVENT Enable.......................................................................................................... 260
+5.8 Application Specification on Function Extension ................................................................ 261
+5.8.1 Power Management Function ...................................................................................... 261
+5.8.1.1 Abstract of Power Management Function ....................................................................... 261
+5.8.1.2 Extension Register Set for Power Management ............................................................. 261
+5.8.1.3 Power Off Notification...................................................................................................... 263
+5.8.1.4 Power Sustenance .......................................................................................................... 264
+5.8.1.5 Power Down Mode .......................................................................................................... 265
+5.8.1.6 General Information of Power Management Function .................................................... 267
+5.8.2 Performance Enhancement Function .......................................................................... 268
+5.8.2.1 Abstract of Performance Enhancement Function ........................................................... 268
+5.8.2.2 Extension Register Set for Performance Enhancement Function .................................. 268
+5.8.2.3 General Information of Performance Enhancement Function ........................................ 269
+5.8.3 Security and Boot Function ......................................................................................... 270
+5.8.3.1 Abstract of Security and Boot Function ........................................................................... 270
+5.8.3.2 Extension Register Set for Security and Boot Function.................................................. 270
+5.8.3.3 General Information of Security and Boot Function ........................................................ 272
+
+6. SD Memory Card Hardware Interface ....................................................................... 273
+6.1 Hot Insertion and Removal ................................................................................................ 273
+6.2 Card Detection (Insertion/Removal) ................................................................................... 273
+6.3 Power Protection (Insertion/Removal)................................................................................ 273
+6.4 Power Scheme .................................................................................................................. 274
+6.4.1 Power Up Sequence for SD Bus Interface ................................................................... 274
+6.4.1.1 Power Up Time of Card ................................................................................................... 274
+6.4.1.2 Power Up Time of Host ................................................................................................... 275
+6.4.1.3 Power On or Power Cycle ............................................................................................... 275
+6.4.1.4 Power Supply Ramp Up .................................................................................................. 275
+6.4.1.5 Power Down and Power Cycle ....................................................................................... 275
+6.4.2 Power Up Sequence for UHS-II Interface .................................................................... 276
+6.4.2.1 Power Up Sequence of UHS-II Card .............................................................................. 276
+6.4.2.2 Power Up Sequence of UHS-II Host ............................................................................... 276
+6.4.3 Power Up Sequence for PCIe Interface ....................................................................... 277
+6.4.3.1 Power Up Sequence of SD Express Card ...................................................................... 277
+6.4.3.2 Power Up Sequence of SD Express Host ...................................................................... 278
+6.5 Programmable Card Output Driver (3.3V Single End) (Optional) ....................................... 279
+6.6 Bus Operating Conditions for 3.3V Signaling ..................................................................... 280
+6.6.1 Threshold Level for High Voltage Range ..................................................................... 280
+6.6.2 Peak Voltage and Leakage Current ............................................................................. 280
+6.6.3 Power Consumption .................................................................................................... 280
+6.6.4 Bus signal line load ..................................................................................................... 280
+6.6.5 Bus Signal Levels ........................................................................................................ 280
+6.6.6 Bus Timing (Default) .................................................................................................... 281
+6.6.7 Bus Timing (High-Speed Mode) ................................................................................... 282
+6.7 Driver Strength and Bus Timing for 1.8V Signaling ............................................................ 283
+6.7.1 Output Driver Strength (Removed in the Simplified Specification) ............................... 283
+6.7.1.1 4-Level Driver Strength (Removed in the Simplified Specification) ................................ 283
+6.7.1.2 I/O Drive Strength Types (Removed in the Simplified Specification) ............................. 283
+6.7.1.3 I/O Driver Target AC Characteristics (Removed in the Simplified Specification)............ 283
+6.7.1.4 Driver Strength Selection (Removed in the Simplified Specification) ............................. 283
+6.7.1.5 How to Select Optimal Drive Strength (Removed in the Simplified Specification) ......... 283
+6.7.2 Bus Operating Conditions for 1.8V Signaling (Removed in the Simplified Specification)
+............................................................................................................................................. 283
+6.7.2.1 Threshold Level for 1.8V Signaling (Removed in the Simplified Specification).............. 283
+6.7.2.2 Leakage Current (Removed in the Simplified Specification) .......................................... 283
+x
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.7.3 Bus Timing Specification in SDR12, SDR25, SDR50 and SDR104 Modes (Removed in the
+Simplified Specification) ....................................................................................................... 283
+6.7.3.1 Clock Timing (Removed in the Simplified Specification) ................................................ 283
+6.7.3.2 Card Input Timing (Removed in the Simplified Specification) ........................................ 283
+6.7.3.3 Card Output Timing (Removed in the Simplified Specification) ...................................... 283
+6.7.4 Bus Timing Specification in DDR50 Mode (Removed in the Simplified Specification) .. 284
+6.7.4.1 Clock Timing (Removed in the Simplified Specification) ................................................ 284
+6.7.4.2 Bus Timing for DDR50 (Removed in the Simplified Specification) ................................. 284
+6.7.5 Bus Operating Conditions for UHS-II (Removed in the Simplified Specification) .......... 284
+6.7.5.1 Conditions of VDD2 (Removed in the Simplified Specification) ..................................... 284
+6.7.6 Bus Operating Conditions for PCIe (Removed in the Simplified Specification) ............ 284
+6.7.6.1 Conditions of VDD2 (Removed in the Simplified Specification) ..................................... 284
+6.7.6.2 Conditions of VDD3 (Removed in the Simplified Specification) ..................................... 284
+6.7.6.3 Interface pins characteristics in PCIe mode (Removed in the Simplified Specification) 284
+6.8 Electrical Static Discharge (ESD) Requirement ................................................................. 285
+6.8.1 Discharge Models: (Removed in the Simplified Specification) ..................................... 285
+6.8.2 Test Items (Removed in the Simplified Specification)................................................... 285
+6.8.3 Test Result Requirements: (Removed in the Simplified Specification) ......................... 285
+
+7. SPI Mode..................................................................................................................... 286
+7.1 Introduction ........................................................................................................................ 286
+7.2 SPI Bus Protocol ............................................................................................................... 286
+7.2.1 Mode Selection and Initialization ................................................................................. 287
+7.2.2 Bus Transfer Protection ............................................................................................... 289
+7.2.3 Data Read ................................................................................................................... 289
+7.2.4 Data Write ................................................................................................................... 290
+7.2.5 Erase & Write Protect Management ............................................................................ 291
+7.2.6 Read CID/CSD Registers ............................................................................................ 292
+7.2.7 Reset Sequence .......................................................................................................... 292
+7.2.8 Error Conditions .......................................................................................................... 292
+7.2.9 Memory Array Partitioning ........................................................................................... 292
+7.2.10 Card Lock/Unlock ...................................................................................................... 292
+7.2.11 Application Specific Commands ................................................................................. 292
+7.2.12 Content Protection Command ................................................................................... 293
+7.2.13 Switch Function Command ........................................................................................ 293
+7.2.14 High Speed Mode ...................................................................................................... 293
+7.2.15 Speed Class Specification ......................................................................................... 293
+7.2.16 Boot Functionalities ................................................................................................... 293
+7.2.17 TCG Security ............................................................................................................. 293
+7.2.18 RPMB ........................................................................................................................ 293
+7.3 SPI Mode Transaction Packets .......................................................................................... 294
+7.3.1 Command Tokens ....................................................................................................... 294
+7.3.1.1 Command Format ........................................................................................................... 294
+7.3.1.2 Command Classes .......................................................................................................... 294
+7.3.1.3 Detailed Command Description ...................................................................................... 296
+7.3.1.4 Card Operation for CMD8 in SPI mode .......................................................................... 301
+7.3.2 Responses .................................................................................................................. 302
+7.3.2.1 Format R1........................................................................................................................ 302
+7.3.2.2 Format R1b ..................................................................................................................... 302
+7.3.2.3 Format R2........................................................................................................................ 303
+7.3.2.4 Format R3........................................................................................................................ 303
+7.3.2.5 Formats R4 & R5............................................................................................................. 304
+7.3.2.6 Format R7........................................................................................................................ 304
+7.3.3 Control Tokens ............................................................................................................ 305
+7.3.3.1 Data Response Token ..................................................................................................... 305
+7.3.3.2 Start Block Tokens and Stop Tran Token ........................................................................ 305
+xi
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+7.3.3.3 Data Error Token ............................................................................................................. 306
+7.3.4 Clearing Status Bits ..................................................................................................... 306
+7.4 Card Registers................................................................................................................... 307
+7.5 SPI Bus Timing Diagrams .................................................................................................. 308
+7.5.1 Command/Response (Removed in the Simplified Specification) ................................. 308
+7.5.1.1 Host Command to Card Response - Card is Ready (Removed in the Simplified
+Specification) ............................................................................................................................... 308
+7.5.1.2 Host Command to Card Response - Card is Busy (Removed in the Simplified Specification)
+..................................................................................................................................................... 308
+7.5.1.3 Card Response to Host Command (Removed in the Simplified Specification).............. 308
+7.5.2 Data Read (Removed in the Simplified Specification) .................................................. 308
+7.5.2.1 Timing of Single Block Read Operation (Removed in the Simplified Specification) ....... 308
+7.5.2.2 Stop Transmission Timing of Multiple Block Read Operation (Removed in the Simplified
+Specification) ............................................................................................................................... 308
+7.5.2.3 Reading the CSD or CID Register (Removed in the Simplified Specification) ............... 308
+7.5.3 Data Write (Removed in the Simplified Specification) .................................................. 308
+7.5.3.1 Timing of Multiple Block Write Operation (Removed in the Simplified Specification) .... 308
+7.5.3.2 Stop Transmission Timing of Multiple Block Write Operation (Removed in the Simplified
+Specification) ............................................................................................................................... 309
+7.5.4 Timing Values (Removed in the Simplified Specification) ............................................. 309
+7.6 SPI Electrical Interface ...................................................................................................... 309
+7.7 SPI Bus Operating Conditions ........................................................................................... 309
+7.8 Bus Timing ......................................................................................................................... 309
+
+8. PCIe/NVMe Mode in SD Express card ...................................................................... 310
+8.1 Functional Description ....................................................................................................... 310
+8.1.1 PCIe Interface Identification Class ............................................................................... 310
+8.1.2 Hot Plug-In and Hot Removal ...................................................................................... 310
+8.1.3 SD Bus Speed Modes Supported by SD Express card ................................................ 310
+8.1.4 SD Optional functions for the SD interface in SD Express card ................................... 310
+8.1.5 SD Features NOT supported by SD interface in SD Express card ............................... 310
+8.1.6 SD Features Supported by SD interface in SD Express card but not supported or partially
+supported through the PCIe interface ................................................................................... 310
+8.1.7 Register Mapping of Selected SD Registers into PCIe/NVMe Registers ...................... 311
+8.1.8 Power Limit control of SD Express card ...................................................................... 312
+8.1.9 NVMe Namespace for SD Express Card ..................................................................... 313
+8.1.10 Notes for SD Express Card Access ........................................................................... 313
+8.2 The PCIe Electrical Interface ............................................................................................. 314
+8.2.1 SD Express Interface Signals ...................................................................................... 314
+8.2.2 Differential Voltage Swing ............................................................................................ 315
+8.2.3 REFCLK Specification ................................................................................................. 315
+8.2.4 CLKREQ# and PERST# Electrical Definition ............................................................... 315
+8.2.5 AC Coupling Capacitors – Placement .......................................................................... 316
+8.2.6 PCIe TX/RX Phy protection in Standard Size SD card................................................. 316
+8.2.7 PCIe Power Rating of SD Express card ...................................................................... 316
+8.3 Initialization Process of SD Express Card .......................................................................... 317
+8.3.1 Overview ..................................................................................................................... 317
+8.3.2 SD Express Initialization Starting with Issuing SD Commands .................................... 317
+8.3.3 SD Express Initialization without Issuing SD Commands............................................. 317
+8.3.4 SD Express Initialization without Issuing SD Commands But Unsuccessful ................ 318
+8.3.5 SD Express Initialization with Fast Boot ...................................................................... 318
+8.4 Detailed Specifications of SD Express Speed Class .......................................................... 319
+8.4.1 Introduction ................................................................................................................. 319
+8.4.1.1 Overview.......................................................................................................................... 319
+8.4.1.2 Area Assignment ............................................................................................................. 319
+
+xii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.1.3 Supporting Multiple Streams Access .............................................................................. 321
+8.4.1.4 Basic Sequence of SD Express Speed Class ................................................................ 321
+8.4.1.5 Suspend and Resume..................................................................................................... 322
+8.4.1.6 Access Rules for Multiple Streams Recording ................................................................ 323
+8.4.1.7 State Machine of the SD Express Speed Class ............................................................. 324
+8.4.2 SD Express Speed Class Parameters ......................................................................... 326
+8.4.2.1 Data Defined in Return Parameters Data Structure of Streams Directive ..................... 326
+8.4.2.2 Parameters Defined in Identify Controller Data Structure .............................................. 327
+8.4.3 Measurement Conditions for SD Express Speed Class ............................................... 328
+8.4.3.1 Queue Specification ........................................................................................................ 328
+8.4.3.2 Command Duration ......................................................................................................... 330
+8.4.3.3 Performance Measurement for Sequential Write Command .......................................... 331
+8.4.3.4 Performance Measurement for Sequential Read Command ......................................... 332
+8.4.3.5 Performance for Random Write Command, Flush Command and DSM Commands .... 333
+8.4.3.6 Performance for Random Read Command .................................................................... 334
+8.4.3.7 Frequency of Random Write and Flush .......................................................................... 334
+8.4.4 PCIe bus Mode Requirements for SD Express Speed Class ....................................... 334
+8.4.5 Requirements of SD File System for SD Express Speed Class ................................... 334
+8.4.6 Dataset Management Command for SD Express Speed Class ................................... 334
+8.4.6.1 Overview.......................................................................................................................... 334
+8.4.6.2 Start Recording ............................................................................................................... 335
+8.4.6.3 Update DIR/CI ................................................................................................................. 337
+8.4.6.4 Suspend AU/SGS ............................................................................................................ 338
+8.4.6.5 Resume AU/SGS............................................................................................................. 340
+8.4.6.6 Set Free AU/SGS ............................................................................................................ 341
+8.4.6.7 Release DIR/CI ............................................................................................................... 342
+8.4.7 Power and Thermal Management................................................................................ 343
+8.4.7.1 Overview.......................................................................................................................... 343
+8.4.7.2 Power State Descriptor in the SD Express Card ............................................................ 344
+8.4.7.3 Thermal Management for the SD Express Speed Class ................................................ 344
+8.4.7.4 Power and Thermal Management for SD Express Speed Class ................................... 345
+8.4.7.5 Sample Speed Class Sequences Including Power and Thermal Management ............. 347
+8.4.8 Relationship to the Conventional Speed Classes ........................................................ 350
+8.4.8.1 Supporting Speed Classes by SD Express Cards .......................................................... 350
+8.4.8.2 Operation Rules When Changing Bus Mode and Power Cycle ..................................... 351
+8.4.8.3 Recommendation for Setting SGS and VSC_AU_SIZE ................................................. 351
+8.4.9 Detecting Termination Conditions ................................................................................ 351
+8.4.10 Vendor Specific Parameters ...................................................................................... 352
+8.4.10.1 Getting Vendor Specific Parameters ............................................................................. 352
+8.4.10.2 Parameters Obtained by Identify Command................................................................. 352
+8.4.10.3 Parameters Obtained by Get Log Page Command ...................................................... 358
+
+9. Sections Effective to SD I/F Mode, UHS-II Mode and PCIe Mode........................... 362
+Appendix A (Normative) : Reference ............................................................................ 363
+A.1 Related Documentation ..................................................................................................... 363
+A.2 Related Documentation From Other Standard Organizations ............................................ 363
+A.2.1 PCI-SIG : ........................................................................................................................ 363
+A.2.2 NVM Express: ................................................................................................................ 363
+A.2.3 TCG: .............................................................................................................................. 363
+A.2.4 RPMB:............................................................................................................................ 363
+
+Appendix B (Normative) : Special Terms ..................................................................... 364
+B.1 Terminology ....................................................................................................................... 364
+B.2 Abbreviations..................................................................................................................... 365
+
+Appendix C (Informative) : Examples for Fixed Delay UHS-I Host Design ............... 369
+
+xiii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+C.1 Internal Clock Delay Method (Removed in the Simplified Specification) ............................ 369
+C.1.1 Creation of Loopback Clock (Removed in the Simplified Specification) .......................... 369
+
+Appendix D : UHS-I Tuning Procedure......................................................................... 370
+D.1 UHS-I Tuning Procedure (Removed in the Simplified Specification) .................................. 370
+
+Appendix E : Host Power Delivery Network (PDN) Design Guide ............................. 371
+E.1 Supporting Hot Insertion (Removed in the Simplified Specification) .................................. 371
+E.2 Decoupling Capacitors (Removed in the Simplified Specification) ..................................... 371
+E.3 UHS-II Host Decoupling Capacitors (Removed in the Simplified Specification) ................. 371
+
+Appendix F : Application Notes of Extension Function ............................................ 372
+F.1 Identification of Function Driver .......................................................................................... 372
+F.2 Concept of Event Detection Method ................................................................................... 373
+F.2.1 Role of Driver Modules.................................................................................................... 373
+F.2.2 Host Implementation to use Event Detection Method ...................................................... 374
+
+Appendix G : Application Notes for Application Performance Class Hosts ............. 375
+G.1 Check for Application Performance Class support............................................................. 375
+
+Appendix H (Informative) : Application Notes related to SD Express cards ............ 376
+H.1 SD Express I/Os Characteristics (Removed in the Simplified Specification) ..................... 376
+
+Appendix I (Informative) : Supply Voltage(s) Generation ........................................... 377
+I.1 Supply Voltage(s) Generation (Removed in the Simplified Specification) ............................ 377
+
+Appendix J (Informative) : Pad 19 Existence Detection ............................................. 378
+J.1 Example 1 (Removed in the Simplified Specification) ........................................................ 378
+J.2 Example 2 (Removed in the Simplified Specification) ........................................................ 378
+J.3 Example 3 (Removed in the Simplified Specification) ........................................................ 378
+
+Appendix K (Informative) : Initialization Sequence Related to Boot Functions, TCG
+Security and RPMB ........................................................................................................ 379
+K.1 Sample Sequence 1 .......................................................................................................... 379
+K.2 Sample Sequence 2 .......................................................................................................... 380
+
+Appendix L : Simplified Mechanical Drawings ............................................................ 381
+L.1 Standard Size SD Card Simplified Dimensions .................................................................. 381
+L.2 microSD Card Simplified Dimensions ................................................................................ 383
+
+xiv
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Table of Figures
+Figure 1-1 : SD Specifications Documentation Structure .......................................................................... 1
+Figure 3-1 : SD Memory Card System Bus Topology (Removed in the Simplified Specification)............. 7
+Figure 3-2 : SD Memory Card System (SPI Mode) Bus Topology (Removed in the Simplified Specification)
+.................................................................................................................................................................... 7
+Figure 3-3 : UHS-II Bus Topologies (Removed in the Simplified Specification) ........................................ 7
+Figure 3-4 : "no response" and "no data" Operations ................................................................................ 8
+Figure 3-5 : (Multiple) Block Read Operation............................................................................................. 8
+Figure 3-6 : (Multiple) Block Write Operation ............................................................................................. 9
+Figure 3-7 : Command Token Format ........................................................................................................ 9
+Figure 3-8 : Response Token Format......................................................................................................... 9
+Figure 3-9 : Data Packet Format - Usual Data ........................................................................................ 10
+Figure 3-10 : Data Packet Format - Wide Width Data ..............................................................................11
+Figure 3-11 : SD Memory Card Shape and Interface (Top View) ............................................................ 12
+Figure 3-12 : SD Memory Card Architecture ............................................................................................ 13
+Figure 3-13 : UHS-II Card Shape and Interface (Top View) .................................................................... 14
+Figure 3.7.3-14 : 1-Lane SD Express Card Shape and Interface (Top View) ......................................... 15
+Figure 3.7.4-1 : 2-Lane SD Express Card Shape and Interface (Top View)............................................ 17
+Figure 3-14 : UHS-I Card Type Modes of Operation versus Frequency Range ...................................... 20
+Figure 3-15 : UHS-I Card Type Modes of Operation versus Throughput ................................................ 21
+Figure 3-16 : Command Sequence to Use UHS-I ................................................................................... 22
+Figure 3-17 : Host and Card Block Diagram ............................................................................................ 23
+Figure 3-18 : Interface Speed of UHS-II Card (UHS156 and UHS624) .................................................. 25
+Figure 3-19 : UHS-II Interface Detection.................................................................................................. 26
+Figure 3-20 : UHS-II Interface Initialization .............................................................................................. 27
+Figure 3-21 : UHS-II Interface Deactivation ............................................................................................. 28
+Figure 3-22 : Interface Speed of SD Express Card ................................................................................. 32
+Figure 3-23 : SD Express Interface Detection and Init – Card Internal States ........................................ 34
+Figure 3-24 : SD Express Interface Detection and Initialization Flow (Host side) ................................... 36
+Figure 3-25 : PCIe Training Process ........................................................................................................ 37
+Figure 4-1 : SD Memory Card State Diagram (card identification mode) ................................................ 42
+Figure 4-2 : Card Initialization and Identification Flow (SD mode) .......................................................... 44
+Figure 4-3 : Argument of ACMD41 ........................................................................................................... 45
+Figure 4-4 : Response of ACMD41 .......................................................................................................... 45
+Figure 4-5 : ACMD41 Timing Followed by Voltage Switch Sequence ..................................................... 47
+Figure 4-6 : UHS-I Host Initialization Flow Chart ..................................................................................... 47
+Figure 4-7 : Signal Voltage Switch Sequence (Removed in the Simplified Specification) ...................... 48
+Figure 4-8 : Error Indication Timing (Removed in the Simplified Specification) ...................................... 48
+Figure 4-9 : Voltage Switch Command .................................................................................................... 48
+Figure 4-10 : Send Tuning Block Command ............................................................................................ 49
+Figure 4-11 : Tuning Block on DAT[3:0] (Removed in the Simplified Specification) ................................ 49
+Figure 4-12 : An Example of UHS-I System Block Diagram (Removed in the Simplified Specification) 49
+Figure 4-13 : SD Memory Card State Diagram (data transfer mode) ...................................................... 50
+Figure 4.3.5-1 : Flowchart of Card Behavior for Erase Command Sequence ......................................... 57
+Figure 4.3.7-1 : Simplified Non-COP Card State Diagram ...................................................................... 60
+Figure 4.3.7-2 : Simplified COP Card State Diagram .............................................................................. 61
+Figure 4.3.7-3 : COP Card Protection Setup (left) and FEP Force Erase (right) Sequences ................. 66
+Figure 4.3.7-4 : COP Card Unlock/Lock Sequence ................................................................................. 67
+Figure 4.3.7-5 : Locked Card Operation When Supporting SBF (Command Relating to SBF) .............. 74
+Figure 4.3.7-6 : Locked Card Operation When Supporting SBF (Command Not Relating to SBF)........ 75
+Figure 4-14 : Use of Switch Command .................................................................................................... 79
+Figure 4-15 : Busy Status of 'Command System' .................................................................................... 86
+Figure 4-16 : CMD12 during CMD6; Case 1 (Removed in the Simplified Specification) ........................ 88
+Figure 4-17 : CMD12 during CMD6; Case 2 (Removed in the Simplified Specification) ........................ 88
+Figure 4-18 : Example of Switch Function flow (Removed in the Simplified Specification) .................... 88
+
+xv
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 4-19 : Switching Function Flow (Removed in the Simplified Specification) ................................. 88
+Figure 4-20 : CRC7 Generator/Checker .................................................................................................. 93
+Figure 4-21 : CRC16 Generator/Checker ................................................................................................ 94
+Figure 4-22 : Write Protection Hierarchy (Removed in the Simplified Specification) ............................ 136
+Figure 4-23 : Identification Timing (Card Identification Mode) (Removed in the Simplified Specification)
+................................................................................................................................................................ 136
+Figure 4-24 : SEND_RELATIVE_ADDR Timing (Removed in the Simplified Specification) ................. 136
+Figure 4-25 : Command Response Timing (Data Transfer Mode) (Removed in the Simplified
+Specification) .......................................................................................................................................... 136
+Figure 4-26 : Timing of Response End to Next CMD Start (Data Transfer Mode) (Removed in the
+Simplified Specification) ......................................................................................................................... 136
+Figure 4-27 : Timing of Command Sequences (All Modes) (Removed in the Simplified Specification) 136
+Figure 4-28 : Timing of Single Block Read Command (Removed in the Simplified Specification) ....... 136
+Figure 4-29 : Timing of Multiple Block Read Command (Removed in the Simplified Specification) ..... 136
+Figure 4-30 : Timing of Stop Command (CMD12, Data Transfer Mode) (Removed in the Simplified
+Specification) .......................................................................................................................................... 136
+Figure 4-31 : Timing of Single Block Write Command (Removed in the Simplified Specification)........ 136
+Figure 4-32 : Timing of Multiple Block Write Command (Removed in the Simplified Specification) ..... 136
+Figure 4-33 : Stop Transmission Received during Data Transfer from the Host (Removed in the Simplified
+Specification) .......................................................................................................................................... 136
+Figure 4-34 : Stop Transmission Received during CRC Status (Removed in the Simplified Specification)
+................................................................................................................................................................ 136
+Figure 4-35 : Stop Transmission Received during Busy of the Last Data Block (Removed in the Simplified
+Specification) .......................................................................................................................................... 136
+Figure 4-36 : Stop Transmission Received while DAT is Tri-state (Removed in the Simplified Specification)
+................................................................................................................................................................ 136
+Figure 4-37 : Timing of Single Block Write Command (Removed in the Simplified Specification)........ 136
+Figure 4-38 : Clock Stop Timing at Block Gap in Read Operation (Removed in the Simplified Specification)
+................................................................................................................................................................ 137
+Figure 4-39 : Border Timing of CMD12 in Write Operation (Removed in the Simplified Specification) 137
+Figure 4-40 : Border Timing of CMD12 in Read Operation (Removed in the Simplified Specification) 137
+Figure 4-41 : Data Packet Format in DDR50 mode – Usual Data (Removed in the Simplified Specification)
+................................................................................................................................................................ 137
+Figure 4-42 : Data Packet Format in DDR50 mode – Wide Width Data (Removed in the Simplified
+Specification) .......................................................................................................................................... 137
+Figure 4-43 : CRC Status Token in DDR50 Mode (Removed in the Simplified Specification) .............. 137
+Figure 4-44 : CRC16 in DDR50 Mode (Removed in the Simplified Specification) ................................ 137
+Figure 4-45 : Timing of Single Block Read Command in DDR50 Mode (Removed in the Simplified
+Specification) .......................................................................................................................................... 137
+Figure 4-46 : Overview of Speed Class Specification............................................................................ 138
+Figure 4-47 : Definition of Allocation Unit (AU) ...................................................................................... 139
+Figure 4-48 : Example of Writing Fragmented AU ................................................................................. 139
+Figure 4-49 : Card Performances between 16 RUs............................................................................... 141
+Figure 4-50 : Three Performance Curves .............................................................................................. 142
+Figure 4-51 : Typical Sequence of FAT Update ..................................................................................... 143
+Figure 4-52 : Measurement of Pw (AU size is larger than 4MB) ........................................................... 146
+Figure 4-53 : Definition of CMD20.......................................................................................................... 148
+Figure 4-54 : Example of Speed Class Recording Sequence ............................................................... 150
+Figure 4-55 : Example of Interleaved Multiple File Write in One AU ..................................................... 156
+Figure 4-56 : Example of Concatenated File Write in One AU .............................................................. 156
+Figure 4-57 : Access Rules for Multiple Files Recording ....................................................................... 157
+Figure 4-58 : Time Components for Video Speed Class Performance Write Measurement ................. 158
+Figure 4-59 : Measurement of Pw .......................................................................................................... 159
+Figure 4-60 : Read Performance Period for Pr and TFR(4KB) ............................................................... 160
+Figure 4-61 : Example Sequence of FAT Cycle ..................................................................................... 162
+Figure 4-62 : Definition of CMD20 (Video Speed Class) ....................................................................... 163
+Figure 4-63 : Example of the Relationship between Assigned AUs and the Active AU ......................... 167
+xvi
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 4-64 : Example Erase Characteristics (Case 1 TOFFSET=0) .................................................... 171
+Figure 4-65 : Example Erase Characteristics (Case 2 TOFFSET=2) .................................................... 172
+Figure 4-66 : Set Block Count Command .............................................................................................. 173
+Figure 4-67 : Flowchart for Checking Cache ......................................................................................... 179
+Figure 4-68 : Flowchart for Card Initiated Maintenance......................................................................... 180
+Figure 4-69 : Flowchart for Checking Host Initiated Maintenance ......................................................... 181
+Figure 4-70 : State Diagram in CQ Mode .............................................................................................. 184
+Figure 4-71 : Illustration of Task Submission ......................................................................................... 185
+Figure 4-72 : Illustration of Reading Task Ready Status........................................................................ 186
+Figure 4-73 : Illustration of Executing Read Task .................................................................................. 186
+Figure 4-74 : Illustration of Executing Write Task................................................................................... 186
+Figure 4-75 : Extension of ACMD41 for Over 2TB ................................................................................. 189
+Figure 4-76 : CMD22 Address Extension Command ............................................................................. 190
+Figure 4-77 : Memory Command Sequences ........................................................................................ 191
+Figure 4-78 : Erase Command Sequences............................................................................................ 191
+Figure 4-79 : ACMD22 Data Block for SDUC Card ............................................................................... 191
+Figure 4-80 : CMD20 "Start Recording" Command Sequence.............................................................. 192
+Figure 4-81 : FAT Update Command Sequence .................................................................................... 192
+Figure 4-82 : CMD20 "Update DIR" Command Sequence .................................................................... 192
+Figure 4-83 : CMD20 "Set Free AU" ...................................................................................................... 192
+Figure 4-84 : Boot Partitions and User Area Partition (Removed in the Simplified Specification) ........ 193
+Figure 4-85 : CV-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification) .......................................................................................................................................... 196
+Figure 4-86 : CV-mode Fast Boot Sequence (DDR50, SDR25 or SDR12) (Removed in the Simplified
+Specification) .......................................................................................................................................... 196
+Figure 4-87 : CV-mode Fast Boot Sequence (HS or DS) (Removed in the Simplified Specification) ... 196
+Figure 4-88 : Another CV-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification) .......................................................................................................................................... 196
+Figure 4-89 : CA-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification) .......................................................................................................................................... 197
+Figure 4-90 : CA-mode Fast Boot Sequence (DDR50, SDR25 or SDR12) (Removed in the Simplified
+Specification) .......................................................................................................................................... 197
+Figure 4-91 : CA-mode Fast Boot Sequence (HS or DS) (Removed in the Simplified Specification) .. 197
+Figure 4-92 : Transmission of Tuning Blocks during Fast Boot ............................................................. 197
+Figure 4-93 : Analysis of Tuning Block (Removed in the Simplified Specification) ............................... 197
+Figure 4-94 : Tuning Block Transmission Considering NACT (Removed in the Simplified Specification)197
+Figure 4-95 : Boot Partition Lock/Unlock State ...................................................................................... 198
+Figure 4-96 : State Diagram (Pre-init Mode) .......................................................................................... 199
+Figure 4-97 : Pre-boot Authentication Sequence over SD interface ...................................................... 202
+Figure 4-98 : RPMB Unit Layout in RPMB Supported Card (Removed in the Simplified Specification)
+................................................................................................................................................................ 203
+Figure 4-99 : RPMB Messages Transfer without Data .......................................................................... 210
+Figure 4-100 : RPMB Messages Transfer with Data ............................................................................. 210
+Figure 4-101 : User Area Write Protection State Machine ..................................................................... 220
+Figure 5-1 : ERASE_BLK_EN = 0 Example .......................................................................................... 230
+Figure 5-2 : ERASE_BLK_EN = 1 Example .......................................................................................... 230
+Figure 5-3 : Extension Register Space .................................................................................................. 247
+Figure 5-4 : Read Extension Register Single Block Command (CMD48) ............................................. 247
+Figure 5-5 : Extension Register Read Operation by CMD48................................................................. 248
+Figure 5-6 : Data Port Read Operation by CMD48 ................................................................................ 249
+Figure 5-7 : Write Extension Register Single Block Command (CMD49) ............................................. 249
+Figure 5-8 : Extension Register Write Operation by CMD49 ................................................................. 251
+Figure 5-9 : Data Port Write Operation by CMD49 ................................................................................ 251
+Figure 5-10 : Read Extension Register Multi-Block Command (CMD58) ............................................. 252
+Figure 5-11 : Extension Register and Data Port Read Operation by CMD58 ....................................... 253
+Figure 5-12 : Write Extension Register Multi-Block Command (CMD59).............................................. 254
+Figure 5-13 : Extension Register and Data Port Write Operation by CMD59 ....................................... 254
+xvii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 5-14 : General Information for Memory ...................................................................................... 256
+Figure 5-15 : Data Structure of General Information ............................................................................. 257
+Figure 5-16 : Power Management Revision Register ............................................................................ 262
+Figure 5-17 : Power Management Status Register................................................................................ 262
+Figure 5-18 : Power Management Setting Register............................................................................... 263
+Figure 5-19 : Power Off Notification Flow .............................................................................................. 263
+Figure 5-20 : Power Sustenance Enabling / Disabling Sequence Flow ................................................ 265
+Figure 5-21 : Power Down Mode Entering / Exiting Sequence Flow..................................................... 267
+Figure 6-1 : Bus Circuitry Diagram (Removed in the Simplified Specification) ..................................... 273
+Figure 6-2 : Improper Power Supply (Removed in the Simplified Specification) ................................... 273
+Figure 6-3 : Short Circuit Protection (Removed in the Simplified Specification) ................................... 273
+Figure 6-4 : Power-up Diagram of Card ................................................................................................. 274
+Figure 6-5 : Power Up Diagram of Host ................................................................................................. 275
+Figure 6-6 : Power Up Sequence of UHS-II Device............................................................................... 276
+Figure 6-7 : Power Up Sequence of UHS-II Host .................................................................................. 276
+Figure 6.4.3-1: Power Up Sequence of SD Express Card .................................................................... 277
+Figure 6.4.3-2 : Power Up Sequence of SD Express Card (Another Case) .......................................... 278
+Figure 6.4.3-3 : Power Up Sequence of SD Express Host .................................................................... 279
+Figure 6.4.3-4 : Power Up Sequence of SD Express Host (Another Option) ........................................ 279
+Figure 6-8 : SD Memory Card Bus Driver (Removed in the Simplified Specification)........................... 279
+Figure 6-9 : Bus Signal Levels (Removed in the Simplified Specification) ............................................ 280
+Figure 6-10 : Card Input Timing (Default Speed Card) .......................................................................... 281
+Figure 6-11 : Card Output Timing (Default Speed Mode) ...................................................................... 281
+Figure 6-12 : Card Input Timing (High Speed Card) .............................................................................. 282
+Figure 6-13 : Card Output Timing (High Speed Mode) .......................................................................... 282
+Figure 6-14 : Outputs Test Circuit for Rise/Fall Time Measurement (Removed in the Simplified
+Specification) .......................................................................................................................................... 283
+Figure 6-15 : Clock Signal Timing (Removed in the Simplified Specification) ....................................... 283
+Figure 6-16 : Card Input Timing (Removed in the Simplified Specification) .......................................... 283
+Figure 6-17 : Fixed Output Data Window (Removed in the Simplified Specification) ........................... 283
+Figure 6-18 : Output Timing of Fixed Data Window (Removed in the Simplified Specification) ........... 284
+Figure 6-19 : Output Timing of Variable Data Window (Removed in the Simplified Specification) ....... 284
+Figure 6-20 : ∆tOP Consideration for Variable Data Window Mode (Removed in the Simplified
+Specification) .......................................................................................................................................... 284
+Figure 6-21 : Clock Signal Timing (Removed in the Simplified Specification) ....................................... 284
+Figure 6-22 : Timing Diagram DAT Inputs/Outputs Referenced to CLK in DDR50 Mode (Removed in the
+Simplified Specification) ......................................................................................................................... 284
+Figure 7-1 : SD Memory Card State Diagram (SPI mode) .................................................................... 287
+Figure 7-2 : SPI Mode Initialization Flow ............................................................................................... 288
+Figure 7-3 : Single Block Read Operation ............................................................................................. 289
+Figure 7-4 : Read Operation - Data Error .............................................................................................. 290
+Figure 7-5 : Multiple Block Read Operation ........................................................................................... 290
+Figure 7-6 : Single Block Write Operation.............................................................................................. 290
+Figure 7-7 : Multiple Block Write Operation ........................................................................................... 291
+Figure 7-8 : 'No data' Operations ........................................................................................................... 291
+Figure 7-9 : R1 Response Format.......................................................................................................... 302
+Figure 7-10 : R2 Response Format........................................................................................................ 303
+Figure 7-11 : R3 Response Format ........................................................................................................ 303
+Figure 7-12 : R7 Response Format........................................................................................................ 304
+Figure 7-13 : Data Error Token............................................................................................................... 306
+Figure 7-14 : Basic Command Response (Removed in the Simplified Specification).......................... 308
+Figure 7-15 : Command Response with Busy Indication (R1b) (Removed in the Simplified Specification)
+................................................................................................................................................................ 308
+Figure 7-16 : Timing between Card Response to new Host Command (Removed in the Simplified
+Specification) .......................................................................................................................................... 308
+Figure 7-17 : Read Single Block Operations - Bus Timing (Removed in the Simplified Specification) . 308
+Figure 7-18 : Stop Transmission in Read Multiple Block (Removed in the Simplified Specification) .... 308
+xviii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 7-19 : Read CSD/CID - Bus Timing (Removed in the Simplified Specification) ......................... 308
+Figure 7-20 : Write Operation - Bus Timing (Removed in the Simplified Specification) ........................ 309
+Figure 7-21 : Stop Transmission in Write Multiple Block (Removed in the Simplified Specification) .... 309
+Figure 8-1 : Placement of AC coupling capacitors ................................................................................. 316
+Figure 8-2 : SD Express Initialization Starting with CMD8 by HVS (Host and Card support VDD3)
+(Removed in the Simplified Specification) ............................................................................................. 317
+Figure 8-3 : SD Express Initialization Starting with CMD8 by HVS (Host supports VDD3 but Card not)
+(Removed in the Simplified Specification) ............................................................................................. 317
+Figure 8-4 : SD Express Initialization Starting with CMD8 by HVS (Host does not support VDD3)
+(Removed in the Simplified Specification) ............................................................................................. 317
+Figure 8-5 : SD Express Initialization Starting with CMD8 by LVS (Both Host and Card support VDD3)
+(Removed in the Simplified Specification) ............................................................................................. 317
+Figure 8-6 : SD Express Direct PCIe Initialization (Host and Card support VDD3) (Removed in the
+Simplified Specification) ......................................................................................................................... 317
+Figure 8-7 : SD Express Direct PCIe Initialization (Host supports VDD3 but Card not) (Removed in the
+Simplified Specification) ......................................................................................................................... 317
+Figure 8-8 : SD Express Direct PCIe Init. with Fallback to SD (HVS Host supports VDD3 but Card not)
+(Removed in the Simplified Specification) ............................................................................................. 318
+Figure 8-9 : SD Express Direct PCIe Init. with Fallback to SD (LVS Host supports VDD3 but Card not)
+(Removed in the Simplified Specification) ............................................................................................. 318
+Figure 8-10 : SD Express Initialization with CV-mode Fast Boot (Removed in the Simplified Specification)
+................................................................................................................................................................ 318
+Figure 8-11 : SD Express Initialization with CA-mode Fast Boot over UHS-I mode (Removed in the
+Simplified Specification) ......................................................................................................................... 318
+Figure 8-12 : SD Express Initialization with CA-mode Fast Boot over DS or HS mode (Removed in the
+Simplified Specification) ......................................................................................................................... 318
+Figure 8-13 : An Example of Area Assignment for SD Express Speed Class ....................................... 320
+Figure 8-14 : An Example Sequence of SD Express Speed Class ....................................................... 321
+Figure 8-15 : Examples of Suspend Operation ...................................................................................... 323
+Figure 8-16 : An Example of Multiple Stream Recording ....................................................................... 324
+Figure 8-17 : State Machine for SD Express Speed Class .................................................................... 325
+Figure 8-18 : Write Command Operations for Keeping Consistency in a File (1) ................................. 329
+Figure 8-19 : Write Command Operations for Keeping Consistency in a File (2) ................................. 330
+Figure 8-20 : Definition of Command Duration in the SD Express Speed Class .................................. 330
+Figure 8-21 : Command Duration Used for Pw and Pr Calculation ....................................................... 331
+Figure 8-22 : Pw and Pr Measurement When Sequential Write and Read Operations Coexist ........... 333
+Figure 8-23 : Calculation of Tave (n)........................................................................................................ 333
+Figure 8-24 : An Example of PSD Assignment (Card Type: G3L2 or G4L1) ......................................... 344
+Figure 8-25 : An Example of Speed Class Power State ........................................................................ 345
+Figure 8-26 : Relationship between Composite Temperature and Writing Speed ................................ 346
+Figure 8-27 : Sample Speed Class Sequence Including Power and Thermal Management (1)........... 348
+Figure 8-28 : Sample Speed Class Sequence Including Power and Thermal Management (2)........... 349
+Figure 8-29 : Sample Speed Class Sequence Including Power and Thermal Management (3)........... 349
+Figure 8-30 : Sample Speed Class Sequence Including Power and Thermal Management (4)........... 350
+Figure 8-31 : Vendor Specific Field in the ICDS .................................................................................... 353
+Figure C-1 : Delayed Internal Clock Method (Removed in the Simplified Specification) ...................... 369
+Figure C-2 : Loopback Clock Method (Removed in the Simplified Specification) ................................. 369
+Figure E-1 : Capacitance Connected to Power Line (Removed in the Simplified Specification) .......... 371
+Figure E-2 : Recommended power delivery (Removed in the Simplified Specification) ....................... 371
+Figure E-3 : General UHS-II Host Decoupling Capacitors (Removed in the Simplified Specification) . 371
+Figure F-1 : Hardware and Driver Layer of Host and Card .................................................................... 373
+Figure H-1 : Characteristics of SD Express card’s side band signals IOs (Removed in the Simplified
+Specification) .......................................................................................................................................... 376
+Figure I-1 : Voltage Drop by PCB Trace and Socket (Removed in the Simplified Specification) .......... 377
+Figure J-1 : Implementation Example of Detecting Pad 19 (1) (Removed in the Simplified Specification)
+................................................................................................................................................................ 378
+Figure J-2 : Implementation Example of Detecting Pad 19 (2) (Removed in the Simplified Specification)
+xix
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+................................................................................................................................................................ 378
+Figure J-3 : Implementation Example of Detecting Pad 19 (3) (Removed in the Simplified Specification)
+................................................................................................................................................................ 378
+Figure K-1 : Sample Initialization Sequence for Updating a Boot Code and Accessing TCG Enabled Card
+................................................................................................................................................................ 379
+Figure K-2 : Sample Initialization Sequence to for Starting Up TCG Enabled Card with Fast Boot ..... 380
+Figure L-1 : Standard Size SD Card Simplified Dimensions ................................................................. 381
+Figure L-2 : Standard Size SD UHS-II and SD Express G3L1 (Gen3 1 lane) Card Simplified Pads side
+(same dimensions as standard SD Card) .............................................................................................. 381
+Figure L-3 : Standard SD Express G4L1 (Gen 4 1 lane) Card simplified view of pads side ................. 382
+Figure L-4 : Standard SD Express G3L2 (Gen3 2 lanes) or G4L2 (Gen 4 2 lanes) Card simplified view of
+pads side ................................................................................................................................................ 382
+Figure L-5 : microSD Card Simplified Dimensions ................................................................................ 383
+Figure L-6 : microSD Card Simplified Dimensions Pads side ............................................................... 383
+
+xx
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Table of Tables
+Table 3-1 : SD Memory Card Pad Assignment ........................................................................................ 12
+Table 3-2 : SD Memory Card Registers ................................................................................................... 13
+Table 3-3 : UHS-II Interface Pad Assignment .......................................................................................... 14
+Table 3.7.3-1 : 1-Lane SD Express Interface Pad Assignment................................................................ 16
+Table 3.7.4-1 : 2-Lane SD Express Interface Pad Assignment................................................................ 18
+Table 3-4 : Register Setting Requirements for ROM Card ...................................................................... 19
+Table 3-5 : UHS-I Host and Card Combinations ...................................................................................... 21
+Table 3-6 : Bus Speed Modes of UHS-I Card .......................................................................................... 24
+Table 3-7 : Bus Speed Mode Option / Mandatory .................................................................................... 24
+Table 3-8 : UHS-II Host and Card Combinations ..................................................................................... 26
+Table 3-9 : Bus Speed Modes of UHS-II Card ......................................................................................... 29
+Table 3-10 : Bus Speed Mode Option / Mandatory .................................................................................. 29
+Table 3-11 : LV Interface Bus Speed Mode Option / Mandatory.............................................................. 31
+Table 3.17-1 : Card Types of SD Express Cards ..................................................................................... 32
+Table 3-12 : SD Express Host and Card Combinations ........................................................................... 33
+Table 3.17.1-1 : SD Express Host and Card Combinations (Detailed) .................................................... 33
+Table 3-13 : Timing of PCIe Interface Training ......................................................................................... 37
+Table 3-14 : Bus Speed Modes of SD Express Card ............................................................................... 38
+Table 4-1 : Overview of Card States vs. Operation Modes...................................................................... 40
+Table 4-2 : S18R and S18A Combinations (Removed in the Simplified Specification) ........................... 48
+Table 4-3 : Tuning Block Pattern .............................................................................................................. 49
+Table 4-4 : Read Command Blocklen ...................................................................................................... 53
+Table 4-5 : Write Command Blocklen ....................................................................................................... 53
+Table 4-6 : Lock Card Data Structure ....................................................................................................... 62
+Table 4-7 : CMD42 Ver.1.0 Mode (Non-COP Card) Lock Unlock Function ............................................. 68
+Table 4.3.7-1 : PWD Related Lock Unlock Function for COP Card ......................................................... 69
+Table 4.3.7-2 : COP Specific Function for COP Card .............................................................................. 70
+Table 4-8 : Force Erase Function to the Locked Card (Relation to the Write Protects) .......................... 72
+Table 4-9 : Relation between ACMD6 and the Lock/Unlock State .......................................................... 72
+Table 4.3.7-4 : Card Command Operations Depending on Target and Lock Status ............................... 73
+Table 4.3.7-5 : Other Card Command Operations According to Lock Status .......................................... 73
+Table 4-10 : Version Difference of Lock/Unlock Functions ...................................................................... 76
+Table 4.3.7-3 : Type 3 Lock/Unlock Functions Difference........................................................................ 76
+Table 4-11 : Available Functions of CMD6 ............................................................................................... 81
+Table 4-12 : Power Limit and Current Limit of VDD1 and VDD2 ............................................................. 82
+Table 4-13 : Status Data Structure ........................................................................................................... 86
+Table 4-14 : Data Structure Version ......................................................................................................... 86
+Table 4-15 : Status Code of Mode 0 to Supported Function Group ........................................................ 87
+Table 4-16 : Status Code of Mode 1 to Supported Function Group ........................................................ 87
+Table 4-17 : Status Code of Mode 0 and 1 to Unsupported Function Group .......................................... 87
+Table 4-18 : Format of CMD8 ................................................................................................................... 90
+Table 4-19 : Card Operation for CMD8 in SD Mode (Removed in the Simplified Specification) ............. 91
+Table 4.3.13-1 : Card Operation for CMD8 for SD Express specific Parameters (Removed in the Simplified
+Specification) ............................................................................................................................................ 91
+Table 4-20 : Command Format ................................................................................................................ 97
+Table 4-21 : Card Command Classes (CCCs) in SD Mode ..................................................................... 99
+Table 4-22 : Command Support Requirements ..................................................................................... 101
+Table 4-23 : Basic Commands (class 0) ................................................................................................ 103
+Table 4-24 : Block-Oriented Read Commands (class 2) ....................................................................... 104
+Table 4-25 : Block-Oriented Write Commands (class 4) ........................................................................ 105
+Table 4-26 : Block Oriented Write Protection Commands (class 6)....................................................... 105
+Table 4-27 : Erase Commands (class 5) ................................................................................................ 106
+Table 4-28 : Lock Card (class 7) ............................................................................................................ 106
+Table 4-29 : Application-Specific Commands (class 8) .......................................................................... 107
+
+xxi
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 4-30 : I/O Mode Commands (class 9) .......................................................................................... 107
+Table 4-31 : Application Specific Commands used/reserved by SD Memory Card............................... 109
+Table 4-32 : Switch Function Commands (class 10)...............................................................................110
+Table 4-33 : Function Extension Commands (class 11).......................................................................... 111
+Table 4.7.4-1 : Command Queue Function Commands (class 1)...........................................................112
+Table 4-34 : Difference of SD Commands Definition in UHS-II ..............................................................113
+Table 4-35 : Card State Transition Table .................................................................................................116
+Table 4-36 : Response R1 .......................................................................................................................117
+Table 4-37 : Response R2 .......................................................................................................................117
+Table 4-38 : Response R3 .......................................................................................................................118
+Table 4-39 : Response R6 .......................................................................................................................118
+Table 4-40 : Response R7 .......................................................................................................................119
+Table 4-41 : Voltage Accepted in R7 .......................................................................................................119
+Table 4-42 : Card Status......................................................................................................................... 122
+Table 4-43 : Card Status Field/Command - Cross Reference ............................................................... 124
+Table 4-44 : SD Status ........................................................................................................................... 126
+Table 4-45 : Speed Class Code Field .................................................................................................... 127
+Table 4-46 : Performance Move Field .................................................................................................... 127
+Table 4-47 : AU_SIZE Field .................................................................................................................... 128
+Table 4-48 : Maximum AU size............................................................................................................... 128
+Table 4-49 : Erase Size Field ................................................................................................................. 128
+Table 4-50 : Erase Timeout Field ........................................................................................................... 129
+Table 4-51 : Erase Offset Field............................................................................................................... 129
+Table 4-52 : UHS_SPEED_GRADE Field .............................................................................................. 129
+Table 4-53 : UHS_AU_SIZE Field .......................................................................................................... 130
+Table 4-54 : VIDEO_SPEED_CLASS Field ........................................................................................... 130
+Table 4-55 : VSC_AU_SIZE Field .......................................................................................................... 131
+Table 4-56 : Valid AU Size and SU Size ................................................................................................. 132
+Table 4-57 : SUS_ADDR Field ............................................................................................................... 133
+Table 4.10.2-1 : APP_PERF_CLASS Field ............................................................................................ 133
+Table 4.10.2-2 : PERFORMANCE_ENHANCE Field............................................................................. 133
+Table 4.10.2-3 : Command Queue Support Field .................................................................................. 134
+Table 4.10.2-4 : SD Status for a User Area before Pre-Boot Authentication and Boot Partitions ......... 134
+Table 4.10.3-1 : Task Status ................................................................................................................... 135
+Table 4-58 : Timing Diagram Symbols (Removed in the Simplified Specification) ................................ 136
+Table 4-59 : Timing Values (Except SDR50, DDR50 and SDR104) (Removed in the Simplified
+Specification) .......................................................................................................................................... 136
+Table 4-60 : Timing Values for SDR50, DDR50 and SDR104 Modes (Removed in the Simplified
+Specification) .......................................................................................................................................... 137
+Table 4-61 : Measurement Condition of Speed Class (SDSC and SDHC) ........................................... 143
+Table 4-62 : Performance Requirements for Each Class (SDSC and SDHC) ...................................... 144
+Table 4-63 : Measurement Conditions of Speed Class (SDXC/SDUC)................................................. 147
+Table 4-64 : Performance Requirements for Each Class (SDXC/SDUC).............................................. 148
+Table 4-65 : Speed Grade Measurement Conditions for UHS-I and UHS-II ......................................... 152
+Table 4-66 : Video Speed Class Violating Conditions ............................................................................ 154
+Table 4-67 : Busy Time for CMD20 Operations ..................................................................................... 160
+Table 4-68 : SD Interface Mode Requirements for Video Speed Classes............................................. 161
+Table 4-69 : Video Speed Class Measurement Conditions ................................................................... 169
+Table 4-70 : Clock Condition for Video Speed Class ............................................................................. 169
+Table 4-71 : Power Limit per Interface for Video Speed Class .............................................................. 169
+Table 4-72 : Clock Condition for Application Performance Class .......................................................... 176
+Table 4-73 : Power Limit per Interface for Application Performance Class ........................................... 176
+Table 4-74 : Command Support list in CQ Mode ................................................................................... 183
+Table 4-75 : CURRENT_STATE for CQ Mode ....................................................................................... 183
+Table 4.19.4-1: Card State Transition in CQ Mode ................................................................................ 184
+Table 4.19.9-1: Error Case Handling of CMD43-47 ............................................................................... 187
+Table 4-76 : SUS_ADDR Extension in SD Status .................................................................................. 193
+xxii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 4-77 : Modification of CMD12 ...................................................................................................... 193
+Table 4-78 : Partition ID .......................................................................................................................... 194
+Table 4-79 : Special Arguments of CMD0 for Bus Mode in CA-mode Fast Boot .................................. 196
+Table 4-80 : Timing Values for Tuning Block Transmission during Fast Boot (Removed in the Simplified
+Specification) .......................................................................................................................................... 197
+Table 4-81 : Overview of Card States vs. Operation Modes Considering LVS and Fast Boot .............. 199
+Table 4-82 : MBRControl Table .............................................................................................................. 201
+Table 4-83 : RPMB Device Configuration Block Data Structure ............................................................ 205
+Table 4-84 : RPMB Contents .................................................................................................................. 206
+Table 4-85 : RPMB Data Frame ............................................................................................................. 207
+Table 4-86 : RPMB Request and Response Message Types ................................................................ 208
+Table 4-87 : RPMB Operation Result ..................................................................................................... 209
+Table 4-88 : MAC Example (Removed in the Simplified Specification) ................................................. 209
+Table 4-89 : RPMB – Authentication Key Data Flow ..............................................................................211
+Table 4-90 : RPMB – Read Write Counter Value Flow .......................................................................... 212
+Table 4-91 : RPMB – Authentication Data Write Flow ........................................................................... 214
+Table 4-92 : RPMB – Authentication Data Read Flow ........................................................................... 215
+Table 4-93 : RPMB – Authenticated Device Configuration Block Write Flow ........................................ 217
+Table 4-94 : RPMB – Authenticated Device Configuration Block Read Flow ........................................ 218
+Table 4-95 : Security Protocol EAh – Security Protocol Specific Values ............................................... 218
+Table 4-96 : Security Protocol E7h – Security Protocol Specific Values ............................................... 219
+Table 4-97 : User Area Write Protection States ..................................................................................... 219
+Table 4-98 : Write Protection States definition and NVMe Mapping ...................................................... 221
+Table 5-1 : OCR Register Definition ....................................................................................................... 223
+Table 5-2 : The CID Fields...................................................................................................................... 224
+Table 5-3 : CSD Register Structure ........................................................................................................ 225
+Table 5-4 : The CSD Register Fields (CSD Version 1.0) ....................................................................... 226
+Table 5-5 : TAAC Access Time Definition ............................................................................................... 227
+Table 5-6 : Maximum Data Transfer Rate Definition .............................................................................. 227
+Table 5-7 : Supported Card Command Classes .................................................................................... 228
+Table 5-8 : Data Block Length ................................................................................................................ 228
+Table 5-9 : DSR Implementation Code Table ......................................................................................... 229
+Table 5-10 : VDD, min Current Consumption......................................................................................... 229
+Table 5-11 : VDD, max Current Consumption ........................................................................................ 229
+Table 5-12 : Multiply Factor for the Device Size .................................................................................... 230
+Table 5-13 : R2W_FACTOR ................................................................................................................... 231
+Table 5-14 : Data Block Length .............................................................................................................. 231
+Table 5-15 : File Formats........................................................................................................................ 232
+Table 5-16 : The CSD Register Fields (CSD Version 2.0) ..................................................................... 234
+Table 5.3.4-1 : The CSD Register Fields (CSD Version 3.0) ................................................................. 237
+Table 5-17 : The SCR Fields .................................................................................................................. 240
+Table 5-18 : SCR Register Structure Version......................................................................................... 240
+Table 5-19 : Physical Layer Specification Version ................................................................................. 241
+Table 5-20 : CPRM Security Version ...................................................................................................... 244
+Table 5-21 : SD Memory Card Supported Bus Widths .......................................................................... 244
+Table 5-22 : Extended Security .............................................................................................................. 245
+Table 5.6-1 : Detailed Field Definition of EX_SECURITY ...................................................................... 245
+Table 5-23 : Command Support Bits ...................................................................................................... 245
+Table 5-24 : Field Definition of Extension Register Set Address ........................................................... 259
+Table 5-25 : Function Extension Event Register .................................................................................... 259
+Table 5-26 : Setting Combination of FXE Register Set .......................................................................... 260
+Table 5-27 : Standard Function Code Assignment Table ....................................................................... 261
+Table 5-28 : Power Management Register Set ...................................................................................... 261
+Table 5-29 : General Information of Power Management Function ....................................................... 268
+Table 5-30 : Performance Enhancement Register Set .......................................................................... 269
+Table 5-31 : General Information of Performance Enhancement Function ........................................... 270
+
+xxiii
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 5-32 : Security and Boot Register Set .......................................................................................... 272
+Table 5-33 : General Information of Security and Boot Function ........................................................... 272
+Table 6-1 : DSR Register Contents (Removed in the Simplified Specification) .................................... 279
+Table 6-2 : Threshold Level for High Voltage (Removed in the Simplified Specification) ..................... 280
+Table 6-3 : Peak Voltage and Leakage Current (Removed in the Simplified Specification).................. 280
+Table 6-4 : Bus Operating Conditions - Signal Line's Load (Removed in the Simplified Specification) 280
+Table 6-5 : I/O Driver Strength Types (Removed in the Simplified Specification) ................................. 283
+Table 6-6 : I/O Driver Design Target (Removed in the Simplified Specification) .................................. 283
+Table 6-7 : Design Target for Ratio of Rise / Fall Time (Removed in the Simplified Specification) ....... 283
+Table 6-8 : Card Capacitance Range (Removed in the Simplified Specification) ................................. 283
+Table 6-9 : Output Driver Type Support Bits (Removed in the Simplified Specification) ....................... 283
+Table 6-10 : Approximation of Total Capacitance for Each of Drive Strength (Removed in the Simplified
+Specification) .......................................................................................................................................... 283
+Table 6-11 : Threshold Level for 1.8V Signaling (Removed in the Simplified Specification) ................. 283
+Table 6-12 : Input Leakage Current (Removed in the Simplified Specification) .................................... 283
+Table 6-13 : Clock Signal Timing (Removed in the Simplified Specification) ........................................ 283
+Table 6-14 : SDR50 and SDR104 Input Timing (Removed in the Simplified Specification) .................. 283
+Table 6-15 : Output Timing of Fixed Data Window (Removed in the Simplified Specification) ............. 284
+Table 6-16 : Output Timing of Variable Data Window (Removed in the Simplified Specification) ......... 284
+Table 6-17 : Clock Signal Timing (Removed in the Simplified Specification) ........................................ 284
+Table 6-18 : Bus Timings – Parameters Values (DDR50 mode) (Removed in the Simplified Specification)
+................................................................................................................................................................ 284
+Table 6-19 : Bus Operating Conditions of VDD2 (Removed in the Simplified Specification) ................ 284
+Table 6-20 : Bus Operating Conditions of VDD3 (Removed in the Simplified Specification) ................ 284
+Table 6-21 : I/O special characteristics of the PCIe interface in SD Express card (Removed in the
+Simplified Specification) ......................................................................................................................... 284
+Table 7-1 : Command Format ................................................................................................................ 294
+Table 7-2 : Command Classes in SPI Mode .......................................................................................... 295
+Table 7-3 : Commands and Arguments.................................................................................................. 299
+Table 7-4 : Application Specific Commands used/reserved by SD Memory Card - SPI Mode ............. 300
+Table 7-5 : Card Operation for CMD8 in SPI Mode ............................................................................... 301
+Table 7-6 : SPI Mode Status Bits ........................................................................................................... 307
+Table 7-7 : Timing Values (Removed in the Simplified Specification) .................................................... 309
+Table 8-1 : Mapping of SD Standard Information Into NVMe Identification Registers .......................... 312
+Table 8.1.8-1 : Mandatory Power States for SD Express Card ............................................................. 313
+Table 8-2 : SD Express Card Interface Signals ..................................................................................... 315
+Table 8-3 : Parameters for REFCLK Common Rx Architecture defined for 8.0GT/s............................. 315
+Table 8-4 : Power Rating Table for SD Express (PCIe Gen3x1) ........................................................... 316
+Table 8-5 : Power Rating Table for SD Express (PCIe Gen3x2 or Gen4x1) ......................................... 317
+Table 8-6 : Power Rating Table for SD Express Card (PCIe Gen4x2) .................................................. 317
+Table 8-7 : Essential Parameters of NVMe Write Commands for SD Express Speed Class ................ 322
+Table 8-8 : Overview of States for SD Express Speed Class ................................................................ 326
+Table 8-9 : Available SGS Values for SD Express Speed Class ........................................................... 327
+Table 8-10 : Definition of Parameter “d” for Calculating Pw................................................................... 331
+Table 8-11 : PCIe Bus Mode Requirements for Each SD Express Speed Class .................................. 334
+Table 8-12 : Command Configuration of the DSM Command ............................................................... 335
+Table 8-13 : Parameters for Start Recording ......................................................................................... 336
+Table 8-14 : Parameters for Update DIR/CI ........................................................................................... 337
+Table 8-15 : Parameters for Suspend AU/SGS ...................................................................................... 339
+Table 8-16 : Parameters for Resume AU/SGS....................................................................................... 340
+Table 8-17 : Parameters for Set Free AU/SGS ...................................................................................... 342
+Table 8-18 : Parameters for Release DIR/CI ......................................................................................... 343
+Table 8-19 : SD Express Card Types in Terms of Speed Classes ......................................................... 351
+Table 8-20 : Vendor Specific Parameters for SD Express Speed Class ............................................... 358
+Table 8-21 : Open SID for Speed Class (OSID-SC) Information Log .................................................... 359
+Table 8-22 : Open SID for Speed Class Data Structure (OSID-SC DS)................................................ 360
+Table 8-23 : SD Express SUS_ADDR List Log ...................................................................................... 360
+xxiv
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 9-1 : Sections Effective to SD I/F Mode, UHS-II Mode and PCIe Mode (Removed in the Simplified
+Specification) .......................................................................................................................................... 362
+Table E-1 : Example of Chi1 and Chi2 values (Removed in the Simplified Specification)........................ 371
+Table E-2 : Example of decoupling configuration for UHS-II Host (Removed in the Simplified Specification)
+................................................................................................................................................................ 371
+Table F-1 : Combination of Codes to Identify a Function Driver ............................................................ 372
+
+xxv
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+1. General Description
+SD Memory Card is a memory card that is specifically designed to meet the security, capacity,
+performance, and environment requirements inherent in newly emerging audio and video consumer
+electronic devices. The SD Memory Card may include a content protection mechanism that complies with
+the security of the SDMI standard and will be faster and capable of higher Memory capacity. The SD
+Memory Card security system uses mutual authentication and a "new cipher algorithm" to protect against
+illegal usage of the card content. A Non-secure access to the user's own content is also available.
+SD memory cards may also support a second security system based on commonly used standards, such
+as ISO-7816, which can be used to interface the SD memory card into public networks and other systems
+supporting mobile e-commerce and digital signature applications. Moreover, SD memory card can
+implement TCG (Trusted Computing Group) and RPMB (Replay Protected Memory Block) as another
+security system, mainly for IoT or mobile/computing usage.
+In addition to the SD Memory Card, there is the SD I/O (SDIO) Card. The SDIO Card specification is
+defined in a separate specification named: "SDIO Card Specification" that can be obtained from the SD
+Association. The SDIO Specification defines an SD card that may contain interfaces between various I/O
+units and an SD Host. The SDIO card may contain memory storage capability as well as its I/O
+functionality. The Memory portion of SDIO card shall be fully compatible to the given Physical Layer
+Specification. The SDIO card is based on and compatible with the SD Memory card. This compatibility
+includes mechanical, electrical, power, signalling, and software. The intent of the SD I/O card is to provide
+high-speed data I/O with low power consumption for mobile electronic devices. A primary goal is that an
+I/O card inserted into a non-SDIO aware host will cause no physical damage or disruption of that device
+or its software. In this case, the I/O card should simply be ignored. Once inserted into an SDIO aware
+host, the detection of the card will be via the normal means described in the given Physical Layer
+Specification with some extensions that are described in the SDIO Specification.
+The basic SD Memory Card communication is based on 9-pin interface (Clock, Command, 4xData and
+3xPower lines) designed to operate in at maximum operating frequency of 208 MHz and low voltage
+range. Additional communication methods, based on differential signaling interface (UHS-II and
+PCIe®/NVMe™) are specified as optional.The communication protocol is defined as a part of this
+specification unless specified otherwise (i.e. PCIe and NVMe cases).
+The SD Specifications are divided into several documents. The SD Specifications documentation
+structure is given in Figure 1-1.
+Application Specifications
+Part 4 Audio
+
+Part 8 Video
+
+Other Applications
+
+Part 2 File System
+Part 3 Security
+
+Part 1 Physical Layer
+UHS-II Addendum
+Low Voltage Interface Addendum
+Mechanical Addenda
+eSD Addendum (Embedded)
+Extended Security Addendum
+
+Part A1
+Advanced
+Security SD
+Extension
+
+Part E1 SDIO
+
+Figure 1-1 : SD Specifications Documentation Structure
+
+• Audio Specification:
+This specification, along with other application specifications, describes the specification of a specific
+application (in this case - Audio Application) and the requirements to implement it.
+
+1
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+• File System Specification:
+The specification describes the specification of the file format structure of the data saved in the SD
+Memory Card (in User Area and Protected Area).
+
+• Security Specification:
+The specification describes the content protection mechanism and the application-specific commands
+that support it.
+
+• Physical Layer Specification (this document):
+The specification describes the physical interface and the command protocol used by the SD Memory
+Card. The purpose of the Physical Layer specification is to define the SD Memory Card, its environment,
+and handling.
+The document is divided into several portions. Chapter 3 gives a general overview of the system concepts.
+The common SD Memory Card characteristics are described in Chapter 4. As this description defines an
+overall set of card properties, we recommend using the product documentation in parallel. The card
+registers are described in Chapter 5.
+Chapter 6 defines the electrical parameters of the SD Memory Card's hardware interface.
+Mechanical Specification described in Chapter 8 in Version 2.00 is moved to the Standard Size
+Mechanical Addendum.
+There are three mechanical addenda depend on form factors.
+(1) Standard Size Mechanical Addendum
+(2) miniSD Mechanical Addendum
+(3) microSD Mechanical Addendum
+UHS-II Interface Specification is defined by the UHS-II Addendum.
+SD Express Interface Specification is defined by the SD Physical Specification – introduced in Version
+7.0.
+The definitions for either UHS-II or SD Express interfaces are independent of a specific form factor unless
+it is stated as applicable to specific form factor only.
+Un-removable memory device for embedded application is defined by the eSD Addendum.
+TCG security functionality in SD card is defined in the Extended Security Addendum.
+As used in this document, "shall" or "will" denote a mandatory provision of the standard. "Should" denotes
+a provision that is recommended but is not mandatory. "May" denotes a feature, which may or may not
+be present–at the option of the implementer–and whose presence does not preclude compliance.
+• Mc-EX Interface Specification: (This section was added in version 1.10)
+Part A1 of the SD memory card specification (Refer to Figure 1-1) serves as an extension to the SD card
+Physical Layer Specification and provides all of the definitions required to transfer the Mobile Commerce
+Extension (Mc-EX) command packets from the Mc-EX host to the Mc-EX enabled SD memory card, and
+vice versa.
+• SDIO Specification
+SDIO card and embedded SDIO are specified based on the Physical Layer Specification and
+modifications and extensions are described in the Part E1 SDIO Specification.
+
+2
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+2. System Features
+ Targeted for portable and stationary applications
+ Capacity of Memory
+(1) Standard Capacity SD Memory Card (SDSC): Up to and including 2 GB
+(2) High Capacity SD Memory Card (SDHC): More than 2GB and up to and including 32GB
+(3) Extended Capacity SD Memory Card (SDXC): More than 32GB and up to and including 2TB
+(4) Ultra Capacity SD Memory Card (SDUC): More than 2TB and up to and including 128TB
+ Voltage range:
+High Voltage SD Memory Card – Operating voltage range: 2.7-3.6 V
+UHS-II SD Memory Card – Operating voltage range VDD1: 2.7-3.6 V, VDD2: 1.70-1.95V
+SD Express Memory Card - Operating voltage range VDD1: 2.7-3.6 V, VDD2: 1.70-1.95V and
+optional VDD3: 1.14-1.30V (operated instead of VDD2 if supported).
+ Designed for read-only and read/write cards.
+ Bus Speed Mode - using 4 parallel data lines
+(1) Default Speed mode: 3.3V signaling, Frequency up to 25 MHz, up to 12.5 MB/sec
+(2) High Speed mode: 3.3V signaling, Frequency up to 50 MHz, up to 25 MB/sec
+(3) SDR12: UHS-I 1.8V signaling, Frequency up to 25 MHz, up to 12.5MB/sec
+(4) SDR25: UHS-I 1.8V signaling, Frequency up to 50 MHz, up to 25MB/sec
+(5) SDR50: UHS-I 1.8V signaling, Frequency up to 100 MHz, up to 50MB/sec
+(6) SDR104: UHS-I 1.8V signaling, Frequency up to 208 MHz, up to 104MB/sec
+(7) DDR50: UHS-I 1.8V signaling, Frequency up to 50 MHz, sampled on both clock edges, up to
+50MB/sec
+ Bus Speed Mode - using UHS-II Differential Interface lines
+(1) UHS156: UHS-II RCLK Frequency Range 26MHz - 52MHz, up to 1.56Gbps per lane.
+(2) UHS624: UHS-II RCLK Frequency Range 26MHz- 52MHz, up to 6.24Gbps per lane.
+ Bus Speed Mode - using PCIe Differential Interface lines
+(1) PCIe with Gen 3 1 lane - Up to 985MB/s.
+(2) PCIe with Gen 3 2 lanes - Up to 1,969MB/s.
+(3) PCIe with Gen 4 1 lane - Up to 1,969MB/s.
+(4) PCIe with Gen 4 2 lanes - Up to 3,938MB/s.
+ Switch function command supports Bus Speed Mode, Command System, Drive Strength, and future
+functions
+ Correction of memory field errors
+ Card removal during read operation will never harm the content
+ Content Protection Mechanism - Complies with highest security of SDMI standard.
+ Password Protection of cards (CMD42 - LOCK_UNLOCK)
+
+3
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+ Write Protect feature using mechanical switch
+ Built-in write protection features (Permanent Write Protect, Temporary Write Protect and Write
+Protect Until Power Cycle)
+ Card Detection (Insertion/Removal)
+ Application specific commands
+ Comfortable erase mechanism
+ Features of the SD Express card:
+o PCI Express® (PCIe) Gen 3 or Gen 4; 1 lane or 2 lanes
+ Dual simplex point to point serial connection
+ For Gen3x1 bus, two differential I/O (1 RX / 1 TX) of 8Gbps transfer, producing up to 985MB/s
+for each direction (~1.5% overhead due to 128/130 encoding)
+ For Gen3x2 bus, four differential I/O (2 RX / 2 TX) of 8Gbps transfer, producing up to 1,969MB/s
+for each direction (~1.5% overhead due to 128/130 encoding)
+ For Gen4x1 bus, two differential I/O (1 RX / 1 TX) of 16Gbps transfer, producing up to 1,969MB/s
+for each direction (~1.5% overhead due to 128/130 encoding)
+ For Gen4x2 bus, four differential I/O (2 RX / 2 TX) of 16Gbps transfer, producing up to 3,938MB/s
+for each direction (~1.5% overhead due to 128/130 encoding)
+ Hot plug-in/out support
+ Identified as standard Mass storage controller - NVM Express™ device
+o NVM-Express revision 1.3 or later supported over the PCIe interface
+ Mandatory to support revision 1.3 and optional(3) to support features from revision 1.3a, 1.3b, 1.3c,
+1.3d or 1.4.
+ NVMe is light protocol – built for performance
+ All the optional standard features of PCIe and NVMe standards may be implemented by host
+and/or card if they wish to (up to implementation). Following is a partial list:
+- Host Memory Buffer supported by NVMe
+- NVMe with multi queues and no locking mechanism
+o Legacy SD UHS-I interface is supported for backward compatibility (with limited features as
+described in Sections 8.1.4, 8.1.5 and 0 )
+
+4
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+ Protocol attributes of the basic SD communication channel:
+SD Memory Card Communication Channel
+
+Six-wire communication channel
+(clock, command, 4 data lines)
+Error-protected data transfer
+Single or Multiple block oriented data transfer
+
+ SD Express card supports NVMe(1) protocol (revision 1.3 or later(3)) over the PCIe(2) interface
+ SD Memory Card Form-factor
+There are three Part 1 mechanical addenda as follows:
+Standard Size SD Memory Card: Specified in "Part 1 Standard Size SD Card Addendum"
+miniSD Memory Card: Specified in "Part 1 miniSD Card Addendum"
+microSD Memory Card: Specified in "Part 1 microSD Card Addendum"
+ Standard Size SD Memory Card thickness is defined as both 2.1 mm (normal) and 1.4 mm (Thin
+SD Memory Card).
+ Boot Functionalities including boot partitions and Fast Boot
+ TCG (Trusted Computing Group) security including MBR Shadowing.
+ RPMB (Replay Protected Memory Block)
+
+(1) NVM Express™ (word mark) and NVMe™ (word mark) are trademarks of NVM Express, Inc.
+NVM Express, Inc. defines the NVM Express standard and specifications.
+Contact NVM Express, Inc. for further information URL: http://nvmexpress.org/.
+(2) PCI-SIG®, PCIe® and PCI Express® are registered trademarks of PCI-SIG.
+The PCI-SIG defines the PCI Express standard and specifications.
+Contact the PCI-SIG for further information URL: https://pcisig.com/.
+PCI-SIG®, PCIe® and PCI Express® are registered trademarks of PCI-SIG.
+(3) It is recommended for SD Express 8.0 hosts to support NVM Express revision 1.3d or 1.4 to avoid
+any compatibility issues with SD Express cards using earlier revisions.
+(4) The TCG defines the TCG security standard and specifications.
+Contact the TCG for further information URL: https://www.trustedcomputinggroup.org/.
+
+5
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3. SD Memory Card System Concept
+Description here is a blank in the Simplified Specification.
+
+3.1 Read-Write Property
+In terms of read-write property, two types of SD Memory Cards are defined:
+ Read/Write (RW) cards (Flash, One Time Programmable - OTP, Multiple Time Programmable - MTP).
+These cards are typically sold as blank (empty) media and are used for mass data storage, end user
+video, audio or digital image recording
+ Read Only Memory (ROM) cards. These cards are manufactured with fixed data content. They are
+typically used as a distribution media for software, audio, video etc.
+
+3.2 Supply Voltage
+In terms of operating supply voltage, two types of SD Memory Cards are defined:
+ High Voltage SD Memory Cards that can operate the voltage range of 2.7-3.6 V.
+ UHS-II SD Memory Card that can operate the voltage ranges VDD1: 2.7-3.6 V, VDD2: 1.70-1.95V
+ Low Voltage Signaling (LVS) Cards that can operate the supply voltage range of 2.7-3.6V, but signaling
+voltage range of the non-differential interface is 1.70-1.95V.
+ SD Express Memory Card that can operate under voltage range VDD1: 2.7-3.6 V, VDD2:1.70-1.95V
+(mandatory) and optional VDD3: 1.14-1.30V that may be used instead VDD2, if supported.
+
+3.3 Card Capacity
+3.3.1 User Area, Protected Area and Boot Partitions
+Non CPRM Card means Regular Writeable SD Card (SDSC/SDHC/SDXC/SDUC) that does not support
+the CPRM security. For Non CPRM Cards, the Protected Area cannot be accessed.
+SD Memory Card supporting CPRM has two accessible independent areas: User Area and Protected
+Area. User Area is main memory area and Protected Area can be accessed by the authentication defined
+by the Part 3 Security Specification. Card Capacity means the sum of User Area Capacity and Protected
+Area Capacity, and does not include Boot Partitions. Since SDUC does not support security, the size of
+Protected Area is set to 0 and it cannot be accessed.
+
+3.3.2 Card Capacity Classification
+In terms of card capacity, three types of SD Memory Cards are defined:
+ Standard Capacity SD Memory Card (SDSC) supports capacity up to and including 2 G bytes (231
+bytes). All versions of the Physical Layer Specifications define the Standard Capacity SD Memory Card.
+ High Capacity SD Memory Card (SDHC) supports capacity more than 2 G bytes (231 bytes) up to and
+including 32 G bytes and is defined from the Physical Layer Specification Version 2.00.
+ Extended Capacity SD Memory Card (SDXC) supports more than 32 G bytes (235 bytes) up to and
+including 2TB.
+ Ultra Capacity SD Memory Card (SDUC) supports more than 2 T bytes (241 bytes) up to and including
+128TB.
+Note:
+1. The Part 1 Physical Layer Specification Version 3.00 or later and Part 2 File System Specification
+Version 3.00 or later allow Standard Capacity SD Memory Cards to have capacity up to and including
+2 GB, High Capacity SD Memory Cards to have capacity up to and including 32 GB and Extended
+Capacity SD Memory Card to have capacity up to 2 TB.
+2. Hosts that can access (read and/or write) SD Memory Cards with a capacity greater than 2 GB and
+up to and including 32 GB, shall also be able to access SD Memory Cards with a capacity of 2 GB
+or less.
+
+6
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+3. Hosts that can access (read and/or write) SD Memory Cards with a capacity greater than 32 GB and
+up to 2 TB, shall also be able to access SD Memory Cards with a capacity of 32 GB or less.
+
+3.4 Speed Class
+Five Speed Classes are defined and indicate minimum performance of the cards
+ Class 0 - These class cards do not specify performance. It includes all the legacy cards prior to the
+Physical Layer Specification Version 2.00, regardless of its performance
+ Class 2 is more than or equal to 2 MB/sec performance (Default Speed Mode)
+ Class 4 is more than or equal to 4 MB/sec performance (Default Speed Mode)
+ Class 6 is more than or equal to 6 MB/sec performance (Default Speed Mode)
+ Class 10 is more than or equal to 10 MB/sec performance (High Speed Mode)
+Note that the unit of performance [MB/sec] indicates 1000x1000 [Byte/sec] while the unit of data size [MB]
+indicates 1024x1024 [Byte]. This is because the maximum SD Bus speed is specified by the maximum
+SD clock frequency (25 [MB/sec] = 25000000 [Byte/sec] at 50 MHz) and data size is based on memory
+boundary (power of 2).
+
+3.5 Bus Topology
+This section is a blank in the Simplified Specification.
+
+3.5.1 SD Bus (Removed in the Simplified Specification)
+Figure 3-1 : SD Memory Card System Bus Topology (Removed in the Simplified Specification)
+
+3.5.2 SPI Bus (Removed in the Simplified Specification)
+Figure 3-2 : SD Memory Card System (SPI Mode) Bus Topology (Removed in the Simplified
+Specification)
+
+3.5.3 UHS-II Bus (Removed in the Simplified Specification)
+Figure 3-3 : UHS-II Bus Topologies (Removed in the Simplified Specification)
+
+3.5.4 PCIe Bus (Removed in the Simplified Specification)
+
+7
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.6 Bus Protocol
+3.6.1 SD Bus Protocol
+Communication over the SD bus is based on command and data bit streams that are initiated by a start
+bit and terminated by a stop bit.
+ Command: a command is a token that starts an operation. A command is sent from the host either
+to a single card (addressed command) or to all connected cards (broadcast command). A command
+is transferred serially on the CMD line.
+ Response: a response is a token that is sent from an addressed card, or (synchronously) from all
+connected cards, to the host as an answer to a previously received command. A response is
+transferred serially on the CMD line.
+ Data: data can be transferred from the card to the host or vice versa. Data is transferred via the data
+lines.
+from
+host
+to card(s)
+
+CMD
+
+from
+host
+to card
+
+command
+
+from
+card
+to host
+
+command
+
+response
+
+DAT
+operation (no response)
+
+operation (no data)
+
+Figure 3-4 : "no response" and "no data" Operations
+Card addressing is implemented using a session address, assigned to the card during the initialization
+phase. The structure of commands, responses and data blocks is described in Chapter 4. The basic
+transaction on the SD bus is the command/response transaction (refer to Figure 3-4). This type of bus
+transaction transfers their information directly within the command or response structure. In addition,
+some operations have a data token.
+Data transfers to/from the SD Memory Card are done in blocks. Data blocks are always succeeded by
+CRC bits. Single and multiple block operations are defined. Note that the Multiple Block operation mode
+is better for faster write operation. A multiple block transmission is terminated when a stop command
+follows on the CMD line. Data transfer can be configured by the host to use single or multiple data lines.
+from
+host
+to card
+
+CMD
+DAT
+
+from
+card
+to host
+
+command
+
+command
+
+response
+data block crc
+
+stop command
+stops data transfer
+
+data from card
+to host
+
+data block crc
+
+response
+
+data block crc
+data stop operation
+
+block read operation
+multiple block read operation
+
+Figure 3-5 : (Multiple) Block Read Operation
+The block write operation uses a simple busy signaling of the write operation duration on the DAT0 data
+line (see Figure 3-6) regardless of the number of data lines used for transferring the data.
+
+8
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+from
+host
+to card
+
+CMD
+
+data from
+host
+to card
+
+from
+card
+to host
+
+command
+
+crc ok
+response
+and busy
+from
+card
+to host
+
+stop command
+stops data transfer
+
+command
+
+response
+data block crc
+
+DAT
+
+busy
+
+data block crc
+
+response
+busy
+
+data stop operation
+
+block write operation
+multiple block write operation
+
+Figure 3-6 : (Multiple) Block Write Operation
+Command tokens have the following coding scheme:
+transmitter bit:
+'1'= host command
+
+Command content: command and address information
+or parameter, protected by 7 bit CRC checksum
+end bit:
+always '1'
+
+start bit:
+always'0'
+
+1
+
+0
+
+CONTENT
+
+1
+
+CRC
+
+total length=48 bits
+
+Figure 3-7 : Command Token Format
+Each command token is preceded by a start bit (0) and succeeded by an end bit (1). The total length is
+48 bits. Each token is protected by CRC bits so that transmission errors can be detected and the operation
+may be repeated.
+Response tokens have one of four coding schemes, depending on their content. The token length is either
+48 or 136 bits. The detailed commands and response definition is given in Section 4.7. The CRC
+protection algorithm for block data is a 16-bit CCITT polynomial. All allowed CRC types are described in
+Section 4.5.
+transmitter bit:
+'0'=card response
+
+Response content: mirrored command and status information (R1 response), OCR register (R3 response) or
+RCA (R6), protected by a 7bit CRC checksum
+
+start bit:
+always'0'
+R1, R3,R6
+
+0
+
+0
+
+CONTENT
+
+end bit:
+always '1'
+
+1
+end bit:
+always '1'
+
+total length=48 bits
+
+R2
+
+0
+
+0
+
+CONTENT=CID or CSD
+
+CRC
+
+1
+
+total length=136 bits
+
+Figure 3-8 : Response Token Format
+In the CMD line the Most Significant Bit (MSB) is transmitted first, the Least Significant Bit (LSB) is the
+last.
+When the wide bus option is used, the data is transferred 4 bits at a time (refer to Figure 3-10). Start and
+end bits, as well as the CRC bits, are transmitted for every one of the DAT lines. CRC bits are calculated
+and checked for every DAT line individually. The CRC status response and Busy indication will be sent
+by the card to the host on DAT0 only (DAT1-DAT3 during that period are don't care).
+
+9
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+There are two types of Data packet format for the SD card.
+(1) Usual data (8-bit width): The usual data (8-bit width) are sent in LSB (Least Significant Byte) first,
+MSB (Most Significant Byte) last sequence. But in the individual byte, it is MSB (Most Significant Bit)
+first, LSB (Least Significant Bit) last.
+(2) Wide width data (SD Memory Register): The wide width data is shifted from the MSB bit.
+1. Data Packet Format for Usual Data (8-bit width)
+b0
+
+b7
+
+End
+bit
+
+Start bit
+
+1st Byte
+2nd Byte
+3rd Byte

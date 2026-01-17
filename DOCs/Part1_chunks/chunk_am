@@ -1,0 +1,2000 @@
+(2) Support any of additional functions defined by Version 6.XX:
+Following functions (a) to (f) are defined by Version 6.00.
+(a) Support of Application Performance Class 2 [shall support (b), (c) and (d) as well]
+(b) Support of Command Queue
+(c) Support of Cache
+(d) Support of LVS
+(e) Support of Self Maintenance
+242
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+(f) Support of Range C and Range D for UHS-II
+Following function (g) is defined by version 6.10
+(g) CPRM support is treated as optional for regular writeable SDSC, SDHC and SDXC
+cards
+(3) Speed Class support is treated as optional (SDHC or SDXC)
+Essential conditions to indicate Version 7.XX Card (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=0 or 1
+and SD_SPECX=3. If at least one function of Version 4.XX is supported, SD_SPEC4=1. Otherwise,
+SD_SPEC4=0.)
+(1) Same as the essential conditions of Version 3.00 device
+(2) Support any of additional functions defined by Version 7.XX:
+Following functions (a) and (b) are defined by Version 7.00:
+(a) SD Express card with PCIe Gen3x1 interface
+(b) Ultra capacity (SDUC) card
+Following function is defined by Version 7.10:
+(c) microSD support of SD Express with PCIe Gen3x1 interface.
+If A2 is implemented for either card (a), (b) or (c) the card shall support Cache and LVS (Command
+Queuing is optional).
+Essential conditions to indicate Version 8.XX Card (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=0 or 1
+and SD_SPECX=4. If at least one function of Version 4.XX is supported, SD_SPEC4=1. Otherwise,
+SD_SPEC4=0.)
+(1) Same as the essential conditions of Version 3.00 device
+(2) Support any of additional functions defined by Version 8.XX:
+Following function (a) is defined by Version 8.00:
+(a) SD Express card supporting either PCIe Gen4 or PCIe 2 lanes
+Essential conditions to indicate Version 9.XX Card (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=0 or 1
+and SD_SPECX=5. If at least one function of Version 4.XX is supported, SD_SPEC4=1. Otherwise,
+SD_SPEC4=0.)
+(1) Same as the essential conditions of Version 3.00 device
+(2) Support any of additional functions defined by Version 9.XX:
+Following functions (a) to (c) are defined by Version 9.00:
+(a) Support of TCG security
+(b) Support of RPMB
+(c) Support of Boot Functionalities and RPMB
+Note that when Boot Functionalities are supported, Fast Boot (for SD interface) shall be also
+supported.
+Following function (d) is defined by Version 9.10:
+(d) SD Express Speed Class
+Application Notes:
+Note that Version 5.XX specification onwards the Speed Class 2 support of the card is modified
+from mandatory to optional while it was treated as mandatory in Version 2.00, 3.00 and 4.XX.
+The requirements of supporting commands mentioned above are for the optional commands, the support
+of which depends on versions (SD_SPEC, SD_SPEC3, SD_SPEC4 and SD_SPECX). Refer to Table
+4-21 (and Notes below the table) about the mandatory and optional commands in the card.
+
+243
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+• DATA_STAT_AFTER_ERASE
+Defines the data status after erase, whether it is 0 or 1 (the status is card vendor dependent).
+
+• SD_SECURITY
+This field indicates CPRM Security Specification Version for each capacity card. The definition of
+Protected Area is different in each capacity card.
+SD_SECURITY
+CPRM Security Version
+0
+No Security
+1
+Not Used
+2
+SDSC Card (Security Version 1.01)
+3
+SDHC Card (Security Version 2.00)
+4
+SDXC Card (Security Version 3.xx)
+5-7
+Reserved
+Table 5-20 : CPRM Security Version
+If Security is supported, the basic rule of setting this field:
+SDSC Card sets this field to 2 (Version 1.01)
+SDHC Card sets this field to 3 (Version 2.00).
+SDXC Card sets this field to 4 (Version 3.xx).
+Note that security is optional for writeable SDSC, SDHC and SDXC SD Memory cards and ROM and
+OTP cards. SDUC card does not support security feature. SD_SECURITY shall be set to 0.
+
+• SD_BUS_WIDTHS
+Describes all the DAT bus widths that are supported by this card.
+SD_BUS_WIDTHS
+Supported Bus Widths
+Bit 0
+1 bit (DAT0)
+Bit 1
+reserved
+Bit 2
+4 bit (DAT0-3)
+Bit 3
+reserved
+Table 5-21 : SD Memory Card Supported Bus Widths
+Since the SD Memory Card shall support at least the two bus modes 1-bit or 4-bit width, then any SD
+Card shall set at least bits 0 and 2 (SD_BUS_WIDTH="0101").
+
+• EX_SECURITY
+This field indicates Extended Security which is defined by the Part A4 Data Protection System
+Specification Version 1.00 or other extend security specifications.
+
+244
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+EX_SECURITY
+0000b
+Others
+
+Extended Security
+Extended Security is not supported.
+Extended Security is supported.
+SCR[44:43] is defined by the Part A4 Data Protection System
+Specification.
+SCR[45] is used for TCG security (see Table 5.6-1).
+SCR[46] is used for RPMB (see Table 5.6-1).
+Table 5-22 : Extended Security
+
+Table 5.6-1 shows support bits for extended securities (RPMB and TCG security) introduced from the
+Physical Layer Specification Version 9.00.
+SCR Bit 46 indicates support bit of RPMB. If the card supports RPMB, RPMB_SUPPORT=1, otherwise,
+RPMB_SUPPORT=0.
+SCR Bit 45 indicates support bit of TCG security. If the card supports the Security Subsystem Class as
+defined in Extended Security Addendum, TCG_SUPPORT=1. Otherwise, TCG_SUPPORT=0.
+Description
+RPMB Support
+TCG Support
+
+Field
+
+Width
+
+RPMB_SUPPORT
+1
+TCG_SUPPORT
+1
+Table 5.6-1 : Detailed Field Definition of EX_SECURITY
+
+Cell
+Type
+R
+R
+
+SCR
+Slice
+[46]
+[45]
+
+• CMD_SUPPORT
+Support bit of new commands are defined to Bit 36-32 of SCR.
+SCR Bit Supported Command
+36
+
+35
+
+34
+
+33
+
+32
+
+Command
+
+Remark
+Optional.
+Secure Receive /
+If TCG security or RPMB are
+ACMD53/54
+8
+Secure Send
+supported, then ACMD53/54 shall
+be supported.
+Optional.
+Extension Register
+CMD58/59
+11
+If CMD58/59 is supported, then
+Multi-Block
+CMD48/49 shall be supported.
+Optional.
+If RPMB is supported (including
+Extension Register
+CMD48/49
+11
+the case of Boot Functionalities
+Single Block
+support), then CMD48/49 shall be
+supported.
+Mandatory for UHS104 card.
+Set Block Count
+CMD23
+2, 4
+If ACMD53/54 is supported, then
+CMD23 shall be supported.
+Mandatory for SDXC and SDUC
+card if Speed Class, UHS Speed
+Speed Class Control
+CMD20
+2, 4
+Grade or Video Speed Class is
+supported by the card.
+Table 5-23 : Command Support Bits
+
+245
+
+CCC
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+5.7 Function Extension Specification
+There are demands for adding extension functions in the SD Memory Card. With regard to CMD6, it is
+not suitable for active control but suitable for selecting one of functions at initialization. Then new function
+extension method suitable for active control is introduced.
+Extension Register is introduced to control extension functions. The Extension Register space is
+independent to Memory Space accessed by CMD17/18 and CMD24/25. Commands CMD48/49 and
+CMD58/59 are defined to access Extension Register Space.
+CMD48: Read Extension Register Single Block Command
+CMD49: Write Extension Register Single Block Command
+CMD58: Read Extension Register Multi-Block Command
+CMD59: Write Extension Register Multi-Block Command
+There are two types of Extension Register Spaces; Memory Extension Register Space and I/O Extension
+Register Space. I/O Extension Register Space is equivalent to the space accessed by CMD52 and
+CMD53 as defined by the SDIO Specification.
+As most host systems can perform 512byte block basis read/write operation, CMD48/49 are defined as
+512 bytes fixed block length commands. "Data Port" can be defined in the Extension Register space to
+perform data transfer between host and a function device. Location of Data Port is defined by each
+function specification. CMD49 has specific features to perform bit operation without "Read Modify Write".
+Multiple blocks data transfer is supported by CMD58/59 to increase performance.
+This function extension method also defines "General Information" to realize Plug & Play in a host system.
+General Information includes information to find function driver.
+Host shall set reserved bits in a defined writable Extension Register to 0. Even if reserved bits were set
+to 1, Device is not necessary to set reserved bits to 1.
+Function Extension Specification is newly added to the Physical Layer Specification Version 4.00 and is
+applicable from the Physical Layer Specification Version 4.00 products. This function may be supported
+on SDHC, SDXC and SDUC Card and is not supported through SPI interface. From the Physical Layer
+Version 4.10, Multi-Block commands are supported.
+From the Physical Layer Specification Version 9.00, the Function Extension realized by CMD48/49/58/59
+is also available in SDSC cards to support Boot Functionalities and RPMB. Except these two functions,
+SDSC card cannot support Function Extension such as Power Management Function. In addition, data
+block size transmitted by CMD48/49/58/59 is always 512 bytes regardless of BLOCK_LEN value or sector
+size.
+
+5.7.1 Extension Register Space
+Figure 5-3 shows Extension Register Space. The space is divided into 256 pages per a Function Number.
+Each page is 512 byte length of fixed address boundary. Function Number is 1 to 15 in case of Memory
+Space and 1 to 7 in case of I/O Space. CMD48/49 cannot access data across page boundary.
+Embodiment of Extension Register Set is defined anywhere in the Extension Register Space by a
+Function Specification. Extension Register Set should be treated as a different type of register from that
+shown in Table 3-2.
+
+246
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Extension Register Space consists
+of 256 pages per function.
+
+A Page of
+Extension
+Register
+Space
+512-byte
+
+Figure 5-3 : Extension Register Space
+
+5.7.2 Extension Register Commands
+5.7.2.1 Extension Register Read Command (Single Block)
+Figure 5-4 shows definition of Read Extension Register Single Block Command (CMD48). Bus timing of
+this command is equivalent to a single block read command (CMD17). The response type is R1. Data
+block length is fixed to 512-byte length.
+
+47 46
+S T
+0 1
+
+45-40
+INDEX
+110000
+
+39
+MIO
+x
+
+38-35
+FNO
+xxxx
+
+34
+rsv
+0
+
+33-17
+ADDR
+17-bit
+
+Memory or I/O
+0b: Memory Extension
+1b: I/O Extension
+
+Length
+Length (9-bit for Register Access)
+000h: 1byte
+001h: 2 bytes
+002h: 3 bytes
+............
+1FFh: 512 bytes
+
+Function No.
+Memory Space (MIO=0 4-bit Bit38-35)
+0000b: Function 0
+0001b: Function 1
+..............
+1111b: Function 15
+I/O Space (MIO=1 3-bit Bit38-36, Bit35=0)
+000b: Function 0
+001b: Function 1
+..............
+111b: Function 7
+
+16-08
+07-01
+0
+LEN
+CRC7 E
+xxxxxxxxx xxxxxxx 1
+
+Address (17-bit)
+There are two independent spaces; Memory Space (MIO=0)
+and I/O Space (MIO=1) up to 128KB for each function.
+
+Figure 5-4 : Read Extension Register Single Block Command (CMD48)
+Fields in the argument of CMD48:
+MIO: Selection of Memory Space or I/O Space (0: Memory Space, 1: I/O Space)
+There are two independent spaces; Memory Extension Register Space and I/O Extension
+Register Space. Which space accessed is selected by this bit. I/O Extension Register Space is
+equivalent to CMD52/53 SDIO space. (Refer to Part E1 SDIO Specification and Part E7 iSDIO
+Specification.)
+FNO: Function Number
+Unique Function Number is assigned to each function. FNO helps host to distinguish functions
+
+247
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+and enables card to check sequence of commands. Up to 15 functions may be assigned for
+memory and up to 7 functions may be assigned for I/O.
+ADDR: Address of Extension Register Space
+Lower 9-bit is used as offset address in a page and upper 8-bit is used as page number. Up to
+256 pages is addressable.
+LEN: Effective Length of a Page
+On accessing Data Port, card ignores this field but host shall set this field to 000h. If access is
+not to Data Port, this field is used to set effective data length (byte unit) in a page.
+Figure 5-5 shows read timing of Extension Register. The register area for read is specified by ADDR and
+LEN and shall be in a page boundary. The register data is set from the top of 512-byte data block and the
+rest is filled with dummy data. If data length is specified over a page boundary (512 bytes), surplus data
+in next page is not read and not set in the data block. The maximum data access time from the end bit of
+CMD48 is 1 second. Data zero shall be read when reading from unassigned register area which is in the
+register sets assigned by the General Information.
+CMD
+
+CMD48
+
+R1
+
+DAT[3:0]
+
+512-Byte
+LEN
+
+CRC
+
+Non Effective Data (don't care)
+
+ADDR, FNO, LEN
+Extension Register
+ADDR
+Effective Data to be read
+LEN
+
+Figure 5-5 : Extension Register Read Operation by CMD48
+Extension Register can be used to interface a function device. Use of Data Port is useful to perform data
+transfer between host and the device. Figure 5-6 shows read timing of Data Port. Data Port can be defined
+anywhere in Extension Register space by implementation of the card. If FNO and ADDR are matched to
+the Data Port location (1 byte), a data of the function device can be read. Data from the device is set in
+the data block of CMD48. Data length is fixed 512 bytes. The maximum data access time of Data Port
+from the end bit of CMD48 is 1 second.
+
+248
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+CMD48
+
+CMD
+
+R1
+
+DAT[3:0]
+
+512-Byte
+
+CRC
+
+ADDR, FNO
+ADDR
+1 byte
+
+Function
+Device
+
+Data Port
+
+A byte register field is assigned
+as Read Data Port
+
+Read Data Port
+
+Figure 5-6 : Data Port Read Operation by CMD48
+5.7.2.2 Extension Register Write Command (Single Block)
+Figure 5-7 shows definition of Write Extension Register Single Block Command (CMD49). Bus timing of
+this command is equivalent to a single block write command (CMD24). The response type is R1. Data
+block length is fixed to 512-byte length.
+47 46
+S T
+0 1
+
+45-40
+INDEX
+110001
+
+39
+MIO
+x
+
+38-35
+FNO
+xxxx
+
+34
+MW
+x
+
+33-17
+ADDR
+17-bit
+
+07-01
+CRC7
+xxxxxxx
+
+0
+E
+1
+
+Length / Mask
+Length (9-bit when MW=0 for Register Access)
+000h: 1byte
+001h: 2 bytes
+002h: 3 bytes
+............
+1FFh: 512 bytes
+Mask (lower 8-bit when MW=1 for Register Access)
+Length is fixed to 1.
+Each bit controls write operation
+1: Data bits are written
+0: Register bits stay unchanged
+
+Memory or I/O
+0b: Memory Extension
+1b: I/O Extension
+
+Function No.
+Memory Space (MIO=0 4-bit Bit38-35)
+0000b: Function 0
+0001b: Function 1
+..............
+1111b: Function 15
+I/O Space (MIO=1 3-bit Bit38-36, Bit35=0)
+000b: Function 0
+001b: Function 1
+..............
+111b: Function 7
+
+16-08
+LEN/MASK
+xxxxxxxxx
+
+Address (17-bit)
+There are two independent spaces; Memory Space (MIO=0)
+and I/O Space (MIO=1) up to 128KB for each function.
+
+Mask Write Mode
+0b: Mask Disabled (Length is set to 16-08)
+1b: Mask Enabled (Mask is set to 15-08)
+Length is fixed to 1.
+
+Figure 5-7 : Write Extension Register Single Block Command (CMD49)
+Fields in the argument of CMD49:
+MIO: Selection of Memory Space or I/O Space (0: Memory Space, 1: I/O Space)
+There are two independent spaces; Memory Extension Register Space and I/O Extension
+Register Space. Which space accessed is selected by this bit.
+FNO: Function Number
+Unique Function Number is assigned to each function. FNO helps host to distinguish functions
+249
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+and enables card to check sequence of commands. Up to 15 functions may be assigned for
+memory and up to 7 functions may be assigned for I/O.
+MW: Mask Write Operation (0: Mask is disabled, 1: Mask is enabled)
+On accessing Data Port, card ignores this field but host shall set this bit to 0. If access is not to
+Data Port, this bit determines the meaning of LEN/MASK field.
+If this bit is set to 0, LEN/MASK field is used to specify data length.
+If this bit is set to 1, LEN/MASK field is used to specify mask data and data length is considered
+as 1 byte. Destination in Extension Register is specified by FNO and ADDR. The first byte in the
+data block is used for a write data. Bit operation between destination and write data is dependent
+on mask data. If a mask bit is set to 0, a bit of the destination correspondent stays unchanged.
+If a mask bit is set to 1, a bit of write data correspondent is written to the destination.
+ADDR: Address of Extension Register Space
+Lower 9-bit is used as offset address in a page and upper 8-bit is used as page number. Up to
+256 pages is addressable.
+LEN/MASK: Effective Length of a Page
+On accessing Data Port, card ignores this field but host shall set this field to 000h. If access is
+not to Data Port, meaning of this field is dependent on MW.
+If MW=0, this field is used for setting effective data length (byte unit) in a page. Effective data is
+started from top of data block and only effective data specified by this length is written to
+Extension Register and the rest of block data is discarded and not written. This feature is useful
+to avoid read modify write operation.
+If MW=1, this field is used for setting mask data (1 byte) and perform mask write operation.
+Figure 5-8 shows write timing of Extension Register. The register area for write is specified by ADDR and
+LEN, and shall be in a page boundary. The other register area is not affected by this write operation. The
+write data is set from the top of 512-byte data block and the rest is filled with dummy data. The write data
+is written to Extension Register area specified by FNO and ADDR. If the register area is specified to
+across page boundary (512 bytes), data of next page is not written.
+Mask write operation is supported to enable bit operation with mask data (MW=1). Data length is always
+1 byte. Host is not necessary to perform read modify write operation by using mask operation. A byte write
+data is set in the top of 512-byte data block. 8-bit mask in the argument is corresponded to the byte write
+data. Setting Mask to 1 writes a write data bit to the register. Setting Mask to 0 prevents to change a
+register bit. Busy is indicated until CMD49 operation is completed. The maximum busy length to write
+Extension Register is 1 second.
+
+250
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+CMD
+
+CMD49
+
+R1
+CRC Status
+
+DAT[3:0]
+
+512-Byte
+LEN
+
+CRC
+
+0xxx1
+
+Busy
+
+Non Effective Data (don't care)
+
+ADDR, FNO, LEN
+Extension Register
+ADDR
+Effective Data to be written
+LEN
+
+Figure 5-8 : Extension Register Write Operation by CMD49
+Figure 5-9 shows write timing of Data Port. Extension Register is used to interface a function device. If
+FNO and ADDR are matched to the Data Port location (1 byte), a 512-byte data block is sent to the
+function device. The data is not written to Extension Register and Extension Register is not affected by
+this Data Port write operation. The maximum busy length to write Data Port is 1 second.
+CMD
+
+CMD49
+
+R1
+CRC Status
+
+DAT[3:0]
+
+512-Byte
+
+CRC
+
+0xxx1
+
+Busy
+
+Addr, FNO
+Addr
+1 byte
+
+Function
+Device
+
+Data Port
+
+A byte register field is assigned
+as Write Data Port
+
+Write Data Port
+
+Figure 5-9 : Data Port Write Operation by CMD49
+5.7.2.3 Multiple Block Data Transfer
+Multi-block data transfer can be supported by using CMD58/59. CMD58/59 are optional and SCR bit 35
+is assigned as the support bit of CMD58/59. If CMD58/59 are supported, CMD48/49 shall be supported.
+(1) Accessible Location
+CMD58/59 are mainly used to transfer multiple pages of data through Data Port and also may be
+used to access multiple pages of Extension Register. All 17-bit Address in the argument is effective
+to recognize Data Port location. If the address is not Data Port, the address of CMD58/59 should
+indicate top of page boundary of Extension Register (Card masks Lower 9-bit address to 0). If a
+target address becomes illegal, operation will stop. For example, if data transfer encounters a
+boundary between Data Port and Non Data Port, or function boundary, the card may terminate the
+data transfer.
+251
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+(2) Total Data Length
+As there is not enough space in the argument to specify total data length, concept of "Block Unit"
+is introduced. Total data length is determined by (Block Unit) x (Block Unit Count).
+Two types of Block Units can be selected by Block Unit Select (BUS bit-34 in the argument) either
+512Bytes (BUS=0) for smaller data transfer or 32KBytes (BUS=1) for larger data transfer. 32KBytes
+is adopted for considering a cluster size of FAT file system. 32KByte Block Unit means that 64 blocks
+(64 x 512Bytes) is considered as a data transfer unit. Block Unit Count is assigned to Bit 16-08 in
+the argument. Total Data length is calculated as follows:
+BUS=0: 512 Byte (Block Unit) x Block Unit Count (BUC)
+BUS=1: 32KByte (Block Unit) x Block Unit Count (BUC)
+Block Length is fixed to 512 bytes regardless of Block Unit.
+(3) Busy Length and Access Time
+Maximum busy length for each busy period and maximum data access time for each read data block
+are defined as 1 second. Card should follow Function Specification if it defines shorter Busy Length
+and Access Time.
+(4) Abort Operation
+CMD12 is used to force the card to go back to "tran" state. Host may issue CMD12 on detecting
+timeout.
+
+5.7.2.4 Extension Register Read Command (Multi-Block)
+CMD58 is assigned as Read Multi-Block Command as shown in Figure 5-10.
+BUS and BUC are explained in Section 5.7.2.3 and the definition of other fields is equivalent to CMD48
+in Section 5.7.2.1.
+47 46
+S T
+0 1
+
+45-40
+INDEX
+111010
+
+Memory or I/O
+0b: Memory Extension
+1b: I/O Extension
+
+39
+MIO
+x
+
+38-35
+FNO
+xxxx
+
+34
+BUS
+x
+
+33-17
+ADDR
+17-bit
+
+Block Unit Select
+0: 512Bytes
+1: 32KBytes
+32KBytes means that 64block data (64 x 512B) is
+treated as a Block Unit.
+
+Function No.
+Memory Space (MIO=0 4-bit Bit38-35)
+0000b: Function 0
+0001b: Function 1
+..............
+1111b: Function 15
+
+16-08
+07-01
+0
+BUC
+CRC7 E
+xxxxxxxxx xxxxxxx 1
+
+Block Unit Count
+000h: 1 Block Unit
+001h: 2 Block Units
+002h: 3 Block Units
+............
+1FFh: 512 Block Units
+Block Size is fixed to 512-Byte
+regardless of BUS.
+
+Address (17-bit)
+If address points to Data Port, data blocks
+are get from Data Port.
+CMD58 may use to read multiple pages of
+Extension Register.
+If neither Data Port nor Extension Register
+exists, operation will stop.
+
+I/O Space (MIO=1 3-bit Bit38-36, Bit35=0)
+000b: Function 0
+001b: Function 1
+..............
+111b: Function 7
+
+Figure 5-10 : Read Extension Register Multi-Block Command (CMD58)
+
+252
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 5-11 shows CMD58 read timing from Extension Register and Data Port. Bus timing of this
+command is equivalent to a multi-block read command (CMD18). Data zero shall be read when reading
+from unassigned register area which is in the register sets assigned by the General Information.
+(1) Register Read
+CMD
+
+Data Length = (Block Unit) x (Block Unit Count)
+
+CMD58
+
+R1
+512-Byte
+
+512-Byte
+
+CRC
+
+DAT[3:0]
+
+512-Byte
+
+CRC
+
+CRC
+
+Extension Register
+Arguments (FNO, ADDR, BUS, BUC)
+
+ADDR
+
+Data length
+
+(2) Data Port Read
+CMD
+
+CMD58
+
+(Block Unit) x (Block Unit Count)
+
+R1
+512-Byte
+
+512-Byte
+
+512-Byte
+
+CRC
+
+DAT[3:0]
+
+CRC
+
+CRC
+
+Extension Register
+Arguments (FNO, ADDR, BUS, BUC)
+ADDR
+
+Function
+
+BUS (Block Unit Select):
+Select 512Byte or 32KBye Block Unit
+
+Data Port
+
+In SD Card
+
+BUC (Block Unit Count):
+9-bit count
+
+Figure 5-11 : Extension Register and Data Port Read Operation by CMD58
+5.7.2.5 Extension Register Write Command (Multi-Block)
+CMD59 is assigned for Write Multi-Block Command as shown in Figure 5-12.
+BUS and BUC are explained in Section 5.7.2.3 and the definition of other fields is equivalent to CMD49
+in Section 5.7.2.2.
+
+253
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+47 46
+S T
+0 1
+
+45-40
+INDEX
+111011
+
+39
+MIO
+x
+
+38-35
+FNO
+xxxx
+
+Memory or I/O
+0b: Memory Extension
+1b: I/O Extension
+
+34
+BUS
+x
+
+33-17
+ADDR
+17-bit
+
+Block Unit Select
+0: 512Bytes
+1: 32KBytes
+32KBytes means that 64block data (64 x 512B) is
+treated as a Block Unit.
+
+Function No.
+Memory Space (MIO=0 4-bit Bit38-35)
+0000b: Function 0
+0001b: Function 1
+..............
+1111b: Function 15
+
+16-08
+07-01
+0
+BUC
+CRC7 E
+xxxxxxxxx xxxxxxx 1
+
+Block Unit Count
+000h: 1 Block Unit
+001h: 2 Block Units
+002h: 3 Block Units
+............
+1FFh: 512 Block Units
+Block Size is fixed to 512-Byte
+regardless of BUS.
+
+Address (17-bit)
+If address points to Data Port, data blocks
+are get from Data Port.
+CMD58 may use to read multiple pages of
+Extension Register.
+If neither Data Port nor Extension Register
+exists, operation will stop.
+
+I/O Space (MIO=1 3-bit Bit38-36, Bit35=0)
+000b: Function 0
+001b: Function 1
+..............
+111b: Function 7
+
+Figure 5-12 : Write Extension Register Multi-Block Command (CMD59)
+Figure 5-13 shows CMD59 write timing to Extension Register and Data Port. Bus timing of this command
+is equivalent to a multi-block write command (CMD25).
+(1) Register Write
+CMD
+
+Data Length = (Block Unit) x (Block Unit Count)
+
+CMD59
+
+R1
+512-Byte
+
+512-Byte
+
+512-Byte
+
+CRC Busy
+
+CRC Busy
+
+DAT[3:0]
+
+CRC
+
+Extension Register
+Arguments (FNO, ADDR, BUS, BUC)
+
+ADDR
+
+Data length
+
+(2) Data Port Write
+CMD
+
+CMD59
+
+(Block Unit) x (Block Unit Count)
+
+R1
+512-Byte
+
+512-Byte
+
+512-Byte
+
+CRC Busy
+
+DAT[3:0]
+
+CRC Busy
+
+CRC
+
+Extension Register
+Arguments (FNO, ADDR, BUS, BUC)
+ADDR
+
+Function
+
+BUS (Block Unit Select):
+Select 512Byte or 32KBye Block Unit
+
+Data Port
+
+In SD Card
+
+BUC (Block Unit Count):
+9-bit count
+
+Figure 5-13 : Extension Register and Data Port Write Operation by CMD59
+5.7.2.6 Error Status Indication
+On detecting Illegal Command Error or Command CRC Error, the card indicates the error to the next R1
+response. Backend errors of Extension Functions (ex. network error of I/O function, etc.) shall not be
+indicated in R1 (backend errors are reserved for memory) and shall be handled by using Error Status
+254
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+register, which is defined by each function specification. Interface errors (ex. illegal argument of
+CMD48/49/58/59) may be indicated to R1 or Error Status register.
+
+255
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+5.7.3 General Information
+Extended Function is supposed to be controlled by a Function Driver on a host system. Host Driver is
+responsible to find and load the pre-installed Function Driver to use a function on a SD card. Host System
+can use any function by this method. General Information is defined to realize Plug & Play in Host System.
+There are two types of Function Drivers. One is Standard Function Driver for Controlling Standard
+Register Set that will be provided by OS vendor or Host System vendor. The other is Particular Function
+Driver for Controlling Specific Register Set that is provided by the vendor who made a Function.
+Figure 5-14 shows location and size of General Information for Memory (MIO=0). General Information is
+located from page 0 of FNO=0 and the length of General Information is variable up to 1024 bytes (up to
+page 1) depends on the number of functions supported on a card. The length (in byte) is indicated in a
+field of General Information.
+
+00000h-001FFh
+
+Extension Register
+Page 0: 512-byte
+
+00200h-003FFh
+Page 1: 512-byte
+Figure 5-14 : General Information for Memory
+Location of General Information for I/O is defined by Part E7 iSDIO Specification Version 1.00. Format
+of General Information is same as memory.
+Figure 5-15 shows Data Structure of General Information. All fields are defined as little endian format.
+Least significant byte is indicated in lower byte.
+The first 16 bytes are assigned as header of General Information. After that multiple of Extensions are
+described. An Extension is specified by from Standard Function Code field to the last Extension Address
+field.
+
+256
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Header
+
+Ext. 1
+
+......
+
+Ext. 2
+
+Ext. N
+
+N
+
+Structure Revision
+General Information Length
+Number of Extensions
+Reserved
+
+2 bytes
+2 bytes
+1 byte
+11 byte
+
+Structure Revision of General Information
+Length is up to 1024 bytes (2 pages)
+The number of extensions supported in a device
+Set to all 0 (16 bytes header area)
+
+Extension 1
+Standard Function Code (SFC)
+Extension 1
+Function Capability Code (FCC)
+Extension 1
+Function Manufacturer Code (FMC)
+Extension 1
+Function Manufacturer Name (FMN)
+Extension 1
+Particular Function Code (PFC)
+Extension 1
+Function Name (FN)
+Pointer to Next Extension
+
+2 bytes
+
+Top of Extension 1 Information
+An unique code is assigned to a Standard Function.
+Capability Code enables host to select an optimized standard
+function driver for the Standard Function Code.
+Manufacturer Code is assigned by USB-IF.
+8-bit JEDEC Manufacturer Code may be used.
+Describe manufacturer name or seller name in ASCII
+
+Number of Register Sets (=X)
+Reserved
+Register Set Address 1
+
+1 byte
+1 byte
+4 bytes
+
+Particular Function Code is managed by a device manufacturer.
+This is used to find a particular function driver.
+Describe Function Information by ASCII.
+This field is managed by a manufacturer.
+Start Address of Next Extension Information (Lower 16-bit)
+FNO=000b, Address bit 17 is always treated as 0.
+The number of Register Sets described below.
+00h
+The first Register Set of Extension 1
+
+Register Set Address 2
+............
+Register Set Address X
+Extension 2
+Standard Function Code
+............
+Register Set Address Y
+Extension N
+Standard Function Code
+............
+Register Set Address Z
+Unused Area
+
+4 bytes
+
+The second Register Set of Extension 1
+
+4 bytes
+2 bytes
+
+The Xth Register Set of Extension 1
+Top of Extension 2 Information
+
+4 bytes
+2 bytes
+
+The Yth Register Set of Extension 2
+Top of Extension N Information
+
+4 bytes
+
+The Zth Register Set of Extension N
+Set to all 0.
+
+2 bytes
+2 bytes
+16 bytes
+2 bytes
+16 bytes
+2 bytes
+
+Figure 5-15 : Data Structure of General Information
+5.7.3.1 Common Header Fields
+5.7.3.1.1 Structure Revision (2-byte)
+This field indicates Structure Revision of General Information. If a new field is added and structure
+is modified, a value of this field is incremented. A new field is added after the last field of a function.
+Driver shall calculate next function location by using Pointer to Next Extension. 0000h is indicated in
+this version.
+5.7.3.1.2 General Information Length (2-byte)
+This field indicates the length of General Information in byte unit. If the length is over 512 bytes, two
+pages are used to describe General Information. The maximum length is defined as 1024 bytes.
+5.7.3.1.3 Number of Extensions (1-byte)
+This field indicates the number of extension functions supported on a card. In case of Memory, the
+number of function is 1 to 15. In case of I/O, the number of function is 1 to 7.
+
+5.7.3.2 Function Fields per Function
+5.7.3.2.1 Standard Function Code (SFC 2-byte)
+This field is used to find a Standard Function Driver. Non Standard Function sets this field to 0000h.
+
+257
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Code assignment is independent between memory and SDIO.
+5.7.3.2.2 Function Capability Code (FCC 2-byte)
+Host Driver uses this field to select one of Standard Function Drivers when different types of Standard
+Function Drivers exist to a Standard Function Code. Function Specification may define options in this
+field to distinguish driver types. How to use this field is up to host system implementation. Setting 0000h
+to this field means that Host Driver selects a Standard Function Driver by a Standard Function Code
+without using this field.
+5.7.3.2.3 Function Manufacturer Code (FMC 2-byte)
+This field indicates a manufacturer code and is used to find a Particular Function Driver. Setting of this
+field to 0000h means that a defined standard function is not dependent on vendors.
+The FMC field identifies the SDIO Card's manufacturer. A two-byte code (2nd byte as non-zero) is
+assigned by the USB Implementers Forum (USB-IF). The code with 2nd byte zero is reserved for
+manufacturers who have an eight-bit JEDEC manufacturer code assigned by JEDEC Publication 106.
+Manufacturers may use their eight-bit JEDEC manufacturer code as the 1st byte of FMC. For example,
+if a JEDEC manufacturer code is 89h, its FMC is 0089h. USB-IF has all responsibility for managing
+manufacturer code including 2 byte codes which are assigned by the former PCMCIA
+organization. Two byte manufacturer codes assigned by USB-IF and by PCMCIA can be used for FMC.
+If a manufacturer does not currently have a FMC assigned, they should request assignment of a new
+manufacture code from USB-IF by mailing to admin@usb.org.
+5.7.3.2.4 Function Manufacturer Name (FMN 16-byte)
+This field is used to describe manufacturer name or seller name by ASCII character that is
+correspondent to Function Manufacturer Code. Unused area is filled with 00h. Common Name of an
+organization may be used.
+5.7.3.2.5 Particular Function Code (PFC 2-byte)
+This field is used to find a Particular Function Driver and definition of code is managed by a vendor
+described in FMC and FMN. If Particular Function Driver is not supported, this filed is set to 0000h.
+5.7.3.2.6 Function Name (FN 16-byte)
+This field is used to describe Function Description by ASCII character. Unused area is filled with 00h.
+5.7.3.2.7 Pointer to Next Extension (2-byte)
+This field indicates offset address of next function location from the top of General Information. Lower
+10-bit is used to indicate offset and upper 6-bit shall be set to 0.
+Driver shall calculate location of next function information by this field because a new field may be
+added at the end of function information. Then the current last field may not be the last one in future.
+The last function sets this field to 0000h. The last function number N is set to Number of Extensions
+field.
+5.7.3.2.8 Number of Register Sets (1-byte)
+Multiple of register set can be assigned per a function. This field indicates number of register sets in
+the function specified by FNO. A list of Extension Register Set Address follows after this field. The first
+register set is supposed to be started from top of a function space.
+5.7.3.2.9 Extension Register Set Address (4-byte for each)
+This field indicates FNO and start address of a register set. Assignment of this 4-byte field is shown in
+258
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 5-24.
+31-22
+21-18
+17
+16-00
+10-bit
+4-bit
+1-bit
+17-bit
+Reserved (0000000000b)
+FNO
+0
+Start Address of a Register Set
+Bit 21-18: 4-bit FNO for Memory Space
+Bit 21-19: 3-bit FNO for I/O Space. (Bit 18=0).
+Table 5-24 : Field Definition of Extension Register Set Address
+Refer to Appendix F.1 about how to identify Function Driver.
+
+5.7.4 Revision Management
+A function should assign Revision Register in the Function Extension Register Set to indicate the function
+revision. Functionality of the function may be extended by increasing the function revision. Higher revision
+shall include all functionality of lower revision to keep compatibility. Function Driver has driver revision
+which is correspond to the function revision. Any revision of function shall be able to be used with any
+revision combination of function driver. By reading the Revision Register, Function Driver knows usable
+functionality which is determined by lower revision of either function or driver.
+
+5.7.5 Event Indication Method
+5.7.5.1 FX_EVENT (Bit06 of Card Status)
+An event indication method is introduced from Version 4.20. Card may use Bit06 of R1 (R1b) response
+of any SD command to indicate event generation. The Bit06 is named FX_EVENT (Function Extension
+Event). By using this method, SD Memory Card can notify host of event generation to get a driver to deal
+with the event. Support of host is required to detect events. This method is able to reduce frequency of
+polling considerably rather than each Function Driver executes polling. An example implementation of
+Host
+Event Detection is described in Appendix F.2 .
+5.7.5.2 Function Extension Event (FXE) Register Set
+As multiple of functions can be supported by using Function Extension feature, card needs to provide
+information which function generates an event. For this purpose, "Function Extension Event (FXE)
+Register Set" is placed just after the location of General Information (Space of FNO=0). Table 5-25 shows
+the format of the FXE Register Set.
+Offset
+0
+1
+2
+3
+
+Register Name
+Page Revision = 01h
+Number of Functions using FX_EVENT
+Function Event Flag (7-0)
+Function Event Flag (15-8)
+
+Symbol
+FXE_REV
+FXE_NUM
+FXE_FEFL
+FXE_FEFH
+
+Read only
+Read only
+Read only
+Read only
+
+Type
+Register
+Register
+Register
+Register
+
+Standard
+Standard
+Standard
+Standard
+
+Table 5-25 : Function Extension Event Register
+ FXE_REV (Offset 0: Page Revision)
+This revision will increase if FXE Register Set is modified. The register set shall be backward
+compatible and host needs to accept larger revision setting even currently not defined.
+00h: FXE Register Set is not supported.
+01h: FXE Register is supported.
+
+259
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+02h-FFh: Reserved.
+ FXE_NUM (Offset 1: Number of Functions using FX_EVENT)
+Lower 4-bit indicates the number of functions using FX_EVENT. Upper 4-bit is set to 0000b as
+reserved field.
+00h: There is no function to use FX_EVENT. Another method may be used to detect events.
+01h: A function uses FX_EVENT even card has multiple functions. Only one bit of FXE_FEFx may
+be set to 1 as fixed value to simplify card implementation (changing the bit is not required).
+The bit number of FXE_FEFx set to 1 represents which function number uses FX_EVENT.
+02h-0Fh: Multiple of functions will use FX_EVENT. The card needs to set and clear FXE_FEFx.
+ FXE_FEFx (Offset 2, 3: Function Event Flag)
+FXE_FEFx represents two 8-bit registers FXE_FEFL and FXE_FEFH. Content of this register is valid
+when FX_EVENT is set to 1. Each bit is correspondent to a function number (FNO 0 to 15) which
+generates events. If FXE_NUM=01h, this register may be set to a fixed value so that only one bit of
+this field is set to 1. If FXE_NUM>01h, each of this register bit is set and cleared by "Event Status
+Register" (refer to next section) defined in a function number of Extension Register Space.
+Bit=1: A function of correspondent function number generates an event
+Bit=0: A function of correspondent function number does not generate any event
+Table 5-26 shows summary of setting combination of FXE Register Set.
+FXE Register Fields
+FXE_REV FXE_NUM FXE_FEFx
+00h
+00h
+Not used
+01h
+Fixed value
+>= 01h
+> 01h
+Set / Clear
+
+R1 Bit 06
+FX_EVENT
+Not supported
+Supported
+Supported
+
+Note
+There is no function using FX_EVENT
+A unique function uses FX_EVENT
+Multi-functions use FX_EVENT
+
+Table 5-26 : Setting Combination of FXE Register Set
+5.7.5.3 Event Status Register
+A Function that has capability to generate events need to assign "Event Status Register" in an Extension
+Register Space of a correspondent function number. This register will indicate details of event information
+so that Function Driver can solve the events and card will use it to control set/clear of FXE_FEFx register.
+If this register indicates generation of any event, correspondent bit of FXE_FEFx is set to 1. The bit is
+cleared when Function Driver deals with the events. If there are no events unsolved, correspondent bit of
+FXE_FEFx is cleared. If a new event is generated, status in this register and a bit of FXE_FEFx will be
+set again. FXE_NUM=01h may be treated as exceptional by setting fixed value in FXE_FEFx to simplify
+card implementation. Once FX_EVENT is set to 1, host should repeat event service at some interval until
+all events are solved.
+5.7.5.4 FX_EVENT Enable
+Each Function needs to have "FX_EVENT Enable" to enable event indication on Bit06 of R1. Setting of
+FX_EVENT is disabled in default. "FX_EVENT Enable" control bit will be assigned to each function's
+Extension Register Space and it is enabled during a function initialization.
+
+260
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+5.8 Application Specification on Function Extension
+All application specifications defined in this section are assigned to Memory Extension Register Space.
+Assignment of Standard Function Code for memory is managed by Table 5-27.
+Function Name
+Standard Function Code
+Power Management Function
+0001h
+Performance Enhancement Function
+0002h
+Security and Boot Function
+0003h
+Table 5-27 : Standard Function Code Assignment Table
+
+5.8.1 Power Management Function
+5.8.1.1 Abstract of Power Management Function
+This Section defines three power management functions on Extension Register.
+(1) Features of Power Off Notification
+Power Off Notification is defined to ensure higher reliability and safety for data stored in the SD Memory
+Card. Host should use Power Off Notification (if card support it) before shut down the card power to
+avoid problems likely occurs by sudden power off.
+(2) Features of Power Sustenance
+Card may request host to sustain card power as much as possible to improve card performance. If
+host accept power sustenance, the card may operate even while host does not use the card. Once
+host accepts power sustenance, host should keep card power as much as possible until host system
+power down.
+(3) Features of Power Down Mode
+Host may let the card to go into lower power consumption mode while host does not intend to use the
+card (Power consumption level is dependent on implementation.). The card can be used again without
+re-initialization by retrieving from Power Down Mode (in tran state).
+
+5.8.1.2 Extension Register Set for Power Management
+Table 5-28 shows Power Management Register Set consists of 3 bytes registers. Start address of this
+register is indicated by General Information.
+
+Offset
+0
+1
+2
+
+Register Name
+Power Management Revision
+Power Management Status Register
+Power Management Setting Register
+
+Type
+Read only Register
+Read only Register
+Read/Write Register
+
+Standard
+Standard
+Standard
+
+Table 5-28 : Power Management Register Set
+Figure 5-16 shows Power Management Revision register. Lower 4-bit is assigned to revision of Power
+Management Register Set. The first version is indicated to 0000b. Power Management Functions may be
+updated with keeping former versions compatibility. Revision will be incremented for every update. A
+driver for controlling Power Management register compares card register revision and own driver revision
+to determine which functions can be used. This register is read only type and is not affected to a write
+operation.
+
+261
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Bit Position
+Field Name
+Value
+
+7
+Rsv
+0
+
+6
+Rsv
+0
+
+5
+Rsv
+0
+
+4
+Rsv
+0
+
+3
+
+2
+1
+Revision
+0000b
+
+0
+
+Revision of Power Management Register Set
+0000b: The first revision
+others: Reserved
+
+Figure 5-16 : Power Management Revision Register
+Figure 5-17 shows Power Management Status register. Three supports bits of Power Manage Functions
+are defined in the upper 4-bit field. Setting a support bit to 1 means a function is supported by card. Card
+supporting Power Management Function shall support at least Power Off Notification. Support of Power
+Sustenance and Power Down Mode is optional.
+Three status bits of Power Manage Functions are defined in the lower 4-bit field. There statuses will be
+changed in response to the setting of Power Management Setting register.
+Bit Position
+Field Name
+Value
+
+7
+Rsv
+0
+
+6
+5
+PDMS PSUS
+x
+x
+
+4
+POFS
+x
+
+3
+Rsv
+0
+
+2
+PDMR
+x
+
+Support bit of each Function
+0: Not Supported
+1: Supported
+
+0
+POFR
+x
+
+Power Off Ready
+0: Not Ready
+1: Ready
+
+If PDMS=1 or PSUS=1, POFS shall be 1.
+
+This bit is always 0 if POFS=0 or POFN=0. If host
+sets POFN=1, card indicates ready for power off by
+POFR=1. Once POFR=1, it is cleared by power cycle.
+The maximum time of setting this bit it 1sec from
+setting POFN=1.
+
+Power Down Mode Ready
+0: Not in Power Down Mode
+1: In Power Down Mode
+This bit is always 0 if PDMS=0 or PDMN=0. If host sets
+PDMN=1, the card indicates entering Power Down Mode by
+PDMR=1.
+Power Down Mode is a lower power consumption mode of
+card. (Power consumption level depends on implementation.)
+This mode is effective in SD Bus Interface mode but not
+effective in UHS-II mode (instead Hibernate should be used).
+Host needs to supply VDD during Power Down Mode.
+The maximum time of setting this bit is 1sec from setting
+PDMN=1.
+
+1
+PSUR
+x
+
+Power Sustenance Request
+0: Card does not expect power sustenance
+1: Card requests power sustenance
+This bit is always 0 if PSUS=0 or PSUN=0. If host sets
+PSUN=1, the card may request host to sustain power
+supply as much as possible by indicating PSUR=1.
+The maximum time settled this bit is 1sec from setting
+PSUN=1.
+
+Figure 5-17 : Power Management Status Register
+Figure 5-18 shows Power Management Setting register. Three notification bits of Power Manage
+Functions are defined in the lower 4-bit field. Host may set each notification bit if correspondent support
+bit is set to 1. Card indicates response of notification to the Power Management Status register. Host
+requests card to shut down card power by setting POFN=1 and to enter Power Down Mode by setting
+PDMN=1. Power Sustenance allows card to consume power to increase memory access performance
+while host does not use the card. Then on accepting Power Sustenance by setting PSUN=1, host should
+maintain card power as much as possible until host system power down. This register is read only type
+
+262
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+and is not affected to a write operation. This register is read/write type.
+Bit Position
+Field Name
+Value
+
+7
+Rsv
+0
+
+6
+Rsv
+0
+
+5
+Rsv
+0
+
+4
+Rsv
+0
+
+3
+Rsv
+0
+
+2
+PDMN
+x
+
+1
+PSUN
+x
+
+0
+POFN
+x
+
+Power Off Notification
+0: Normal Operation
+1: Power Off Request
+
+Power Down Mode Notification
+0: Normal Operation
+1: Power Down Request
+
+If POFS=1, this bit may be set to 1.
+After setting POFN=1, host may use only CMD48 to
+poll Power Management Status register.
+
+If PDMS=1, this bit may be set to 1.
+Setting this bit lets a card go into Power Down Mode.
+Clearing this bit retrieves the card from Power Down
+Mode without re-initialization.
+
+Power Sustenance Notification
+0: Host may not support Power Off Notification
+1: Host uses Power Off Notification to shut down power
+If PSUS=1, this bit may be set to 1.
+PSUN=1 means that host is accepted to sustain power supply
+to the card as much as possible.
+Once PSUN=1, the host needs to set PSUN=0 and POFN=1
+and wait until POFR=1 to shut down card power.
+
+Figure 5-18 : Power Management Setting Register
+5.8.1.3 Power Off Notification
+Figure 5-19 shows flow chart to control Power Off Notification Sequence. Card should set POFR to 1
+within 1 second of CMD49 busy period. If POFR cannot be set to 1 within busy period, card shall set
+POFR to 1 within 1 second from end of busy of CMD49.
+Start
+
+Host is going to shut down the card power
+
+CMD48 Read POFS
+Base + 1
+
+Check POFS
+
+POFS=0
+
+POFS=1
+CMD49 Set POFN=1
+Base + 2
+Wait during Busy
+
+CMD48 Read POFR
+Base + 1
+POFR=0
+
+Check POFR
+POFR=1
+Shut Down Card Power
+
+End
+
+Figure 5-19 : Power Off Notification Flow
+
+263
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ Power Off Notification Sequence
+(1) Host checks support bit of Power Off Notification. If POFS=1, host may use Power Off Notification.
+(2) Just before host would like to shut down card power, host requests Power Off Notification to the card
+by setting POFN=1.
+(3) Host waits until busy of CMD49 is released.
+(4) Host polls Power Management Status register until the card indicates ready to power off (POFR=1).
+(5) If POFR=1, host shuts down the card power
+Once POFN is set to 1, power cycle and re-initialization are required to use the card again.
+
+5.8.1.4 Power Sustenance
+Figure 5-20 shows flow chart to control Power Sustenance. If host set PSUN to 1, card should set PSUR
+to 1 within 1 second of CMD49 busy period. If PSUR cannot be set to 1 within busy period, card shall set
+PSUR to 1 within 1 second from end of busy of CMD49. If host set PSUN to 0, card should set PSUR to
+0 within 1 second of CMD49 busy period. If PSUR cannot be set to 0 within busy period, card shall set
+PSUR to 0 within 1 second from end of busy of CMD49.
+ Enabling Power Sustenance
+(1) Host checks support bit of Power Sustenance. If PSUS=1, host may use Power Sustenance.
+(2) Host sets PSUN to 1.
+(3) Host waits until busy of CMD49 is released
+(4) Host polls Power Management Status register until the card indicates PSUR=1.
+Power Off Notification shall be used to shut down the card power while Power Sustenance is
+enabled.
+ Disabling Power Sustenance
+(1) Host sets PSUN=0 in the Power Management Setting Register if PSUR=1.
+(2) Host waits until busy of CMD49 is released
+(3) Host polls Power Management Status register until the card indicates PSUR=0.
+
+264
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Enabling Power Sustenance
+
+Disabling Power Sustenance
+
+CMD48 Read PSUS
+Base + 1
+
+CMD48 Read PSUR
+Base + 1
+
+Check PSUS
+
+PSUR=0
+
+PSUS=0
+
+Check PSUR
+
+PSUS=1
+
+PSUR=1
+
+CMD49 Set PSUN=1
+Base + 2
+
+CMD49 Set PSUN=0
+Base + 2
+
+Wait during Busy
+
+Wait during Busy
+
+CMD48 Read PSUR
+Base + 1
+
+CMD48 Read PSUR
+Base + 1
+
+Check PSUR
+
+PSUR=1
+
+PSUR=1
+
+PSUR=0
+
+Check PSUR
+PSUR=0
+
+End
+
+End
+
+Figure 5-20 : Power Sustenance Enabling / Disabling Sequence Flow
+Application Notes for Host designers
+1) Once enabling Power Sustenance, Host shall use Power Off Notification sequence to shut
+down card power. Card power supply control by monitoring open/close the slot cover is one
+of possible safe solutions while in Power Sustenance to avoid sudden card removal.
+2) In addition, card-internal program or erase procedures may continue during Power
+Sustenance mode even if card is locked by CMD42. If Host is to shut down card power in this
+situation, Host shall unlock the card at first and execute Power Off Notification sequence as
+mentioned above.
+3) While Power Sustenance is enabled, card may consume power for internal operations, even
+without Host. So Host who would like to save power while card is unused, should disable
+Power Sustenance mode.
+4) During Power Sustenance Mode, card may access memory internally.
+5) Assume power consumption during Power Sustenance mode is equivalent to that of normal
+command operation. Setting of Power Limit through CMD6, is effective even in Power
+Sustenance mode.
+6) By enabling Power Sustenance mode, total performance of Card may be noticeably improved.
+The actual level of improvement is not specified by the physical spec, and depends on the
+card's implementation.
+
+5.8.1.5 Power Down Mode
+This function can be used in SD mode only. In UHS-II mode, Hibernate mode should be used. Always
+PDMR=0 in UHS-II mode. In Power Down Mode, card executes at least CMD48/49 for exiting from Power
+Down Mode and CMD0. If host set PDMN to 1, card should set PDMR to 1 within 1 second of CMD49
+busy period. If PDMR cannot be set to 1 within busy period, card shall set PDMR to 1 within 1 second
+from end of busy of CMD49. If host set PDMN to 0, card should set PDMR to 0 within 1 second of CMD49
+busy period. If PDMR cannot be set to 0 within busy period, card shall set PDMR to 0 within 1 second
+from end of busy of CMD49. The card states retrieved from Power Down Mode is same as that before
+265
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+entering Power Down Mode.
+ Entering Power Down Mode
+(1) Host checks support bit of Power Down Mode. If PDMS=1, host may use Power Down Mode.
+(2) Host sets PDMN to 1.
+(3) Host waits until busy of CMD49 is released.
+(4) Host polls Power Management Status register until the card indicates PDMR=1.
+(5) Host keeps providing VDD. SD Clock should be stopped.
+ Exiting Power Down Mode
+(1) Host starts to provide SD Clock.
+(2) Host sets PDMN=0 in the Power Management Setting Register if PDMR=1.
+(3) Host waits until busy of CMD49 is released.
+(4) Host polls Power Management Status register until the card indicates PDMR=0.
+ Aborting Power Down Mode
+(1) If CMD0 is received, the card exits Power Down Mode and enters idle state.
+(2) Initialization is required to use the card.
+
+266
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Entering Power Down Mode
+
+Exiting Power Down Mode
+
+CMD48 Read PDMS
+Base + 1
+
+CMD48 Read PDMR
+Base + 1
+
+Check PDMS
+
+PDMR=0
+
+PDMS=0
+
+Check PDMR
+
+PDMS=1
+
+PDMR=1
+
+CMD49 Set PDMN=1
+Base + 2
+
+CMD49 Set PDMN=0
+Base + 2
+
+Wait during Busy
+
+Wait during Busy
+
+CMD48 Read PDMR
+Base + 1
+
+CMD48 Read PDMR
+Base + 1
+
+PDMR=1
+
+Check PDMR
+PDMR=1
+
+PDMR=0
+
+Check PDMR
+PDMR=0
+
+End
+
+End
+
+Figure 5-21 : Power Down Mode Entering / Exiting Sequence Flow
+Application Notes for Host designers
+1) The power consumption level during Power Down Mode is not specified and it varies dependent
+on Card products.
+2) Host designers should consider that recovery time from Power Down Mode is up to 1 second.
+
+5.8.1.6 General Information of Power Management Function
+Table 5-29 shows an example of General Information for only Power Management Function is assigned
+to Extension 1 ("Number of Extended Functions" is set to 1 and "Pointer to Next Extension" is set to
+0000h). Standard Code 0001h for Power Management Function (Defined by Table 5-27) is set to SFC.
+FCC is not used (set to 0000h). FMC, FMN and PFC shall be set to 0 because this function is
+manufacturer unrelated. FN is set to "PMF" (ASCII code) and filled with 0 for the rest of this field.
+
+267
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+000h
+002h
+004h
+
+Structure Revision
+General Information Length
+Number of Extensions
+
+2 bytes
+2 bytes
+1 byte
+
+005h-0Fh
+
+Reserved
+
+11 byte
+
+all 0
+
+Set to all 0 (16 bytes header area)
+
+010h
+
+2 bytes
+
+0001h
+
+Code of Power Management Function
+
+2 bytes
+
+0000h
+
+FCC is not used
+
+2 bytes
+
+0000h
+
+Manufacturer unrelated
+
+16 bytes
+
+all 0
+
+Manufacturer unrelated
+
+2 bytes
+
+0000h
+
+Manufacturer unrelated
+
+16 bytes
+
+"PMF"
+
+038h
+03Ah
+03Bh
+03Ch
+
+Extension 1
+Standard Function Code (SFC)
+Extension 1
+Function Capability Code (FCC)
+Extension 1
+Function Manufacturer Code (FMC)
+Extension 1
+Function Manufacturer Name (FMN)
+Extension 1
+Particular Function Code (PFC)
+Extension 1
+Function Name (FN)
+Pointer to Next Extension
+Number of Register Sets (=X)
+Reserved
+Register Set Address 1
+
+2 bytes
+1 byte
+1 byte
+4 bytes
+
+040h-1FFh
+
+Unused Area
+
+0000h
+01h
+00h
+0004_
+0000h
+all 0
+
+ASCII + all 0
+"PMF" = 00000000_00000000_00000000_00464D50h
+End of General Information
+One Register Set
+
+012h
+
+014h
+016h
+026h
+028h
+
+0000h
+0040h
+01h
+
+The first revision of General Information
+Data Length of this information
+Only Power Management Function is implemented
+
+Top Address of FNO=1
+
+Table 5-29 : General Information of Power Management Function
+
+5.8.2 Performance Enhancement Function
+5.8.2.1 Abstract of Performance Enhancement Function
+This section defines the performance enhancement functions on extension register. This register will be
+utilized by host to understand the feature supported, enable / disable the features, etc.
+5.8.2.2 Extension Register Set for Performance Enhancement Function
+Table 5-30 shows the register set for performance enhancement function. The register set is divided into
+two sections. First 256 Bytes contain the support information of features and next 256 Bytes contain the
+registers to enable/disable feature and indicate the status of the feature.
+Byte Offset
+0
+1
+
+2
+
+3
+4
+5
+6
+
+Name
+Performance Enhancement
+Function Revision
+Bit[0]: FX_EVENT Support
+Bit[7:1]: Reserved
+Bit[0]: Card Initiated
+Maintenance Support
+Bit[1]: Host Initiated
+Maintenance Support
+Bit[7:2]: Reserved
+Bit[1:0]: Card Maintenance
+Urgency
+Bit[7:2]: Reserved
+Bit[0]: Cache Support
+Bit[7:1]: Reserved
+Reserved
+CQ Support and Depth
+
+R/W
+R
+R
+
+Description
+00h: Revision 1
+0: Not supported, 1: Supported
+0: Not supported, 1: Supported
+
+R
+
+R
+R
+
+0: Not supported, 1: Supported
+00b: None, 01b: Mild, 10b: Middle, 11b: Urgent

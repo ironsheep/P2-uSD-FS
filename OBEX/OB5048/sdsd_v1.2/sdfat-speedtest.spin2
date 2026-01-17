@@ -1,0 +1,197 @@
+
+CON
+    _clkfreq    = 200_000_000
+
+
+CON
+
+'
+' Roger Loh's 4-bit add-on board
+'
+    BASE_PIN_RL = 16
+    DAT0_RL     = BASE_PIN_RL+0    ' MISO, DO
+    DAT1_RL     = BASE_PIN_RL+1
+    DAT2_RL     = BASE_PIN_RL+2
+    DAT3_RL     = BASE_PIN_RL+3    ' CS
+    CMD_RL      = BASE_PIN_RL+4    ' MOSI, DI
+    CLK_RL      = BASE_PIN_RL+5    ' SCLK
+    LED_RL      = BASE_PIN_RL+6  ' output to red LED
+    PWR_RL      = BASE_PIN_RL+7  ' Card-Detect input, and power switch, and green LED
+
+    CS_RL       = DAT3_RL
+    MOSI_RL     = CMD_RL
+    MISO_RL     = DAT0_RL
+
+'
+' My hand wired full sized 4-bit SD slot
+'
+    BASE_PIN_EH = 40
+    CMD_EH      = BASE_PIN_EH+2    ' MOSI, DI
+    CLK_EH      = BASE_PIN_EH+3    ' SCLK
+    DAT0_EH     = BASE_PIN_EH+4    ' MISO, DO
+    DAT1_EH     = BASE_PIN_EH+5
+    DAT2_EH     = BASE_PIN_EH+6
+    DAT3_EH     = BASE_PIN_EH+7    ' CS
+
+    CS_EH       = DAT3_EH
+    MOSI_EH     = CMD_EH
+    MISO_EH     = DAT0_EH
+
+'
+' Prop2 boot pins, set in the Prop2 ROM
+'
+    #58, MISO_EVAL, MOSI_EVAL, CS_EVAL, CLK_EVAL
+
+
+
+PUB  main() : rc
+
+    c.printf(string("  clkfreq = %d  clkmode = $%x",13,10), clkfreq, clkmode)
+
+    mountsd()
+
+    repeat 3
+        tester(string("/sd/speed1.dat"), 2, 256)    ' 256 x 2 KB = 0.5 MB
+    c.puts(string(""))
+    repeat 3
+        tester(string("/sd/speed3.dat"), 8, 256)    ' 256 x 8 KB = 4 MB
+    c.puts(string(""))
+    repeat 3
+        tester(string("/sd/speed5.dat"), 32, 128)    ' 128 x 32 KB = 8 MB
+
+'Finish up
+'    c.umount(string("/sd"))
+    c.printf(string(13,10,"All done",13,10))
+    waitms(500)
+    clkset(1, 20_000)  ' cool running
+
+
+
+OBJ
+    c: "libc.spin2"
+'    sddrv: "blkdrvr/sdsd.cc"
+'    mmdrv: "blkdrvr/sdmm_bashed.cc"
+    mmdrv: "blkdrvr/sdmm.cc"
+
+
+
+PRI  mountsd() | handle
+
+    c.printf(string(" Driver = sdmm",13,10))
+'    c.printf(string(" Driver = sdmm_bashed",13,10))
+'    handle := c._sdmm_open(CLK_EVAL, CS_EVAL, MOSI_EVAL, MISO_EVAL)
+'    handle := c._sdmm_open(CLK_RL, CS_RL, MOSI_RL, MISO_RL)
+    handle := mmdrv._sdmm_open(CLK_EVAL, CS_EVAL, MOSI_EVAL, MISO_EVAL)
+'    handle := mmdrv._sdmm_open(CLK_RL, CS_RL, MOSI_RL, MISO_RL)
+'    handle := mmdrv._sdmm_open(CLK_EH, CS_EH, MOSI_EH, MISO_EH)
+
+'    c.printf(string(" Driver = sdsd",13,10))
+'    handle := sddrv._sdsd_open(CLK_RL, CMD_RL, DAT0_RL, PWR_RL, LED_RL)
+'    handle := sddrv._sdsd_open(CLK_EH, CMD_EH, DAT0_EH, -1, -1)
+
+    if not handle
+        c.printf(string(" device open failed!   errno = %d: %s",13,10), errno, c.strerror(errno))
+        abort 1
+
+    if c.mount(string("/sd"), c._vfs_open_fat_handle(handle))
+        abort 1
+
+
+
+PRI  randfill( addr, lwords, state ) : rstate
+
+    org
+		wrfast	#0, addr
+		rep	@.rend, lwords
+		xoro32	state
+		mov	pa, 0-0
+		wflong	pa
+.rend
+    end
+    return state    ' for potential continuation of psuedo random sequence
+
+
+
+PRI  randcmp( addr, lwords, state ) : remaining
+
+    remaining := lwords
+    org
+		rdfast	#0, addr
+		rep	@.rend, lwords
+		rflong	pa
+		xoro32	state
+		cmp	pa, 0-0   wz
+	if_z	sub	remaining, #1
+.rend
+    end
+' success when remaining == 0
+
+
+
+PRI  tester( filename, kbytes, repeats ) | count, fh, tmr, seed, rstate, buff, bytes
+
+    bytes := kbytes * 1024
+    buff := __builtin_alloca(bytes)
+
+'-----------------------
+' Write file
+'-----------------------
+    seed := getrnd()
+    rstate := seed
+    rstate := randfill(buff, kbytes * 256, rstate)
+
+'    c.printf(string(13,10," filename = %s",13,10), filename)
+    c._seterror(0)
+    fh := c.fopen(filename, string("w"))
+    if not fh
+        c.printf(string(" fopen() for writing failed!   errno = %d: %s",13,10), errno, c.strerror(errno))
+        abort 3
+
+    c.printf(string(" Buffer = %d kB, "), kbytes)
+
+    count := 0
+    tmr := getms()
+    repeat repeats
+'        rstate := randfill(buff, kbytes * 256, rstate)    ' used only for thoroughness
+        count += c.fwrite(buff, 1, bytes, fh) / 1024
+
+    c.fclose(fh)
+    tmr := getms() - tmr
+
+    c.printf(string(" Written %d kB at %d kB/s, "), count, muldiv64(count, 1_000, tmr))
+    if count <> kbytes * repeats
+        printf(string(" Error: File not complete!   errno = %d: %s",13,10), errno, c.strerror(errno))
+        abort 4
+
+'-----------------------
+' Read back file
+'-----------------------
+    c._seterror(0)
+    fh := c.fopen(filename, string("r"))
+    if not fh
+        c.printf(string(" fopen() for readback failed!   errno = %d: %s",13,10), errno, c.strerror(errno))
+        abort 5
+
+    count := 0
+    repeat repeats
+'        rstate := seed    ' used only for thoroughness
+'        seed := randfill(buff, kbytes * 256, rstate)    ' used only for thoroughness
+        if bytes <> c.fread(buff, 1, bytes, fh)
+            quit
+        count += randcmp(buff, kbytes * 256, seed) / 256
+'        count += randcmp(buff, kbytes * 256, rstate) / 256    ' used only for thoroughness
+
+    if count
+        c.printf(string(" Mis-match! "))
+    else
+        c.printf(string(" Verified, "))
+
+    c.rewind(fh)    ' read the file again, this time purely for speed check
+    count := 0
+    tmr := getms()
+    repeat repeats
+        count += c.fread(buff, 1, bytes, fh) / 1024
+    c.fclose(fh)
+    tmr := getms() - tmr
+    c.printf(string(" Read %d kB at %d kB/s",13,10), count, muldiv64(count, 1_000, tmr))
+

@@ -1,0 +1,2000 @@
+
+10
+
+applicatlock
+I/O
+reser
+ion
+switch
+card
+mode
+ved
+specific
+
++
++
+
++
+
++
+
+294
+
+11
+
++
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Card Command Class
+(CCC)
+Supported class
+commands description
+
+0
+
+1
+
+2
+
+3
+
+4
+
+5
+
+6
+
+write
+reser block reser block erase probasic
+ved read ved
+write
+tection
+
+7
+
+8
+
+9
+
+10
+
+11
+
+applicatlock
+I/O
+reser
+ion
+switch
+card
+mode
+ved
+specific
+
+CMD25
+
+Mandatory1
+
++
+
+CMD27
+
+Mandatory1
+
++
+
+CMD28
+
+Optional
+
++
+
+CMD29
+
+Optional
+
++
+
+CMD30
+
+Optional
+
++
+
+CMD32
+
+Mandatory1
+
++
+
+CMD33
+
+Mandatory1
+
++
+
+CMD34372
+
+Optional
+
+CMD38
+
+Mandatory1
+
+CMD424
+
+(Note 4)
+
+CMD502
+
+Optional
+
+CMD52
+
+Optional
+
++
+
+CMD53
+
+Optional
+
++
+
+CMD55
+
+Mandatory
+
++
+
+CMD56
+
+Mandatory
+
++
+
+CMD572
+
+Optional
+
+CMD58
+
+Mandatory
+
++
+
+CMD59
+
+Mandatory
+
++
+
+ACMD13
+
+Mandatory
+
++
+
+ACMD22
+
+Mandatory1
+
++
+
+ACMD23
+
+Mandatory1
+
++
+
+ACMD41
+
+Mandatory
+
++
+
+ACMD42
+
+Mandatory
+
++
+
+ACMD51
+
+Mandatory
+
++
+
++
++
++
++
+
++
+
+Note (1): The commands related write and erase are mandatory only for the Writable types of Cards.
+Note (2): This command was defined in spec version 1.10
+Note (3): This command is newly defined in version 2.00
+Note (4): This command is optional in Version 1.01 and 1.10 and mandatory from Version 2.00. COP support is
+optional for CMD42
+
+Table 7-2 : Command Classes in SPI Mode
+
+295
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.1.3 Detailed Command Description
+The following table provides a detailed description of the SPI bus commands. The responses are defined
+in Section 7.3.2. Table 7-3 lists all SD Memory Card commands. A "yes" in the SPI mode column indicates
+that the command is supported in SPI mode. With these restrictions, the command class description in
+the CSD is still valid. If a command does not require an argument, the value of this field should be set to
+zero. The reserved commands are reserved in SD mode as well.
+The binary code of a command is defined by the mnemonic symbol. As an example, the content of the
+command index field is (binary) '000000' for CMD0 and '100111' for CMD39.
+The card shall ignore stuff bits and reserved bits in an argument.
+CMD
+INDEX
+CMD0
+CMD1
+
+SPI
+Argument
+Mode
+Yes
+[31:0] stuff bits
+1
+Yes
+[31]Reserved bit
+[30]HCS
+[29:0]Reserved
+bits
+
+CMD2
+CMD3
+CMD4
+CMD5
+CMD68
+
+No
+No
+No
+Reserved for I/O Mode (refer to "SDIO Card Specification")
+Yes
+[31] Mode
+R1
+SWITCH_FUNC Checks switchable function (mode 0)
+0:Check function
+and switches card function (mode 1).
+1:Switch function
+See Section 4.3.10.
+[30:24] reserved
+(All '0')
+[23:20] reserved
+for function group
+6 (All '0' or 0xF)
+[19:16] reserved
+for function group
+5 (All '0' or 0xF)
+[15:12] reserved
+for function group
+4 (All '0' or 0xF)
+[11:8] reserved
+for function group
+3 (All '0' or 0xF)
+[7:4] function
+group 2 for
+command system
+[3:0] function
+group 1 for access
+mode
+No
+
+CMD7
+
+Resp
+R1
+R1
+
+Abbreviation
+
+Command Description
+
+GO_IDLE_STATE Resets the SD Memory Card
+SEND_OP_
+Sends host capacity support
+COND
+information and activates the card's
+initialization process.
+HCS is effective when card receives
+SEND_IF_COND command.
+Reserved bits shall be set to '0'.
+
+296
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+CMD89
+
+CMD9
+CMD10
+CMD11
+CMD12
+CMD13
+CMD14
+CMD15
+CMD16
+
+CMD17
+CMD18
+
+CMD19
+CMD20
+CMD21...
+CMD23
+CMD24
+CMD25
+
+CMD26
+CMD27
+
+SPI
+Argument
+Resp
+Abbreviation
+Command Description
+Mode
+Yes [31:12]Reserved
+R7
+SEND_IF_COND Sends SD Memory Card interface
+bits
+condition that includes host supply
+[11:8]supply
+voltage information and asks the
+voltage(VHS)
+accessed card whether card can
+[7:0]check pattern
+operate in supplied voltage range.
+Reserved bits shall be set to '0'.
+Yes
+[31:0] stuff bits
+R1
+SEND_CSD
+Asks the selected card to send its cardspecific data (CSD)
+Yes
+[31:0] stuff bits
+R1
+SEND_CID
+Asks the selected card to send its card
+identification (CID)
+No
+Yes
+[31:0] stuff bits
+R1b5 STOP_
+Forces the card to stop transmission in
+TRANSMISSION Multiple Block Read Operation
+Yes
+[31:0] stuff bits
+R2
+SEND_STATUS Asks the selected card to send its status register.
+reserved
+No
+Yes
+[31:0] block length R1
+SET_BLOCKLEN In case of SDSC Card, block length is
+set by this command.
+In case of SDHC and SDXC Cards,
+block length of the memory access
+commands are fixed to 512 bytes.
+The length of LOCK_UNLOCK
+command is set by this command
+regardless of card capacity.
+Yes
+[31:0] data
+R1
+READ_SINGLE_ Reads a block of the size selected by
+address10
+BLOCK
+the SET_BLOCKLEN command.3
+Yes
+[31:0] data
+R1
+READ_MULTIPL Continuously transfers data blocks
+address10
+E_BLOCK
+from card to host until interrupted by a
+STOP_TRANSMISSION command.
+reserved
+No
+reserved
+Yes
+[31:0] data
+address10
+Yes
+[31:0] data
+address10
+No
+Yes
+
+[31:0] stuff bits
+
+R1
+R1
+
+R1
+
+WRITE_BLOCK
+
+Writes a block of the size selected by
+the SET_BLOCKLEN command.4
+WRITE_MULTIPL Continuously writes blocks of data
+E_BLOCK
+until 'Stop Tran' token is sent (instead
+'Start Block').
+PROGRAM_CSD Programming of the programmable
+bits of the CSD.
+
+297
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+CMD28
+
+SPI
+Argument
+Mode
+Yes
+[31:0] data
+address
+
+CMD29
+
+Yes
+
+[31:0] data
+address
+
+CMD30
+
+Yes
+
+[31:0] write protect R1
+data address
+
+CMD31
+CMD32
+
+CMD34378
+
+reserved
+Yes
+[31:0] data
+R1
+ERASE_WR_BL Sets the address of the first write block
+address10
+K_START_ADDR to be erased.
+Yes
+[31:0] data
+R1
+ERASE_WR_BL Sets the address of the last write block
+address10
+K_END_ADDR
+of the continuous range to be erased.
+Reserved for each command system set by switch function command (CMD6).
+Refer to each command system specification for more detail.
+
+CMD38
+
+Yes
+
+CMD39
+CMD40
+CMD41
+CMD42
+
+No
+No
+Reserved
+Yes
+[31:0] Reserved R1
+bits (Set all 0)
+
+CMD33
+
+[31:0] stuff bits
+
+Resp
+
+Abbreviation
+
+R1b5 SET_WRITE_
+PROT
+
+R1b5 CLR_WRITE_
+PROT
+
+SEND_WRITE_
+PROT
+
+R1b5 ERASE
+
+LOCK_UNLOCK
+
+Command Description
+If the card has write protection features, this command sets the write
+protection bit of the addressed group.
+The properties of write protection are
+coded in the card specific data
+(WP_GRP_SIZE).
+SDHC and SDXC Cards do not
+support this command.
+If the card has write protection features, this command clears the write
+protection bit of the addressed group.
+SDHC and SDXC Cards do not support
+this command.
+If the card has write protection features, this command asks the card to
+send the status of the write protection
+bits.6 SDHC and SDXC Cards do not
+support this command.
+
+Erases all previously selected write
+blocks. FULE and DISCARD are not
+supported through SPI interface.
+
+Used to Set/Reset the Password or
+lock/unlock the card. A transferred
+data block includes all the command
+details - refer to Section 4.3.7. The
+size of the Data Block is defined with
+SET_BLOCK_LEN command.
+Reserved bits in the argument and in
+Lock Card Data Structure shall be set to
+0.
+
+CMD43-49 reserved
+CMD51
+CMD508
+Reserved for each command system set by switch function command (CMD6).
+Refer to each command system specification for more detail.
+CMD52-54 Reserved for I/O Mode (refer to "SDIO Card Specification")
+
+298
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+CMD55
+
+SPI
+Argument
+Mode
+Yes
+[31:0] stuff bits
+
+Resp
+R1
+
+Abbreviation
+
+Command Description
+
+APP_CMD
+
+Defines to the card that the next command is an application specific command rather than a standard
+command
+CMD56
+Yes
+[31:1] stuff bits.
+R1
+GEN_CMD
+Used either to transfer a Data Block to
+[0]: RD/WR7
+the card or to get a Data Block from
+the card for general
+purpose/application specific
+commands. In case of Standard
+Capacity SD Memory Card, the size of
+the Data Block shall be defined with
+SET_BLOCK_LEN command. In case
+of SDHC and SDXC Cards, block
+length of this command is fixed to
+512-byte.
+8
+CMD57
+Reserved for each command system set by switch function command (CMD6).
+Refer to each command system specification for more detail.
+CMD58
+Yes
+[31:0] stuff bits
+R3
+READ_OCR
+Reads the OCR register of a card.
+CCS bit is assigned to OCR[30].
+CMD59
+Yes
+[31:1] stuff bits
+R1
+CRC_ON_OFF
+Turns the CRC option on or off. A '1' in
+[0:0] CRC option
+the CRC option bit will turn the option
+on, a '0' will turn it off
+CMD60-63 Reserved For Manufacturer
+1. CMD1 is valid command for the Thin (1.4mm) Standard Size SD Memory Card only if used after re-initializing a card
+(not after power on reset).
+2. The default block length is as specified in the CSD.
+3. The data transferred shall not cross a physical block boundary unless READ_BLK_MISALIGN is set in the CSD.
+4. The data transferred shall not cross a physical block boundary unless WRITE_BLK_MISALIGN is set in the CSD.
+5. R1b: R1 response with an optional trailing busy signal
+
+6. 32 write protection bits (representing 32 write protect groups starting at the specified address) followed
+by 16 CRC bits are transferred in a payload format via the data line. The last (least significant) bit of the
+protection bits corresponds to the first addressed group. If the addresses of the last groups are outside
+the valid range, then the corresponding write protection bits shall be set to zero
+7. RD/WR_: "1" the Host shall get a block of data from the card.
+"0" the host sends block of data to the card.
+8. This command was added in spec version 1.10
+9. This command is added in spec version 2.00
+10. SDSC Card (CCS=0) uses byte unit address and SDHC and SDXC Cards (CCS=1) use block unit address (512 bytes
+unit).
+
+Table 7-3 : Commands and Arguments
+
+299
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+The following table describes all the application specific commands supported/reserved by the SD
+Memory Card. All the following commands shall be preceded with APP_CMD (CMD55).
+CMD
+INDEX
+ACMD6
+ACMD13
+
+SPI
+Argument
+Mode
+No
+yes
+[31:0] stuff bits
+
+R2
+
+SD_STATUS
+
+Send the SD Status. The status
+fields are given in Table 4-44
+
+ACMD17
+ACMD18
+
+reserved
+yes
+--
+
+--
+
+--
+
+Reserved for SD security
+applications1
+
+ACMD19ACMD21
+ACMD22
+
+reserved
+yes
+
+[31:0] stuff bits
+
+R1
+
+ACMD23
+
+yes
+
+[31:23] stuff bits R1
+[22:0]Number of
+blocks
+
+SEND_NUM_WR_ Send the numbers of the well written
+BLOCKS
+(without errors) blocks. Responds
+with 32-bit+CRC data block.
+SET_WR_BLK_
+Set the number of write blocks to be
+ERASE_COUNT
+pre-erased before writing (to be used
+for faster Multiple Block WR command). "1"=default (one wr block)(2).
+
+ACMD24
+ACMD25
+
+reserved
+yes
+--
+
+--
+
+--
+
+ACMD26
+
+yes
+
+--
+
+--
+
+--
+
+ACMD38
+
+yes
+
+--
+
+--
+
+--
+
+Resp
+
+ACMD39 - reserved
+ACMD40
+ACMD41 Yes
+[31]Reserved bit R1
+[30]HCS
+[29:0]Reserved
+bits
+ACMD42 yes
+[31:1] stuff bits
+R1
+[0]set_cd
+
+ACMD43ACMD49
+ACMD51
+
+yes
+
+--
+
+--
+
+yes
+
+[31:0] stuff bits
+
+R1
+
+Abbreviation
+
+Command Description
+
+Reserved for SD security
+applications1
+Reserved for SD security
+applications1
+Reserved for SD security
+applications1
+
+SD_SEND_OP_
+COND
+
+Sends
+host
+capacity
+support
+information and activates the card's
+initialization process. Reserved bits
+shall be set to '0'
+SET_CLR_CARD_ Connect[1]/Disconnect[0] the 50
+DETECT
+KOhm pull-up resistor on CS (pin 1)
+of the card. The pull-up may be used
+for card detection.
+-Reserved for SD security
+applications1
+SEND_SCR
+Reads the SD Configuration
+Register (SCR).
+
+ACMD53 - No
+ACMD54
+(1) Refer to "Part3 Security Specification" for detailed explanation about the SD Security Features
+(2) Stop Tran Token shall be used to stop the transmission in Write Multiple Block whether the pre-erase (ACMD23) feature
+is used or not.
+
+Table 7-4 : Application Specific Commands used/reserved by SD Memory Card - SPI Mode
+
+300
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.1.4 Card Operation for CMD8 in SPI mode
+In SPI mode, the card always returns response. Table 7-5 shows the card operation for CMD8.
+
+Index
+=8
+Not 8
+=8
+=8
+
+Command Argument Check
+VHS
+Pattern
+
+Reserved
+Don't Care
+
+Don't Care
+
+Don't Care
+
+Don't Care
+
+Don't Care
+
+Don't Care
+
+Don't Care
+
+Mismatch *2
+Match *2
+
+Don't Care
+
+Don't Care
+
+Don't Care
+
+CRC
+Error
+Don't Care
+Correct
+Correct
+
+R1
+09h
+01h
+01h
+
+Response of Card *1
+VCA
+Pattern
+(R1 only)
+Depends on command index
+0
+0
+Echo Back
+0
+Echo Back Echo Back
+Reserved
+
+*1: Response indicates the actual response that the card returns. (It does not include errors during transfer response.)
+*2: 'Match' means AND of following condition a) and b). 'Mismatch' is other cases.
+a) Only 1 bit is set to '1' in VHS.
+b) The card supports the host supply voltage.
+
+Table 7-5 : Card Operation for CMD8 in SPI Mode
+
+301
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.2 Responses
+There are several types of response tokens. As in SD mode, all are transmitted MSB first.
+Multiple bytes responses are defined in SPI mode but the card outputs only first byte (equivalent to R1)
+when Illegal Command Error or Command CRC Error is indicated in it. In this case, host never reads as
+the multiple bytes of response.
+
+7.3.2.1 Format R1
+This response token is sent by the card after every command with the exception of SEND_STATUS
+commands. It is one byte long, and the MSB is always set to zero. The other bits are error indications, an
+error being signaled by a 1. The structure of the R1 format is given in Figure 7-9. The meaning of the
+flags is defined as following:
+In idle state: The card is in idle state and running the initializing process.
+Erase reset: An erase sequence was cleared before executing because an out of erase sequence
+command was received.
+Illegal command: An illegal command code was detected.
+Communication CRC error: The CRC check of the last command failed.
+Erase sequence error: An error in the sequence of erase commands occurred.
+Address error: A misaligned address that did not match the block length was used in the command.
+Parameter error: The command's argument (e.g. address, block length) was outside the allowed range
+for this card.
+
+7
+0
+
+0
+in idle state
+erase reset
+illegal command
+com crc error
+erase sequence error
+address error
+parameter error
+Figure 7-9 : R1 Response Format
+
+7.3.2.2 Format R1b
+This response token is identical to the R1 format with the optional addition of the busy signal. The busy
+signal token can be any number of bytes. A zero value indicates card is busy. A non-zero value indicates
+the card is ready for the next command.
+
+302
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.2.3 Format R2
+This response token is two bytes long and sent as a response to the SEND_STATUS command. The
+format is given in Figure 7-10.
+1. Byte
+2. Byte
+
+7
+0
+
+0 7
+
+0
+Card is locked
+wp erase skip | lock/unlock cmd failed
+error
+CC error
+card ecc failed
+wp violation
+erase param
+out of range | csd overwrite
+in idle state
+erase reset
+illegal command
+com crc error
+erase sequence error
+address error
+parameter error
+Figure 7-10 : R2 Response Format
+
+The first byte is identical to the response R1. The content of the second byte is described in the following:
+Erase param: An invalid selection for erase, sectors or groups.
+Write protect violation: The command tried to write a write-protected block.
+Card ECC failed: Card internal ECC was applied but failed to correct the data.
+CC error: Internal card controller error.
+Error: A general or an unknown error occurred during the operation.
+Write protect erase skip | lock/unlock command failed:
+This status bit has two functions overloaded. It is set when the host attempts to erase a write-protected
+sector or makes a sequence or password errors during card lock/unlock operation.
+Card is locked: Set when the card is locked by the user. Reset when it is unlocked.
+
+7.3.2.4 Format R3
+This response token is sent by the card when a READ_OCR command is received. The response length
+is 5 bytes (see Figure 7-11). The structure of the first (MSB) byte is identical to response type R1. The
+other four bytes contain the OCR register.
+
+0
+
+32 31
+
+39
+0
+
+R1
+
+OCR
+Figure 7-11 : R3 Response Format
+
+303
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.2.5 Formats R4 & R5
+Those response formats are reserved for I/O mode (refer to "SDIO Card Specification").
+7.3.2.6 Format R7
+This response token is sent by the card when a SEND_IF_COND command (CMD8) is received. The
+response length is 5 bytes. The structure of the first (MSB) byte is identical to response type R1. The
+other four bytes contain the card operating voltage information and echo back of check pattern in
+argument and are specified by the same definition as R7 response in SD mode. (Refer to Section 4.9).
+39
+0
+
+32 31
+
+28 27
+
+12 11
+
+8 7
+
+0
+'echo- back'
+check pattern
+voltage accepted
+reserved bits
+
+R1
+
+command version
+
+Figure 7-12 : R7 Response Format
+
+304
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.3 Control Tokens
+Data block transfer is controlled by some tokens.
+
+7.3.3.1 Data Response Token
+Every data block written to the card will be acknowledged by a data response token. It is one byte long
+and has the following format:
+7 6 5 4 3 2 1 0
+x x x 0 Status 1
+
+The meaning of the status bits is defined as follows:
+'010' - Data accepted.
+'101' - Data rejected due to a CRC error.
+'110' - Data Rejected due to a Write Error
+In case of any error (CRC or Write Error) during Write Multiple Block operation, the host shall stop the
+data transmission using CMD12. In case of a Write Error (response '110'), the host may send CMD13
+(SEND_STATUS) in order to get the cause of the write problem. ACMD22 can be used to find the number
+of well written write blocks.
+
+7.3.3.2 Start Block Tokens and Stop Tran Token
+Read and write commands have data transfers associated with them. Data is being transmitted or
+received via data tokens. All data bytes are transmitted MSB first.
+Data tokens are 4 to 515 bytes long and have the following format:
+For Single Block Read, Single Block Write and Multiple Block Read:
+ First byte: Start Block
+7 6 5 4 3 2 1 0
+1 1 1 1 1 1 1 0
+
+ Bytes 2-513 (depends on the data block length): User data
+ Last two bytes: 16 bit CRC.
+For Multiple Block Write operation:
+ First byte of each block:
+If data is to be transferred then - Start Block Token
+7 6 5 4 3 2 1 0
+1 1 1 1 1 1 0 0
+
+If Stop transmission is requested - Stop Tran Token
+7 6 5 4 3 2 1 0
+1 1 1 1 1 1 0 1
+
+Note that this format is used only for Multiple Block Write. In case of a Multiple Block Read the stop
+transmission is performed using STOP_TRAN Command (CMD12).
+
+305
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3.3.3 Data Error Token
+If a read operation fails and the card cannot provide the required data, it will send a data error token
+instead. This token is one byte long and has the following format:
+7
+0
+0 0 0 0
+Error
+CC Error
+Card ECC Failed
+out of range
+Figure 7-13 : Data Error Token
+The 4 least significant bits (LSB) are the same error bits as in response format R2.
+
+7.3.4 Clearing Status Bits
+As described in the previous paragraphs, in SPI mode, status bits are reported to the host in three different
+formats: response R1, response R2, and data error token (the same bits may exist in multiple response
+types - e.g. Card ECC failed)
+As in the SD mode, error bits are cleared when read by the host, regardless of the response format. State
+indicators are either cleared by reading or are cleared in accordance with the card state.
+The following table summarizes the set and clear conditions for the various status bits:
+
+Identifier
+Out of range
+Address error
+
+Included
+Type1
+in resp
+R2
+DataErr
+R1 R2
+
+Erase sequence
+error
+Erase param
+
+R1 R2
+
+Parameter error
+
+R1 R2
+
+WP violation
+
+R2
+
+Com CRC error
+
+R1 R2
+
+Illegal command
+
+R1 R2
+
+Card ECC failed
+
+R2
+DataEr
+R2
+dataEr
+R2
+dataEr
+
+CC error
+Error
+
+R2
+
+Value
+
+E R X '0'= no error
+'1'= error
+E R X '0'= no error
+'1'= error
+
+Description
+
+The command argument was out
+of the allowed range for this card.
+A misaligned address which did not
+match the block length was used in
+the command.
+ER
+'0'= no error
+An error in the sequence of erase
+'1'= error
+commands occurred.
+EX
+'0'= no error
+An error in the parameters of the
+'1'= error
+erase command sequence
+E R X '0'= no error
+An error in the parameters of the
+'1'= error
+command
+E R X '0'= not protected Attempt to program a write pro'1'= protected
+tected block.
+ER
+'0'= no error
+The CRC check of the command
+'1'= error
+failed.
+ER
+'0'= no error
+Command not legal for the card
+'1'= error
+state
+EX
+'0'= success
+Card internal ECC was applied but
+'1'= failure
+failed to correct the data.
+E R X '0'= no error
+Internal card controller error
+'1'= error
+E R X '0'= no error
+A general or an unknown error
+'1'= error
+occurred during the operation.
+306
+
+Clear
+Condi
+tion2
+C
+C
+
+C
+C
+C
+C
+C
+C
+C
+C
+C
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Identifier
+
+Included
+Type1
+in resp
+
+CSD_OVERWRITE R2
+
+WP erase skip
+
+R2
+
+Lock/Unlock cmd
+failed
+Card is locked
+
+R2
+
+Erase reset
+
+R1 R2
+
+In Idle state
+
+R1 R2
+
+R2
+
+Value
+
+E R X '0'= no error
+'1'= error
+
+Description
+
+Can be either of the following
+errors:
+- The read only section of the CSD
+does not match the card content.
+- An attempt to reverse the copy
+(set as original) or permanent WP
+(unprotected) bits was made.
+SX
+'0'= not protected Only partial address space was
+'1'= protected
+erased due to existing write protected blocks.
+X
+'0'= no error
+Sequence or password errors dur'1'= error
+ing card lock/unlock operation.
+SX
+'0' = card is not
+Card is locked by a user password.
+locked
+'1' = card is
+locked
+SR
+'0'= cleared
+An erase sequence was cleared
+'1'= set
+before executing because an out of
+erase sequence command was
+received
+SR
+0 = Card is ready The card enters the idle state after
+1 = Card is in idle power up or reset command. It will
+state
+exit this state and become ready
+upon completion of its initialization
+procedures.
+Table 7-6 : SPI Mode Status Bits
+
+Clear
+Condi
+tion2
+C
+
+C
+
+C
+A
+
+C
+
+A
+
+1) Type:
+E: Error bit.
+S: State bit.
+R: Detected and set for the actual command response.
+X: Detected and set during command execution. The host can get the status by issuing a command with
+R1 response.
+2) Clear Condition:
+A: According to the current state of the card.
+C: Clear by read
+
+7.4 Card Registers
+In SPI mode, only the RCA register is not accessible. Formats of other registers are identical to the formats
+in the SD mode.
+
+307
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.5 SPI Bus Timing Diagrams
+This section is a blank in the Simplified Specification
+
+7.5.1 Command/Response (Removed in the Simplified Specification)
+7.5.1.1 Host Command to Card Response - Card is Ready (Removed in the Simplified
+Specification)
+Figure 7-14 : Basic Command Response (Removed in the Simplified Specification)
+7.5.1.2 Host Command to Card Response - Card is Busy (Removed in the Simplified
+Specification)
+Figure 7-15 : Command Response with Busy Indication (R1b) (Removed in the Simplified
+Specification)
+7.5.1.3 Card Response to Host Command (Removed in the Simplified Specification)
+Figure 7-16 : Timing between Card Response to new Host Command (Removed in the
+Simplified Specification)
+
+7.5.2 Data Read (Removed in the Simplified Specification)
+7.5.2.1 Timing of Single Block Read Operation (Removed in the Simplified Specification)
+Figure 7-17 : Read Single Block Operations - Bus Timing (Removed in the Simplified
+Specification)
+7.5.2.2 Stop Transmission Timing of Multiple Block Read Operation (Removed in the
+Simplified Specification)
+Figure 7-18 : Stop Transmission in Read Multiple Block (Removed in the Simplified
+Specification)
+7.5.2.3 Reading the CSD or CID Register (Removed in the Simplified Specification)
+Figure 7-19 : Read CSD/CID - Bus Timing (Removed in the Simplified Specification)
+
+7.5.3 Data Write (Removed in the Simplified Specification)
+7.5.3.1 Timing of Multiple Block Write Operation (Removed in the Simplified Specification)
+
+308
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Figure 7-20 : Write Operation - Bus Timing (Removed in the Simplified Specification)
+7.5.3.2 Stop Transmission Timing of Multiple Block Write Operation (Removed in the
+Simplified Specification)
+Figure 7-21 : Stop Transmission in Write Multiple Block (Removed in the Simplified
+Specification)
+
+7.5.4 Timing Values (Removed in the Simplified Specification)
+Table 7-7 : Timing Values (Removed in the Simplified Specification)
+
+7.6 SPI Electrical Interface
+The electrical interface is identical to SD mode with the exception of the programmable card output
+drivers' option, which is not supported in SPI mode.
+
+7.7 SPI Bus Operating Conditions
+Bus operating conditions are identical to SD mode
+
+7.8 Bus Timing
+Bus timing is identical to SD mode. The timing of the CS signal is the same as any other card input.
+
+309
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+8. PCIe/NVMe Mode in SD Express card
+8.1 Functional Description
+The functional description of the PCIe interface is defined in PCI-SIG specs (refer to Appendix A.2.1 ).
+The functional description of the NVMe is defined in NVM Express specs (refer to Appendix A.2.2 ).
+
+8.1.1 PCIe Interface Identification Class
+SD Express card in PCIe mode of operation shall be identified as :
+Standard Non Volatile Memory subsystem – NVM Express Interface.
+In reference to the PCI-SIG standard – “PCI Code and ID Assignment Specification Revision 1.9” the
+identification shall be : Base Class=01h, Sub Class=08h and Programming Interface = 02h.
+
+8.1.2 Hot Plug-In and Hot Removal
+Hot Plug In and Hot Removal shall be supported by card and host.
+Host may use the Card detection switch mechanism as SD Express card presence detect.
+
+8.1.3 SD Bus Speed Modes Supported by SD Express card
+Following performance modes shall be supported by SD Express card basic SD interface: DS, HS,
+SDR12, SDR25, DDR50 (only for microSD), SDR50. DDR50 (for full-size SD) and SDR104 are optional.
+
+8.1.4 SD Optional functions for the SD interface in SD Express card
+Following functions are defined as optional for the SD interface in SD Express card:
+- All types of Speed Classes (SC, UHS SC and VSC)
+- Application Performance Classes
+- Command Queuing
+- Self Maintenance
+- Cache
+- FULE/Discard
+- Power Management
+- Function Extension Register
+- LVS support
+- WP_UPC
+- CPRM
+- Boot Functionalities
+- TCG Security
+- RPMB
+
+8.1.5 SD Features NOT supported by SD interface in SD Express card
+Following functions shall not be supported by the SD interface in SD Express card in order to eliminate
+interoperability issues of the same card between SD interface and PCIe/NVMe interface hosts.
+- UHS-II interface
+
+8.1.6 SD Features Supported by SD interface in SD Express card but not supported or
+partially supported through the PCIe interface
+Even if the following functions are supported through the SD Express card through the SD interface, they
+are not supported or partially supported through the PCIe interface:
+- Password protection (card lock/unlock):
+o If an SD Express card has been put in a Locked state using the SD-Legacy interface in the
+device, then the device shall abort any NVMe commands that attempt to read from, write to,
+
+310
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+or modify (e.g., namespace create/delete, format, sanitize) the media until the Locked state
+is cleared by a host using the SD-Legacy Interface. The Operation Denied status code shall
+be returned for Admin Command Set commands which attempt to read from, write to, or
+modify the media. The Access Denied status code shall be returned for NVM Command Set
+commands which attempt to read from, write to, or modify the media.
+- Card Internal Write Protect (PWP/TWP) – For cards without NVMe Write Protect features:
+o If an SD Express card has been put in a Temporary Write Protected state or a Permanent
+Write Protected state using the SD-Legacy interface in the device, then the device shall abort
+any NVMe command that attempt to write to or modify the media, until the Write Protect
+condition is cleared by a host using the SD-Legacy Interface. The Operation Denied status
+code shall be returned for Admin Command Set commands which attempt to write to or modify
+(e.g., namespace create/delete, format, sanitize) the media. The Access Denied status code
+shall be returned for NVMe Command Set commands which attempt to write to or modify the
+media.
+- Card Internal Write Protect (PWP/TWP/WP_UPC) – For cards with NVMe Write Protect features:
+o The NVMe features - Write Protect, Permanent Write Protect and Write Protect Until Power
+Cycle and the SD related features - Temporary Write Protect, Permanent Write Protect and
+Write Protect Until Power Cycle are expected to behave similarly through both interfaces (SD
+and PCIe) and shall be respected in the same manner whether a specific write protection
+state is set through one interface (i.e., NVMe/SD). For example – if card is set to Temporary
+Write Protect using the SD interface, any write or erase attempt through either the SD
+interface or the NVMe interface shall be restricted, and related proper error conditions shall
+be responded by the card as defined by each interface standard.
+o Also Note that for SD Express cards that operates with NVMe mode and supports PWP or
+WP_UPC, RPMB authentication will be required to modify the states of PWP and WP_UPC
+through either of the interfaces (as mandated by the NVMe standard)
+- CPRM security
+o CPRM commands and functionality may be supported through the SD interface. PCIe
+interface shall not allow access to protected area of SD card. The capacity reported by NVMe
+identify command shall be equal to the User Data Area size over SD interface. CPRM
+commands are not supported over PCIe interface.
+
+8.1.7 Register Mapping of Selected SD Registers into PCIe/NVMe Registers
+The initial SD Express card specification is defined to allow standard PCIe/NVMe drivers to be used with
+SD Express cards in PCIe mode of operation.
+Selected, limited SD unique identification information, is mapped into a similar vendor specific fields of
+the NVMe standard. The purpose of this mapping is:
+- Align the basic information between the two interfaces – like Manufacturer, Model, Capacity, Serial
+Number, SD Express Spec revision
+- Allow host to get the same information about the cards unrelated to the interface it is accessed from.
+Information that may be useful for field track, maintenance etc.
+The mapping concept is ASCII to ASCII, binary using Hex mapping (1 byte  2 ASCIIs, e.g. 01h is
+mapping to 3031h)
+Table 8-1 describes the mapping of the SD interface information into the NVMe identification registers.
+Register
+SD
+Manufacturer ID CID/MID (8bit)**
+OEM ID
+Product name
+
+NVMe mapping NVMe Size Comments
+ICDS*/VID
+2 bytes VID (PCI-SIG) and MID (SDA) assigned
+values shall identify the same manufacturer
+CID/OID(2bytes) ICDS/SSVID
+2 bytes
+SSVID (PCI-SIG) and OID (SDA) assigned
+values shall identify the same manufacturer
+CID/PNM (5bytes) ICDS/MN[0:4]
+40 ASCII MN[7:49] will remain vendor specific
+
+311
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Product revision CID/PRV (1byte)** ICDS/FR[0:1]
+Product serial CID/PSN (32bit)** ICDS/SN[0:7]
+number
+Manufacturing CID/MDT(12bit)** ICDS/SN[8:10]
+date
+device
+size CSD/C_SIZE
+NCAP
+
+8 bytes FR[2:7] will remain vendor specific
+20 ASCII
+SN[11:19] shall be zero
+
+SD
+Physical SCR
+ICDS/MN[5:6]
+Spec. Version
+Number of
+Security and Boot ICDS
+1 byte
+RPMB units
+Register Set
+[Byte Offset 312]
+and
+[Byte Offset 8]
+Authentication
+mode
+
+Security and Boot
+Register Set
+[Byte Offset 10]
+RPMB Access Security and Boot
+Register Set
+Size
+[Byte Offset 11]
+Boot Partition Security and Boot
+Size
+Register Set
+[Byte Offset 24]
+RPMB Total
+Size
+
+ICDS
+1 byte
+[Byte Offset 314]
+ICDS
+1 byte
+[Byte Offset 315]
+BPINFO.BPSZ
+
+14 bits
+
+Device Capacity shall match on SD and
+PCIe interfaces, but each interface will use
+the appropriate format to report
+MN[5] major spec revision, MN[6] minor
+spec revision
+3 bits are used to define number of RPMB
+units.
+3 bits are used to define Authentication
+mode and
+2 bits are unused
+Max number of RPMB units is 1 in SD
+Express.
+One RPMB unit size indicated in 128KB
+units and 0’s base (00h means 128KB, FFh
+means 32,768KB).
+Max number of data per RPMB access in
+512B units and 0’s base (00h means 512B,
+FFh means 131,072B).
+Boot partition size indicated in 128KB units
+and 0’s base (00h means 128KB, FFh
+means 32,768KB). Max boot partition size
+is 32,768KB in SD Express.
+1 bit is used to define the Active Boot
+Partition.
+7 bits are unused.
+1 bit is used to indicate whether Boot
+Partition Protection is enabled.
+7 bits are unused.
+2 bits are used to indicate whether each
+Boot Partition is locked.
+6 bits are unused.
+1 bit is used to indicate whether PWP can
+be set.
+1 bit is used to indicate whether WP_UPC
+can to be set.
+6 bits are unused.
+
+Security and Boot BPINFO.ABPID 1 bit
+Register Set
+[Byte Offset 256]
+Boot Partition Security and Boot RPMB DCBDS 1 byte
+Protection
+Register Set
+[Byte Offset 0]
+Enable
+[Byte Offset 16]
+Boot Partition Security and Boot RPMB DCBDS 1 byte
+Lock
+Register Set
+[Byte Offset 1]
+[Byte Offset 17]
+User Area /
+Security and Boot RPMB DCBDS 1 byte
+Namespace
+Register Set
+[Byte Offset 2]
+Write Protection [Byte Offset 18]
+Authentication
+Control
+(*) ICDS = Identify Controller Data Structure
+(**) binary using Hex mapping
+(***) RPMB DCBDS = RPMB Device Configuration Block Data Structure
+Active Boot
+Partition
+
+Table 8-1 : Mapping of SD Standard Information Into NVMe Identification Registers
+
+8.1.8 Power Limit control of SD Express card
+SD Express host shall ensure power rail is fulfilling the Power Rating requirements of SD Express card
+as defined in Section 0. PCIe Slot Power Limit value assigned by the host shall be greater or equal to
+1.8W in case host supports up to PCIe Gen3 x 1 lane, greater or equal to 2.8W in case host supports up
+
+312
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+to PCIe Gen3 x 2 lanes or Gen4 x 1 lane, and greater or equal to 4.0W in case host supports up to PCIe
+Gen4 x 2 lanes.
+To Ensure operation with lower power constraints, the host can utilize NVMe dynamic power
+management, as defined in NVMe spec (refer to Appendix A.2.2 ).
+The number of power states implemented by SD Express card is returned in the Number of Power States
+Supported (NPSS) field in the Identify Controller data structure. SD Express card shall support at least
+power states defined in Table 8.1.8-1 according to each card type, and may optionally support up to a
+total of 32 power states. Power states are contiguously numbered starting with zero such that each
+subsequent power state consumes less than or equal to the maximum power consumed in the previous
+state. Thus, power state zero indicates the maximum power that the SD Express card is capable of
+consuming. The mandatory power states for SD Express Card are shown in Table 8.1.8-1. Note that
+default power state of the SD Express Card is 1.8W.
+Card Type
+PCIe G3L1
+1.8W
+1.44W
+0.72W
+
+PCIe G3L2
+PCIe G4L1
+2.8W
+2.5W
+1.8W
+1.44W
+0.72W
+
+PCIe G4L2
+4.0W
+3.2W
+2.8W
+2.5W
+1.8W
+1.44W
+0.72W
+
+Table 8.1.8-1 : Mandatory Power States for SD Express Card
+In addition to the selected power state limitation, the card shall never consume more power than the
+maximum value of its bus operation mode as defined in Section 6.6.3.
+For example:
+ If card supports up to Gen4x2 mode but Gen3x1 mode is selected, the card shall never exceed 1.8W
+power consumption, even if the NVMe power state is set to 4.0W.
+ If card supports up to Gen4x2 mode but Gen4x1 mode is selected, the card shall never exceed 2.8W
+power consumption, even if the NVMe power state is set to 4.0W.
+The NVMe power states may be used by the host as part of the thermal control system by limiting the
+maximum allowed consumed power of a SD Express card. Refer to Mechanical addendum specification
+for further description of the relation between the maximum card power consumption and the maximum
+card case temperature.
+
+8.1.9 NVMe Namespace for SD Express Card
+SD Express card shall be configured with single namespace with capacity more than 2GB.
+Application Note:
+Based on the use case needs and card’s supportability, the card may be reconfigured through its
+PCIe interface to multiple namespaces, or a single namespace whose capacity is less than or equal
+to 2GB. For such cards, compatibility to other hosts may be lost.
+
+8.1.10 Notes for SD Express Card Access
+The following functions are supported both through the SD interface and the PCIe interface, but their
+access methods are different:
+- Boot Functionalities (also refer to Section 4.21.2)
+313
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+When SD Express card supports Boot Functionalities, host has exactly two Boot Partitions
+accessible through both SD interface and PCIe interface.
+o For SD interface, when host reads data from a Boot Partition, it switches to the target Boot
+Partition by CMD39 and reads data by CMD17 or CMD18. When host writes data to the Boot
+Partition, it unlocks the target Boot Partition after RPMB authentication and writes data by
+CMD24 or CMD25.
+o For reading data from a Boot Partition by PCIe interface, host writes BPRSEL register to start
+data transfer from the designated Boot Partition. In case of writing, on the other hand, host
+unlocks the target Boot Partition after RPMB authentication and submits a Firmware Commit
+command.
+o Fast Boot is available only in SD interface.
+- TCG Security
+o In SD Express card, TCG security functions are realized by ACMD53/54 in SD interface. On
+the other hand, they are realized by Security Send / Security Receive commands in PCIe
+interface which are defined in NVM Express specification.
+- RPMB
+o When SD Express card supports RPMB, card has exactly one RPMB Unit. In SD interface,
+host accesses RPMB Unit by ACMD53/54. In PCIe interface, host uses Security Send /
+Security Receive commands defined in NVM Express specification.
+o
+
+8.2 The PCIe Electrical Interface
+The electrical definitions of the PCIe interface may be found in PCI-SIG specs (refer to Appendix A.2.1 ).
+
+8.2.1 SD Express Interface Signals
+Table 8-2 describes the SD Express card interface signals
+Signal
+Group
+
+Signal
+
+I/O/S
+
+Description
+
+Voltage
+
+Power
+
+VDD
+VDD1, VDD1a (2)
+VDD2, VDD2a (3)
+VDD3
+VSS
+PCIeTX+, PCIeTXPCIeTX0+, PCIeTX0PCIeTX1+, PCIeTX1- (4)
+PCIeRX+, PCIeRX
+PCIeRX0+, PCIeRX0PCIeRX1+, PCIeRX1- (4)
+REFCLK+,REFCLK-
+
+S
+
+3.3V source
+
+3.3V
+
+S
+S
+S
+I
+
+1.8V source
+1.2V source (optional by card and by host)
+
+1.8V
+1.2V
+0V
+
+PCIe
+Interface
+
+O
+I
+
+(shared with DAT0/DAT1 of
+SD interface)
+
+PERST#
+(shared with DAT3 of SD
+interface)
+
+I
+
+PCIe TX Differential signals defined by the
+PCI Express Card Electromechanical
+Specification.
+PCIe RX Differential signals defined by the
+PCI Express Card Electromechanical
+Specification.
+PCIe Reference Clock signals (100 MHz)
+defined by the PCI Express Card
+Electromechanical Specification.
+PCIe Reset is a functional reset to the card
+as defined by the PCI Express Mini Card
+Electromechanical Specification. Refer to
+Section 3.17.2 for PCIe training sequence.
+Active low.
+
+314
+
+3.3V/1.8V
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+SD
+Interface
+
+CLKREQ#
+
+I/O
+
+(shared with DAT2 of SD
+interface)
+
+(1)
+
+3.3V/1.8V
+
+I/O
+
+PCIe Request is a reference clock request
+signal and also used for L1 Power Modes
+substates as defined by the PCI Express
+Mini Card Electromechanical Specification.
+Refer to Section 3.17.2 for PCIe training
+sequence. Clock Request signal is driven
+by card as active low.
+Data lines
+
+DAT0-DAT3
+
+I/O
+I
+
+Command/Response
+SD Clock Input
+
+3.3V/1.8V
+3.3V/1.8V
+
+3.3V/1.8V
+
+(DAT0/1 are shared with
+REFCLK+/- of PCIe, DAT2
+and DAT3 are shared with
+CLKREQ# and PERST# of
+PCIe respectively)
+
+CMD
+CLK
+
+Note (1) : The CLKREQ# I/O is an Open Drain gate as defined in PCI-SIG
+(2) : G3L2, G4L1 and G4L2 SD Express Cards shall have additional 3.3V pad #19 (VDD1a).
+(3) : G3L2 and G4L2 SD Express Cards shall have additional 1.8V pad #24 (VDD2a).
+(4) : These are applied to 2-Lane SD Express Card.
+
+Table 8-2 : SD Express Card Interface Signals
+
+8.2.2 Differential Voltage Swing
+PCIe Standard allows full swing operation and half swing.
+SD Express card shall support full swing operation mode (800mV).
+
+8.2.3 REFCLK Specification
+REFCLK shall comply with the REFCLK specification defined in PCI-SIG Base Specification for 8.0GT/s.
+
+Symbol
+FREFCLK
+
+Description
+Refclk frequency
+
+Limits
+Min
+Max
+99.97
+100.03
+
+Units
+MHz
+
+RMS Refclk jitter for Independent
+TREFCLK-RMS-CC
+SSC Separate Refclk architecture
+1.0
+ps RMS
+FSSC
+SSC frequency range
+30
+33
+kHz
+TSSC-FREQ-DEVIATION
+SSC deviation
++0.0/-0.5
+%
+TTRANSPORT-DELAY
+Tx-Rx transport delay
+12
+ns
+Table 8-3 : Parameters for REFCLK Common Rx Architecture defined for 8.0GT/s
+For further details, refer to PCI-SIG specification.
+
+8.2.4 CLKREQ# and PERST# Electrical Definition
+The auxiliary signaling of the PCIe interface shall operate at 1.8v or 3.3V logic signaling. Host may use
+1.8V or 3.3V logic signaling. Card shall be able to receive both 1.8V and 3.3V signaling. Due to the share
+of these signals with the legacy SD interface signals, it is the responsibility of the card and the host to
+operate these signals at the levels defined. Refer to Appendix H.1 for additional description of the IO
+characteristics.
+
+315
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+8.2.5 AC Coupling Capacitors – Placement
+AC coupling capacitors for PCIe Gen 3 is defined 176nF to 265nF. The PCIe (M.2) specification defines
+to mount the coupling capacitors on the TX side, in case of removable card.
+Due to limited space in microSD cards this specification defines for PCIe interface of the SD Express
+card that the coupling capacitors of TX side of SD Express card shall be on the host side as close as
+possible to the connector. The placement of the AC coupling capacitors shall be up to 12.5mm from the
+connector’s SD contact pads.
+
+Host
+
+TX
+
+Card
+
+RX
+
+RX
+
+TX
+
+Figure 8-1 : Placement of AC coupling capacitors
+
+8.2.6 PCIe TX/RX Phy protection in Standard Size SD card
+This section is a blank in the Simplified Specification
+
+8.2.7 PCIe Power Rating of SD Express card
+Table 8-4 below summarizes Power Rating requirements for the SD Express (PCIe Gen3x1) power rail
+Power Rail Voltage Tolerance
+Current Consumption limit
+Peak mA
+Normal mA
+Max Avg @ 25 µs
+Max Avg @ 1 s
+3.3V
+2.7-3.6V
+600
+400
+1.8V
+1.7-1.95V
+600
+400
+1.2V*
+1.14-1.3V
+600
+400
+(*) 1.2V supply is optional
+(**) Only one of 1.2V or 1.8V power rails is used
+Table 8-4 : Power Rating Table for SD Express (PCIe Gen3x1)
+Table 8-5 below summarizes Power Rating requirements for the SD Express (PCIe Gen3x2 or Gen4x1)
+power rail.
+Power Rail Voltage Tolerance
+Total Current Consumption limit
+Peak mA
+Normal mA
+Max Avg @ 25 µs
+Max Avg @ 1 s
+3.3V
+2.7-3.6V
+1,000
+700
+1.8V
+1.7-1.95V
+600
+400
+1.2V*
+1.14-1.3V
+600
+400
+(*) 1.2V supply is optional
+(**) Only one of 1.2V or 1.8V power rails is used
+(***) 3.3V power is supplied by both VDD1 and VDD1a pads
+
+316
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+(****) 1.8V power is supplied by both VDD2 and VDD2a pads in case of
+PCIe Gen3x2 mode
+Table 8-5 : Power Rating Table for SD Express (PCIe Gen3x2 or Gen4x1)
+Table 8-6 below summarizes Power Rating requirements for the SD Express (PCIe Gen4x2) power rail.
+Power Rail Voltage Tolerance
+Total Current Consumption limit
+Peak mA
+Normal mA
+Max Avg @ 25 µs
+Max Avg @ 1 s
+3.3V
+2.7-3.6V
+1,300
+900
+1.8V
+1.7-1.95V
+900
+600

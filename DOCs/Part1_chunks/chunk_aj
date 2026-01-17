@@ -1,0 +1,2000 @@
+
+1
+
+4.16.2.2 Power Limit
+The following table shows the Power Limit for each interface when measuring Application Performance.
+Host should supply this power supply level or more to ensure card Application Performance.
+For a given interface, the power requirements of the card shall be lower for lower speeds.
+Interface
+Power Limit [W]
+Application Performance Class
+UHS-I
+1.44
+A1, A2 (DDR50, SDR50 and SDR104)
+UHS-II
+1.80
+A1, A2
+Table 4-73 : Power Limit per Interface for Application Performance Class
+
+4.16.2.3 Host Operating Frequency
+Application Performance is measured with a fixed clock frequency for each Bus Speed mode, see Table
+4-72. To ensure a level of Application Performance, a host has to use the specified frequency or higher
+for access.
+4.16.2.4 Application Performance Measurement Conditions Overview
+The Application Performance measurement conditions include the precondition state of the card and the
+Application performance test. .
+4.16.2.4.1 Precondition
+The card under measurement shall be preconditioned with the following steps
+1. Full user area is erased by CMD38 FULE as described in Section 4.3.5.3 (If FULE is not supported,
+card shall execute legacy erase).
+2. 75% of user area shall be written sequentially using CMD25 with data size of 4MB, aligned with
+4MB boundary starting LBA 0.
+3. On already written region as in step 2, sequential write 256MB area starting from a randomly
+selected 4KB aligned LBA.
+The preconditioned 256MB region shall be noted as ‘Random Performance Test Unit’ (RPTU).
+For Application Performance Class 2, if Command Queue is supported, Sequential CQ mode shall be
+used to carry out the precondition. Step 2 and 3 as mentioned above shall be written sequentially using
+class 1 commands, as below, in increasing order of Task ID.
+ Task Submission : CMD44/CMD45 with Block count = 8192 [4MB size] and increasing start block
+176
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+address per Task ID.
+ Task Execution : CMD47 with increasing order of Task ID
+4.16.2.4.2 Random Performance Test
+Perform random writes / reads by targeting 4KB sized IO, aligned with 4KB unit, to the already
+preconditioned 256MB region, RPTU. Write and Read test shall be carried out for 10minutes each, over
+RPTU. The same RPTU shall be used to measure the random write and random read performance.
+For Application Performance Class 2, Cache shall be enabled and, if Command Queue is supported,
+Voluntary CQ mode shall be used to carry out random performance test. Average random read/write
+performance of the card shall be measured as average number of 4KB sized task carried out per second
+over RPTU.
+ Task Submission : CMD44+CMD45 with Block count = 8 [4KB size]
+ Task Execution : CMD46/CMD47 with Task ID which was marked ‘ready’ by card
+ CMD46 used during random read performance test
+ CMD47 used during random write performance test
+
+4.16.2.5 Sustained Sequential Write Performance Measurement Conditions Overview
+The Sustained Sequential Write performance measurement conditions include the precondition state of
+the card and the sequential performance test.
+4.16.2.5.1 Precondition
+The card under measurement shall be preconditioned with the following steps
+1. Full user area is erased by CMD38 FULE as described in Section 4.3.5.3 (If FULE is not
+supported, card shall execute legacy erase).
+2. 100% of user area shall written sequentially using CMD25 with data size of 4MB, aligned with
+4MB boundary
+For Application Performance Class 2, if Command Queue is supported, Sequential CQ mode shall be
+used to carry out the precondition. 100% of user capacity shall be written sequentially using class 1
+commands, as below, in increasing order of Task ID.
+ Task Submission : CMD44/CMD45 with Block count = 8192 [4MB size] and increasing start block
+address per Task ID.
+ Task Execution : CMD47 with increasing order of Task ID
+4.16.2.5.2 Sequential Write Performance Test
+Sequential write up to 1GB (1024MB) using CMD25 with data size of 4MB, aligned with 4MB boundary,
+to the already preconditioned card.
+For Application Performance class 2, if Command Queue is supported, Sequential CQ mode shall be
+used to carry out sequential write performance test. Sequential write up to 1GB (1024MB) shall be carried
+out using Class 1 commands, as below, in increasing order of Task ID.
+ Task Submission : CMD44/CMD45 with Block count = 8192 [4MB size] and increasing start block
+address per Task ID
+ Task Execution : CMD47 with increasing order of Task ID
+
+177
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.16.3 Application Performance Class Parameters
+4.16.3.1 Performance of Random Write, (PRw)
+Random write performance, PRw is measured as average number of 4KB sized writes performed per
+second for a duration of 10minutes over RPTU and the unit is IOPS.
+For example, PRw 500 IOPS denotes, on an average 2000KB of data is transferred to card in one second.
+
+4.16.3.2 Performance of Random Read, (PRr)
+Random read performance, PRr is measured as average number of 4KB sized reads performed per
+second for a duration of 10minutes over RPTU and the unit is IOPS.
+For example, PRr 1500 IOPS denotes, on an average 6000KB of data is read from card in one second.
+
+4.16.3.3 Performance of Sustained Sequential Write, (PSSw)
+Sustained sequential write performance, PSSw is measured as the average write performance of the card
+measured over 1GB contiguous region using CMD25 with data size of 4MB.
+
+178
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.17 Cache
+Card shall indicate Cache feature support in the Performance Enhancement Function Register Byte[4],
+refer to Table 5-30 and ‘PERFORMANCE_ENHANCE‘ of SD Status(b[330]), refer to Table 4.10.2-2. The
+Cache shall be transparent to the host and host does not have direct access to the contents in the Cache.
+It is up to card implementation to decide which of host data goes into Cache.
+Host shall exercise ‘Flush Cache’, Performance Enhancement Function Register Byte[261] bit[0]=’1’ as
+in Table 5-30, at least once before power off. Otherwise data kept in Cache may be lost. Any power loss
+occurring during ‘Flush Cache’ operation may end in losing host data.
+Card shall not take more than 1 second to complete ‘Flush Cache’ operation. Card shall indicate ‘busy’
+using DAT0 line during ‘Flush Cache’ operation. Card shall ensure that the Cache size is as much required
+to complete ‘Flush Cache’ operation within 1 second.
+Card shall support ‘Power off Notification’ when supporting Cache and on reception of ‘Power off
+Notification’, host data stored in Cache shall be flushed to non-volatile memory.
+Below flow chart illustrates checking for Cache support, enable Cache and power off notification
+Power On
+
+SD
+Initialization
+
+Check Cache Support :
+SD Status b[330],
+Performance Extension
+Register Byte4, b[0]
+
+Cache to be
+enabled?
+
+No
+
+Yes
+
+Continue card
+interaction
+
+Preparing for
+power down?
+
+Yes
+
+Is Cache
+enabled?
+
+Yes
+
+No
+
+No
+
+Enable Cache:
+Performance Extension
+Register Byte[260], b[0]
+=1
+
+Figure 4-67 : Flowchart for Checking Cache
+
+179
+
+Send
+Power Off Notification
+
+Power Off
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.18 Self Maintenance
+Card may carryout internal maintenance using any of the two methods as follows, when enabled by the
+host.
+ Card initiated maintenance
+ Host initiated maintenance
+
+4.18.1 Card Initiated Maintenance
+Card shall indicate support for card initiated maintenance in ‘PERFORMANCE_ENHANCE‘ of
+SD_STATUS (b[328]), refer to Table 4.10.2-2 and Performance Enhancement Function Register Byte[2],
+refer to Table 5-30. Host shall enable card initiated maintenance and ‘Power Sustenance’(refer to Section
+5.8.1.4) for allowing card to carryout internal maintenance operations. Once card initiated maintenance
+is enabled by host, card may carryout internal maintenance operations when the SD bus is idle.
+Card shall receive and execute any command within the time limit defined by specification.
+Host that enable card initiated maintenance shall ensure to send ‘Power Off Notification’ as described in
+Section 5.8.1.3 before turning off power to card, so that card shall gracefully complete any active internal
+maintenance operation within 1 second.
+Below flowchart illustrates the checking for card initiated maintenance, enabling and disabling card
+initiated maintenance
+Power On
+
+SD
+Initialization
+
+Check Card Initiated Self
+maintenance Support :
+SD Status b[328],
+Performance Extension
+Register Byte2, b[0]
+
+Enable
+Card initiated self
+maintenance ?
+
+No
+
+Continue card
+interaction
+
+Preparing for
+power down?
+
+Yes
+
+Is Card
+Yes
+initiated self
+maintenance
+enabled?
+
+Send
+Power-off Notification
+
+Power Off
+
+Yes
+Enable Card initiated self
+maintenance:
+Performance Extension
+Register Byte[258], b[0]
+=1
+
+No
+
+No
+
+Figure 4-68 : Flowchart for Card Initiated Maintenance
+
+4.18.2 Host Initiated Maintenance
+Card shall indicate support for card initiated maintenance in ‘PERFORMANCE_ENHANCE‘ of
+SD_STATUS (b[329]), refer to Table 4.10.2-2 and Performance Enhancement Function Register Byte[2],
+refer to Table 5-30. If card that support host initiated maintenance wants to indicate the urgency level, it
+shall indicate it in Performance Enhancement Function Register Byte[3], refer to Table 5-30, for carrying
+out internal maintenance operation. Card shall choose any one of the four urgency level whenever
+required. Based on urgency level host may instruct the card to carryout internal maintenance operation
+
+180
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+up to 1 second. If the card needs additional time to carryout internal maintenance, card shall keep or
+change the urgency level. Card shall clear the urgency level once the internal maintenance has been
+completed.
+Card may utilize the FX_EVENT to indicate the host that maintenance has to be carried out. FX_EVENT
+support is indicated in Performance Enhancement Function Register Byte[1], refer to Table 5-30. Host
+may enable FX_EVENT method to receive urgency level indication from the card using Performance
+Enhancement Function Register Byte[257], refer to Table 5-30.
+Below flowchart illustrates the checking for host initiated maintenance, FX_EVENT and feature enable
+methods.
+Power On
+
+SD
+Initialization
+
+Check Host Initiated Self maintenance
+Support :
+SD Status b[329],
+Performance Extension Register
+Byte2, b[1]
+
+Check FX_EVENT support for Self
+Maintenance urgency indication:
+Performance Extension Register
+Byte1, b[0]
+
+Enable
+Host initiated self
+maintenance?
+
+No
+
+Enable
+FX_EVENT to
+get maintenance urgency
+indication?
+
+Continue card
+interaction
+
+YES
+
+YES
+
+Enable FX_EVENT
+method to get
+maintenance urgency
+indication:
+Performance Extension
+Register Byte[257],
+b[0] = 1
+
+No
+
+Enable Host initiated self
+maintenance:
+Performance Extension
+Register Byte[258], b[1]
+=1
+
+Figure 4-69 : Flowchart for Checking Host Initiated Maintenance
+
+181
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.19 Command Queue
+Command Queue separates bus transaction in tasks assignment phase and data transfer phase. Multiple
+of memory read/write tasks can be assigned. Card shall indicate the support for Command Queue and
+the depth of queue in Performance Enhancement Function Register Byte[6], refer to Table 5-30 and in
+‘PERFORMANCE_ENHANCE’ of SD_STATUS b[335:331],.refer to Table 4.10.2-3. The following sections
+define the different phases in command queue. Card supporting command queue shall support ‘Power
+Off Notification’. Command Queue scheme is enabled by host using Performance Enhancement Function
+Register Byte[262] b[0], refer to Table 5-30.
+
+4.19.1 Command Queue Mode
+Command Queue mode, herein referred by CQ mode, is selected by host using Performance
+Enhancement Function Register Byte[262] b[1], refer to Table 5-30. Cache Feature (Refer to Section
+4.17) should be enabled before enabling Command Queue .
+Two Command Queue modes are defined in this specification:
+ Voluntary CQ Mode
+ Sequential CQ Mode
+Application Performance Class 2, refer to Section 4.16.1.2, is guaranteed only in Voluntary CQ Mode with
+Cache Feature enabled.
+When command queue is not enabled and Class 1 commands(refer to Table 4.7.4-1) are received card
+shall not respond and indicate ‘Illegal Command’ in next R1.
+
+4.19.1.1 Voluntary CQ Mode
+Host shall set Voluntary CQ mode by setting Performance Enhancement Function Register Byte[262] b[1]
+= ‘0’, refer to Table 5-30. In Voluntary CQ mode, task reordering is up to card implementation and Host
+shall ensure the data integrity by submitting tasks in proper order to avoid any data loss. ‘Priority’ field of
+CMD44 shall be supported by card in Voluntary CQ mode, however the readiness of a task submitted
+with ‘Priority’ may not be guaranteed by card.
+4.19.1.2 Sequential CQ Mode
+Host shall set Sequential CQ mode by setting Performance Enhancement Function Register Byte[262]
+b[1] = ‘1’, refer to Table 5-30. In Sequential CQ mode, tasks shall be executed in increasing Task ID order.
+‘Priority’ field of CMD44 shall be ineffective.
+The following conditions are to be followed during Task assignment
+ Queue shall be empty before assigning Tasks [Host may abort entire queue of tasks queued earlier]
+ Tasks shall always be assigned at once from Task ID 0 in sequential order before execution
+ Card shall prepare tasks from Task ID 0 in sequential order
+ Host shall not abort a single pending task by CMD43 when tasks have been assigned
+The following conditions are to be followed during Task execution
+ Host shall execute tasks from Task ID 0 in sequential order without polling for ready state in Task
+Status Register, refer to Section 4.10.3.
+ Host shall not abort a single pending task by CMD43 when tasks have been assigned
+If the above conditions are not followed in Sequential CQ Mode, the behavior of the card is undefined.
+Cards should indicate an error if illegal sequence is generated by the host. CMD46 or CMD47 may be
+illegal during Task execution. Host shall abort all queued tasks when there are errors in Sequential CQ
+Mode.
+
+182
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.19.2 Command Support in CQ Mode
+Table 4-74 lists the command support in CQ mode is enabled and disabled [non CQ mode]
+CQ Mode
+Disabled
+
+Enabled
+
+Commands
+Class 1 commands [CMD43,44,45,46,47]
+Other Commands
+CMD0, CMD12, CMD13
+Class 1 commands [CMD43,44,45,46,47]
+CMD22(1) CMD32, CMD33, CMD38[Discard]
+Extension Function [CMD48/49/58/59]
+CMD23(2), ACMD53, 54
+CMD6, CMD19, CMD39(3)
+Others
+
+Behavior
+Illegal
+Legal
+Legal
+Legal
+Legal
+Legal
+Legal
+Legal
+Illegal
+
+Note (1): CMD22 is available for SDUC card only.
+Note (2): CMD23 is effective to ACMD53/ACMD54 only.
+Note (3): When CMD39 is issued during CQ mode, application performance is not guaranteed.
+
+Table 4-74 : Command Support list in CQ Mode
+
+4.19.3 CURRENT_STATE for CQ mode
+Table 4-75 lists the CURRENT_STATE values of R1 Response for CQ mode.
+CURRENT_STATE Value
+CQ Disabled
+CQ Enabled
+0
+idle
+reserved
+1
+ready
+reserved
+2
+3
+4
+5
+6
+7
+8
+9-14
+15
+
+ident
+stby
+tran
+data
+rcv
+prg
+dis
+reserved
+reserved for I/O mode
+
+reserved
+reserved
+CQ Tran
+Rdt
+Wdt
+Bsy
+reserved
+reserved
+reserved
+
+Table 4-75 : CURRENT_STATE for CQ Mode
+
+4.19.4 Card State Machine in CQ Mode
+Figure 4-70 illustrates the state machine transition of card in CQ mode. The card state transition is
+described in Table 4.19.4-1.
+
+183
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD12, CMD13
+
+CQ Enabled
+DAT in Use, CMD Free
+
+Rdt
+
+CMD12, CMD13, CMD22, CMD23, CMD32/33
+
+Rd: CMD6, CMD19,
+CMD46/48/58, ACMD53
+CQ Tran
+[CQ Enabled
+DAT Free, CMD Free]
+
+Wt: CMD47/49/59, ACMD54
+
+Wdt
+
+CMD49
+Enable CQ=1
+Enable CQ=0
+CMD49, CMD0
+
+CQ Disabled
+State Diagram
+(Figure 4-13)
+
+R1b: CMD38, CMD39, CMD43
+
+Bsy
+
+End of R1b/ End of Data Transfer
+
+CMD44/45
+
+CMD44/45
+
+Figure 4-70 : State Diagram in CQ Mode
+
+Commands
+“Operation Complete”
+CMD0
+CMD6
+CMD12
+CMD13
+CMD19
+CMD22
+CMD23
+CMD32
+CMD33
+CMD38
+CMD39
+CMD48
+CMD49
+CMD49 (“Enable CQ”=0)
+CMD58
+CMD59
+CMD43
+CMD44
+CMD45
+CMD46
+CMD47
+ACMD53
+ACMD54
+*
+**
+***
+
+CQ tran
+idle*
+Rdt
+CQ tran
+CQ tran
+Rdt
+CQ tran
+CQ tran
+CQ tran
+CQ tran
+Bsy
+Bsy
+Rdt
+Wdt
+tran**
+Rdt
+Wdt
+Bsy
+CQ tran
+CQ tran
+Rdt
+Wdt
+Rdt
+Wdt
+
+Current State
+Rdt
+Wdt
+CQ tran
+idle*
+idle*
+CQ tran
+Bsy
+Rdt
+Wdt
+Rdt
+Wdt
+Rdt
+Wdt
+-
+
+Bsy
+CQ tran
+idle*
+Bsy
+Bsy***
+Bsy***
+-
+
+non-CQ modes
+After CMD49 completed, card returns to tran state.
+The state transition is “CQ tran -> Wdt -> Bsy -> CQ tran -> tran”.
+Host is recommended not to assign another task when card is in ‘Bsy’ due to CMD43.
+Otherwise, card’s behavior may be unexpected.
+
+Table 4.19.4-1: Card State Transition in CQ Mode
+
+184
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.19.5 Task Submission
+A data transfer task shall be assigned to command queue by the host using CMD44 followed by CMD45.
+CMD44 arguments contain direction of data, Priority, Task ID and the total number of blocks to be
+transferred. CMD45 argument contains the start block address for the Task ID given in CMD44. On
+successful reception of Task submission[CMD44+CMD45], card shall respond with R1 response for each
+command and shall queue the task. When a valid task is received, card shall clear the corresponding
+error bit in Task Error Status of Performance Enhancement Function Register Bytes[15:8], refer to Table
+5-30.
+If CMD44 is not successful due to the following, card shall not respond and indicate ‘Illegal Command’ in
+the next R1.
+ Task ID already exists
+ Task ID is larger than supported Queue Depth
+ Number of blocks equals to 0
+If CMD44 is not successful for other reasons, card shall indicate appropriate errors during the Task
+Execution phase. If CMD45 is not immediate after a valid CMD44, card shall not respond and indicate
+‘Illegal Command’ in next R1.
+A task is assigned when valid CMD44 is followed by valid CMD45.
+If another command follows CMD44, the CMD44 is invalidated (including CMD13).If multiple CMD44 are
+issued, the last one is valid.
+Host may add a task to queue while the DAT lines are idle or during active data transfer or during indication
+of BUSY by card. In Voluntary CQ mode, host may add any number of task to queue, up to supported
+queue depth, as long as unique Task IDs are available. In Sequential mode, host shall ensure that tasks
+are queued in increasing order of Task ID.
+Before disabling CQ, host shall make sure the queue is empty, or card will discard all tasks in queue.
+Task Info
+for Task#1
+
+HOST
+
+CMD44
+R1
+Task 1-W
+
+Task Info
+for Task#3
+
+Task Info
+for Task#2
+
+CMD45
+
+R1
+
+CMD44
+R1
+Task 2-R
+
+CMD45
+
+R1
+
+CMD44
+R1
+Task 3-R
+
+CMD45
+
+R1
+
+CARD
+
+Task Submission
+
+Figure 4-71 : Illustration of Task Submission
+
+4.19.6 Queued Task Status Check
+To understand which of the queued tasks are ready, Host shall read the Task status register by sending
+CMD13 SEND_STATUS – Send Task Status extension command in Voluntary CQ mode. Card shall
+indicate the ready status by setting ‘1’ in the corresponding Task ID bit of Task Status Register, refer to
+Section 4.10.3.
+Task Info
+for Task#1
+
+HOST
+
+CMD44
+R1
+Task 1-W
+
+Read Task
+Status Register
+
+Task Info
+for Task#2
+
+CMD45
+
+R1
+
+CMD44
+R1
+Task 2-R
+
+CMD45
+
+R1
+
+CMD13
+b[15]=1
+
+TSR
+
+CARD
+
+Task Submission
+
+185
+
+Check task
+status
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Figure 4-72 : Illustration of Reading Task Ready Status
+Card shall ensure at least one task to be ready within 250ms of successful task submission after R1 of
+CMD45. However host shall not expect additional queued tasks to be set as ‘ready’ by repeatedly reading
+Task status. In Sequential CQ mode, host may not need to check the Task status for execution.
+
+4.19.7 Execution of Task
+Host shall execute queued task using CMD46 and CMD47. CMD46 for Read Task and CMD47 for Write
+Task .Host shall issue CMD46/CMD47 for the tasks which are marked as ready by card in Voluntary CQ
+mode. In Sequential CQ mode, host shall issue CMD46/47 with task ID in increasing order irrespective of
+Task ID’s ready status. On successful reception of CMD46 card shall be ready to start the data
+transmission up to the block numbers, which is specified for the Task ID earlier during task submission,
+within 100ms. On successful reception of CMD47 card shall be ready to receive the data from host up to
+the block numbers specified for the Task ID earlier during task submission. The write timeout per block
+shall be 250ms (500ms for SDXC and SDUC). Once the task is completed by CMD46/CMD47/CMD12,
+the information carried by CMD44/CMD45 shall be cleared and the Task ID can be reused. Also, the
+execution of a completed task ID is illegal.
+Task Info
+for Task#1
+
+HOST
+
+CMD44
+R1
+Task 1-W
+
+CMD45
+
+Read Task
+Status Register
+
+Task Info
+for Task#2
+
+R1
+
+CMD44
+R1
+Task 2-R
+
+CMD45
+
+R1
+
+CMD13
+b[15]=1
+
+TSR
+Task2
+
+Execute Read
+Task#2
+
+CMD46
+
+R1
+
+CARD
+DATA
+
+Check task
+status
+
+Task Submission
+
+DATA
+
+Execute Task
+
+Figure 4-73 : Illustration of Executing Read Task
+Task Info
+for Task#1
+
+HOST
+
+CMD44
+R1
+Task 1-W
+
+CMD45
+
+Read Task
+Status Register
+
+Task Info
+for Task#2
+
+R1
+
+CMD44
+R1
+Task 2-R
+
+CMD45
+
+R1
+
+CMD13
+b[15]=1
+
+TSR
+Task1
+
+Execute Write
+Task#1
+
+CMD47
+
+R1
+
+CARD
+DATA
+
+Check task
+status
+
+Task Submission
+
+DATA
+
+Execute Task
+
+Figure 4-74 : Illustration of Executing Write Task
+Card shall not respond for CMD46/CMD47 for the following conditions and indicate ‘Illegal Command’
+ Task ID not in queue
+ Wrong data direction
+ Task ID not ready in Voluntary CQ Mode
+ Task ID not in sequential order for Sequential CQ Mode
+Memory errors caused by an execution of CMD46/47 may be set in CMD46/47 R1 or any R1 after the
+CMD46/47 by Card status bit19.
+Because CQ is not supported on SDSC card, data size is always 512-byte. Block length defined by
+CMD16 before enabling CQ is ignored and BLOCK_LEN_ERROR will not be indicated in R1 response of
+CMD46/CMD47. After disabling CQ, the previous definition of block length is still effective for CMD42.
+Any error caused due to task parameters, submitted using CMD44+CMD45, or due to card internal
+operations shall be indicated with the corresponding error [ERX] in R1 response, for example
+186
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+OUT_OF_RANGE, WP_VIOLATION, CARD_ECC_FAILED, ERROR, etc. The error Task ID shall be
+indicated in Task Error Status of Performance Enhancement Function Register Bytes[15:8], refer to Table
+5-30.
+
+4.19.8 Task Management
+Host shall send CMD43 – Q_MANAGEMENT to abort either any of the queued task or the entire queue
+using operation code in the argument, refer to Table 4.7.4-1. For an invalid operation code, card shall
+indicate ‘ERROR’ [ERX] in R1 Response. If host sends CMD43 when queue is empty or task ID is not in
+queue, card shall not indicate any error.
+Host is recommended not to assign another task until CMD43 is completed. Otherwise, the behavior of
+the next CMD44 may be unexpected.
+
+4.19.9 CQ Commands Error Responses
+Table 4.19.9-1 summarizes error responses of CMD43-47, as defined in Sections 4.19.5-4.19.8.
+Command
+Description
+CMD44
+Task ID already exists.
+Task ID is larger than supported Queue
+Depth.
+Number of blocks equals to 0.
+CMD44
+If CMD44 is not successful for other
+reasons, card shall indicate appropriate
+errors during the Task Execution phase.
+CMD45
+CMD45 is not immediate after a valid
+CMD44
+CMD46 /
+Task ID is not in queue.
+CMD47
+Wrong data direction.
+Task ID not ready in Voluntary CQ Mode.
+Task ID not in sequential order for
+Sequential CQ mode.
+CMD46 /
+Error due to task parameters and submitted
+CMD47
+using CMD44+CMD45
+Card internal operations error
+(e.g. OUT_OF_RANGE, WP_VIOLATION,
+CARD_ECC_ERROR, ERROR, etc.)
+CMD43
+For invalid operation code, card shall
+indicate ‘ERROR’ [ERX] in R1 Response.
+CMD43
+
+Queue is empty.
+Task ID is not in queue.
+
+Response
+Error Handling
+No
+Illegal Command
+response
+No error
+indication
+
+Error in CMD46/CMD47
+
+No
+response
+No
+response
+
+Illegal Command
+
+Error in
+Response
+
+Type ‘R’ and ‘X’ error in
+CMD46/CMD47
+
+Error in
+Response
+
+Type ‘R’ and Type ‘X’ are
+both valid. It depends on
+implementation.
+No error indication
+
+Illegal Command
+
+Regular
+response
+(R1b)
+Table 4.19.9-1: Error Case Handling of CMD43-47
+
+187
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.20 Over 2TB Extension
+4.20.1 Overview
+Memory access commands for cards with capacity up to 2TB use 32-bit argument as block address (232
+(32-bit address) * 29 (512B block) = 241 Bytes = 2TB). This section defines memory space expansion over
+2TB. It is assumed that the expansion can be achieved by only Host Driver modification without Host
+Controller hardware modification on most of the hosts. The expansion includes Video Speed Class
+support. SDUC capacity range is unrelated to the interface modes (UHS-I, UHS-II, PCIe) supported by
+the card.
+SD Express SDUC Card can access user area in both SD mode and PCIe mode. User area capacity and
+data in it shall be equivalent between SD mode and PCIe mode. It is noted that there is no compatibility
+to over 2TB Card due to address expansion and then over 2TB extension is treated as a new function.
+Following is a brief outline of required extension or modification for SDUC Card.
+(1) Data Protection from Address Mismatch
+Memory access with address length mismatch would cause data corruption. To avoid data
+corruption, mutual recognition mechanism between host and card is defined in ACMD41 that is
+similar to HCS and CCS for recognizing SDHC/SDXC. ACMD41 initialization can be completed
+when both the host and the card support over 2TB.
+(2) Extension of User Area Capacity Indication
+CSD Version 2.0 can indicate up to 2TB capacity by 22-bit C_SIZE of 512KB unit.
+CSD Version 3.0 defines 28-bit C_SIZE (by utilizing 6-bit reserved field) of 512KB unit for SDUC
+Card that can extend memory space up to 128TB. This capacity limitation comes from use of 6-bit
+reserved field for C_SIZE.
+(3) Extension of Memory Addressing
+CMD22 is defined to expand 6-bit upper address. 38-bit block address enables access to 128TB
+memory space (matching maximum capacity of C_SIZE). CMD22 shall be issued before memory
+access commands such as CMD17, CMD18, CMD24, CMD25, CMD32, CMD33 and CMD20.
+(4) Extension/Modification for Subsidiary Commands
+ACMD22 is used to verify a number of successfully written blocks after a write operation. In case
+of up to 2TB Card, ACMD22 returns the number via short data block. ACMD22 of SDUC Card
+returns 64-bit data + CRC16.
+SDUC Card does not support ACMD23 Number of Write Blocks Pre-erased.
+(5) Extension for Video Speed Class
+CMD22 precedes memory access commands and CMD22 execution time is counted to
+performance measurement.
+SUS_ADDR in SD Status is expanded to 28-bit of 512KB unit by using 6-bit reserved field.
+CMD20 "Set Free AU" is a special function that has 22-bit ADDR in the argument to specify bundled
+AU location. CMD22 preceding CMD20 expands ADDR to 28-bit.
+In case of up to 2TB Card, CMD20 Set Free AU uses 22-bit 512KB unit address. In case of SDUC
+Card, CMD22 precedes CMD20 Set Free AU to provide 6-bit upper address of 28-bit 512KB unit
+address.
+(6) Extension for Command Queue
+CMD44 is modified to include 6-bit upper address by utilizing reserved bits.
+Over 2TB Extension specifications are also applied to UHS-II bus.
+
+188
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.20.2 Over 2TB Support Recognition
+To avoid data corruption via address space mismatch, mutual recognition mechanism is implemented via
+ACMD41 initialization.
+Figure 4-75 shows extension of ACMD41 for Over 2TB. HO2T is added to bit35 of ACMD41 argument
+and CO2T is added to bit35 of the response type R3. Mutual recognition is achieved via setting
+HCS/HO2T combination by a host and setting CCS/CO2T combination by a card. Host sets own capacity
+support ability to HCS/HO2T and SDUC Card completes ACMD41 execution only when HCS=1b and
+HO2T=1b. At the completion of ACMD41, R3 response is returned with indicating CCS=1b and CO2T=1b.
+Otherwise, SDUC card does not complete ACMD41 and the initialization is aborted by host timeout.
+Argument of ACMD41
+47
+
+46
+
+45-40
+
+39
+
+38
+
+37
+
+36
+
+35
+
+34-33
+
+32
+
+31-16
+
+15-08
+
+07-01
+
+00
+
+S
+
+D
+
+Index
+
+Busy
+31
+
+HCS
+30
+
+(FB)
+29
+
+XPC
+28
+
+HO2T
+27
+
+Reserved
+26-25
+
+S18R
+24
+
+OCR
+23-08
+
+Reserved
+07-00
+
+CRC7
+
+E
+
+0
+
+1
+
+101001
+
+0
+
+x
+
+0
+
+x
+
+x
+
+00
+
+x
+
+xxxxh
+
+0000000
+
+xxxxxxx
+
+1
+
+1
+
+1
+
+6
+
+1
+
+1
+
+1
+
+1
+
+1
+
+2
+
+1
+
+16
+
+8
+
+7
+
+1
+
+Host Capacity Support (HCS,HO2T)
+00b: SDSC Supported Host
+10b: SDHC/SDXC Supported Host
+11b: Over 2TB Supported Host
+01b: Not used
+
+Response of ACMD41
+47
+
+46
+
+45-40
+
+39
+
+38
+
+37
+
+36
+
+35
+
+34-33
+
+32
+
+31-16
+
+15-08
+
+07-01
+
+00
+
+S
+
+D
+
+Index
+
+Busy
+31
+
+CCS
+30
+
+UHS-II
+29
+
+Rsv
+28
+
+CO2T
+27
+
+Reserved
+26-25
+
+S18A
+24
+
+OCR
+23-08
+
+Reserved
+07-00
+
+CRC7
+
+E
+
+0
+
+0
+
+111111
+
+x
+
+x
+
+x
+
+0
+
+x
+
+00
+
+x
+
+xxxxh
+
+0000000
+
+1111111
+
+1
+
+1
+
+1
+
+6
+
+1
+
+1
+
+1
+
+1
+
+1
+
+2
+
+1
+
+16
+
+8
+
+7
+
+1
+
+Card Capacity (CCS,CO2T) when Busy=0b
+00b: SDSC Card
+10b: SDHC/SDXC Card
+11b: Over 2TB Card
+01b: Not used
+
+Figure 4-75 : Extension of ACMD41 for Over 2TB
+
+189
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.20.3 Extension of Memory Addressing
+Figure 4-76 shows definition of CMD22 Address Extension Command. Lower 6-bit of the argument is
+used to extend upper address. There are two types of address formats.
+One is a block unit address (512-byte) that is used by memory commands (CMD17, CMD18, CMD24,
+CMD25, CMD32, CMD33). 38-bit block address is required to access 128TB memory space and it is
+configured by upper 6-bit from CMD22 and lower 32-bit from the memory command.
+The other is a 512KB unit address that is used by CMD20 "Set Free AU" to designate AU location. 28-bit
+512KB unit address can designate AU location in 128TB memory space and it is configured by upper 6bit from CMD22 and lower 22-bit from CMD20.
+The response type of CMD22 is R1 and CMD22 does not indicate busy. Address range is checked when
+a memory command is received.
+Issuing CMD13 after CMD22 and CMD23 has no influence on the sequence. CMD12 resets current
+command sequence. Card receiving any other command not defined above (CMD12, CMD13, CMD17,
+CMD18, CMD23, CMD24, CMD25, CMD32, CMD33) or with wrong parameters (CMD20, which is not
+“Set Free AU”) shall indicate ADDRESS_ERROR in R1 response.
+CMD
+
+CMD22
+
+R1
+
+CMDxx
+
+R1
+
+No busy is indicated
+
+DAT[0]
+
+Address Extension Command (CMD22)
+S
+
+T
+
+Index
+
+Reserved
+
+ADDR
+
+CRC7
+
+E
+
+0
+
+1
+
+010110
+
+all 0
+
+xxxxxxb
+
+xx
+
+1
+
+Extended Address (6-bit)
+• for Memory Commands (CMD17, CMD18, CMD24, CMD25, CMD32, CMD33)
+6-bit ADDR is assigned to upper of 38-bit 512B unit address
+Lower 32-bit address is provided by a memory access command
+• for CMD20 Set New AU
+6-bit ADDR is assigned to upper of 28-bit 512KB unit address
+Lower 22-bit address is provided by CMD20 Set Free AU
+
+Figure 4-76 : CMD22 Address Extension Command
+Figure 4-77 shows memory read/write command sequences. CMD22 shall always precede a memory
+read/write command. CMD23 shall precede CMD22.
+Regarding to data transfer using a multi-block memory read/write command, setting data transfer length
+by using CMD23 is recommended rather than stopping by CMD12 with the expectation that card may be
+able to manage memory operation more efficiently by knowing data transfer length. Still stop by CMD12
+is useful for data transfers with length more than the maximum data length supported by CMD23.
+A multi-block data transfer is performed by incrementing 38-bit address with continuous data block access
+and it means a multi-block data transfer can span across 2TB boundary.
+Any error related to address and length are checked at memory read/write command (CMD17/18/24/25)
+and ADDRESS_ERROR or OUT_OF_RANGE is indicated either R1 of the memory read/write command
+or R1 of the next command (ex., CMD12 or CMD13). CMD22 and CMD23 do not indicate any own error
+(they can still indicate error from a previous command).
+
+190
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Set Upper Addr
+
+Single Block Read
+
+CMD22
+Set BC
+
+Set Upper Addr Multi-Block Read
+
+CMD23
+
+Memory Read
+
+CMD17
+
+CMD22
+
+CMD18
+
+Set Upper Addr Multi-Block Read
+
+CMD22
+
+CMD18
+
+Set Upper Addr
+
+Single Block Write
+
+CMD22
+Set BC
+
+CMD24
+
+Set Upper Addr Multi-Block Write
+
+CMD23
+
+Memory Write
+
+Stop
+
+CMD12
+
+CMD22
+
+CMD25
+
+Set Upper Addr Multi-Block Write
+
+CMD22
+
+CMD25
+
+Stop
+
+CMD12
+
+Figure 4-77 : Memory Command Sequences
+Figure 4-78 shows an erase command sequence. CMD22 shall precede CMD32 and CMD33 to configure
+38-bit erase start address and 38-bit erase end address. Any error related to address is checked at
+CMD38 and ADDRESS_ERROR is indicated either in R1 of CMD38 or in R1 of the next command (ex.,
+CMD13). If any error occurs, CMD38 shall not perform erase operation (long busy is not indicated).
+Start Address
+
+End Address
+Erase Operation
+
+Erase
+
+CMD22
+
+CMD32
+
+CMD22
+
+CMD33
+
+CMD38
+
+Figure 4-78 : Erase Command Sequences
+
+4.20.4 Extension/Modification for Subsidiary Commands
+4.20.4.1 Number of Written Block Command (ACMD22)
+ACMD22 is used to verify previous write operation. SDUC Card returns a data block (64-bit data +
+CRC16). The 64-bit data shown in Figure 4-79 indicates the number of well written blocks by a previous
+write operation.
+Number of Written Block
+
+CMD
+DAT
+
+ACMD22
+
+R1
+
+64-bit data CRC16
+
+Figure 4-79 : ACMD22 Data Block for SDUC Card
+4.20.4.2 ACMD23 Number of Write Blocks Pre-erased
+SDUC Card does not support ACMD23.
+There are two options of ACMD23 behavior:
+1) SDUC Card does not respond to ACMD23 and indicates Illegal Command error in next R1
+2) SDUC Card responds to ACMD23 but card shall not execute ACMD23 and no error is
+indicated to R1 of ACMD23 (previous command errors are indicated R1 of CMD55)
+191
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.20.5 Extension for Video Speed Class
+SDUC Card may support Speed Class, UHS Speed Grade and Video Speed Class (VSC) in SD mode or
+UHS-II mode as optional.
+
+4.20.5.1 CMD20 "Start Recording" Command Sequence
+Figure 4-80 shows CMD20 "Start Recording" Command Sequence of VSC. Use of CMD23 is
+recommended to perform sequential write. It is useful for card to verify alignment of RU Size, SU Size
+and AU Size.
+Set Upper Addr Multi-Block Write
+
+Start Rec.
+
+CMD20
+Speed Class
+Memory Write
+
+CMD22
+
+Start Rec.
+
+Set BC
+
+CMD20
+
+CMD23
+
+CMD24
+
+Set Upper Addr Multi-Block Write
+
+CMD22
+
+CMD25
+
+Set Upper Addr Multi-Block Write
+
+Start Rec.
+
+CMD20
+
+CMD22
+
+Stop
+
+CMD25
+
+CMD12
+
+Figure 4-80 : CMD20 "Start Recording" Command Sequence
+4.20.5.2 FAT Update Command Sequence
+Figure 4-81 shows a typical FAT Update Command Sequence. Any order of three writes is allowed.
+FAT1 write up to 16KB
+
+512Byte DIR write
+
+FAT2 write up to 16KB
+
+Set BC
+
+Upper Addr
+
+FAT1 Write
+
+Set BC
+
+Upper Addr
+
+FAT2 Write
+
+CMD23
+
+CMD22
+
+CMD25
+
+CMD23
+
+CMD22
+
+CMD25
+
+Upper Addr DIR Write
+
+CMD22
+
+CMD24
+
+Figure 4-81 : FAT Update Command Sequence
+4.20.5.3 CMD20 "DIR Update" Command Sequence
+Figure 4-82 shows CMD20 "Update DIR" command sequence.
+Update DIR
+
+CMD20
+
+Upper Addr DIR Write
+
+CMD22
+
+CMD24
+
+Figure 4-82 : CMD20 "Update DIR" Command Sequence
+4.20.5.4 CMD20 "Set Free AU" Command Sequence
+Figure 4-83 shows CMD20 "Set Free AU" Command Sequence. This sequence is different from other
+CMD20 sequences. CMD22 shall precede CMD20 "Set Free AU" to expand 28-bit ADDR of 512KB unit.
+28-bit ADDR can designate the First Bundled AU in 128TB memory space. Following AUs (Second
+Bundled AU, Third Bundled AU, etc.) are designated by incrementing 28-bit ADDR and it means that
+Bundled AU may across 2TB boundary.
+Upper 6-bit ADDR
+
+Set Free AU
+
+CMD22
+
+CMD20
+
+Figure 4-83 : CMD20 "Set Free AU"
+
+192
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.20.5.5 Suspend Address Extension
+Table 4-76 shows a part of SD Status around SUS_ADDR field. It is noted that 28-bit SUS_ADDR files
+are not contiguous and there is a boundary between Bit345 and Bit346. Bit346 is LSB of SUS_ADDR and
+Bit345 is MSB of SUS_ADDR.
+Bits
+
+Identifier
+
+Type Value
+
+Description
+
+Clear
+
+377:368
+
+VSC_AU_SIZE
+
+SR
+
+367:346
+
+SUS_ADDR [21:0]
+
+SR
+
+AU size in MB for Video (See Section 4.10.2.11) A
+Speed Class
+Suspension Address
+(See Section 4.10.2.12) A
+
+345:340
+
+SUS_ADDR [27:22]
+
+SR
+
+Suspension Address
+
+339:336
+
+APP_PERF_CLASS
+
+SR
+
+Application Performance (See Section 4.10.2.13) A
+Class Value of the card
+
+(See Section 4.10.2.12) A
+
+Table 4-76 : SUS_ADDR Extension in SD Status
+
+4.20.6 Command Sequence Reset for Error Recovery
+If any error occurs, command sequence would be out of synchronization between host and card. SDUC
+Card utilizes CMD12 to reset command sequence. The behavior of CMD12 for SDUC Card is different
+from up to 2TB Card as CMD12 is not defined in tran state (CMD12 is illegal in tran) for up to 2TB Cards.
+Table 4-77 shows a part of Card State Transition Table that modifies a transition condition of CMD12 from
+tran to tran. This means that SDUC Card accept CMD12 in tran state and returns R1 response.
+Commands
+
+idle
+
+"Operation Complete"
+class 0
+CMD11
+CMD12
+CMD13
+
+Current State
+ready ident stby tran data rcv
+
+prg
+
+dis
+
+ina
+
+-
+
+-
+
+-
+
+-
+
+-
+
+tran
+
+-
+
+tran
+
+stby
+
+-
+
+-
+
+ready
+-
+
+-
+
+stby
+
+tran
+tran
+
+tran
+data
+
+prg
+rcv
+
+prg
+
+dis
+
+-
+
+Table 4-77 : Modification of CMD12
+By this modification, CMD12 can be used to reset command sequence. SDUC Card treats a command
+after CMD12 as the first command of a new command sequence. As it is conventionally done, CMD12
+can be used for error recovery that makes a card to go back to tran state. Then this modification has
+compatibility to a legacy Host Driver processing.
+
+4.21 Boot Functionalities
+4.21.1 Boot Partition and Partition Selection
+To protect boot code from intentional or unintentional modification by regular write/erase commands, it is
+stored apart from the conventional User Area in a dedicated Boot Partition.
+Description here is a blank in the Simplified Specification.
+
+Figure 4-84 : Boot Partitions and User Area Partition (Removed in the Simplified Specification)
+When card supports boot functionalities, it shall have exactly two Boot Partitions called “Boot Partition 0”
+and “Boot Partition 1”. Capacity of these Boot Partitions shall be identical and can be from 128KB to 32MB
+193
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+for each. Refer to Section 5.8.3 for the setting of the Extension Register related to Boot Partitions.
+SD card can have exactly one User Area Partition.
+Table 4-78 shows an assignment of Partition ID for each partition.
+Partition ID
+Partition Name
+00h
+Boot Partition 0
+01h
+Boot Partition 1
+F0h
+User Area Partition
+Others
+Reserved
+Table 4-78 : Partition ID
+To switch a target partition, host issues CMD39 (SELECT_CARD_PARTITION) described in Table 4-33.
+The response of CMD39 is R1b, and its maximum busy time is 1 second. When
+BOOT_PARTITION_SUPPORT=1, card shall support CMD39. CMD39 does not work in SPI mode.
+After completing the card identification mode, User Area Partition is automatically (i.e. without CMD39)
+selected.
+When card receives CMD39 designating undefined Partition ID in its argument, card does not respond
+and indicates OUT_OF_RANGE in Card Status.
+Application Note:
+Partition ID for User Area is defined as 0 in eSD Addendum. But in the Physical Layer
+Specification, different value F0h is assigned to User Area Partition.
+Moreover, similar command for selecting partitions is defined as CMD43 in eSD Addendum. But
+since CMD43 is already assigned to other function in the Physical Layer Specification, partition
+selection is realized by other command (CMD39) in SD card.
+
+4.21.2 Basic Access to Boot Partitions
+This section describes how to access the Boot Partitions. Also refer to Section 4.21.4 for Boot Partition
+Protection.
+
+4.21.2.1 Access to Boot Partitions by SD Interface
+After power up, host executes process known as card identification mode (refer to Section 4.2). When
+finishing the card identification mode, the selected partition is User Area Partition as described in Section
+4.21.1.
+Then, host issues to CMD7 to make card state ‘tran’ and CMD39 to select either one of Boot Partition 0
+or 1.
+When Boot Partition 0 or 1 is selected, host is able to read data from these partitions by CMD17 or
+CMD18. On the other hand, if host intends to write data to or erase the selected Boot Partition, following
+sequence is required including RPMB authentication:
+(1) If Boot Partition Protection is enabled, host unlocks the target Boot Partition by updating the
+corresponding bit of Boot Partition Lock through the RPMB authentication (refer to Table 4-83). It is
+done by “Authenticated Device Configuration Block write request” defined in RPMB sequence.
+(2) After the target Boot Partition is unlocked, host writes a boot code by CMD24 or CMD25. Host may
+remove the current boot code by a series of CMD32, CMD33 and CMD38 at this time. When card
+receives CMD24, CMD25, CMD32, CMD33 or CMD38 while the target Boot Partition is locked, card
+shall handle them as illegal commands.
+(3) After completing the boot code update, host may change Active Boot Partition in Extension Register
+by CMD49 (refer to Table 5-32). It is accepted only when either bit 0 or bit 1 of Boot Partition Lock
+194
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+indicates ‘0’ (refer to Table 4-83).
+(4) Host changes the bit of target Boot Partition Lock to 1 to protect malicious boot code update, and
+switches to the User Area Partition by CMD39.
+Access methods to Boot Partitions are the same as those to User Area. For example, when host accesses
+Boot Partitions of SDUC card, it shall use CMD22 the same way as when accessing User Area (refer to
+Section 4.20.3). Also refer to Section 4.22.2 for TCG supported SDUC card.
+
+4.21.2.2 Access to Boot Partitions by PCIe Interface
+Following description is a brief sequence for reading boot code from a Boot Partition by PCIe/NVMe
+interface:
+(1) Host obtains which Boot Partition is active (BPINFO.ABPID) and the size of the Boot Partition
+(BPINFO.BPSZ).
+(2) Host initializes the address (BPMBL.BMBBA) into the memory buffer where the contents should be
+copied, if necessary.
+(3) Host initiates the transfer of data from a Boot Partition by writing to the Boot Partition Read Select
+(BPRSEL). It includes setting the Boot Partition identifier (BPRSEL.BPID), size of Boot Partition Read
+Size (BPRSEL.BPRSZ) and Boot Partition Read Offset (BPRSEL.BPROF).
+(4) Host waits to completely transfer the requested portion of the Boot Partition, indicated in the status
+field (BPINFO.BRS).
+Following description is a brief sequence for writing boot code to a Boot Partition by PCIe/NVMe interface:
+(1) Host issues a Firmware Image Download command to download the contents of the Boot Partition.
+(2) Host unlocks the target Boot Partition by updating RPMB Device Configuration Block.
+(3) Host submits a Firmware Commit command with a Commit Action of 110b which specifies that the
+downloaded image replaces the contents of the Boot Partition specified in the Boot Partition ID field.
+(4) Host locks Boot Partition access to prevent further modification.
+Refer to NVMe specification for more details:
+
+4.21.3 Fast Boot
+4.21.3.1 Overview of Fast Boot
+Fast Boot realizes that boot data in SD card is transmitted immediately after power up with minimum
+operations. Fast Boot is available over SD interface including DS, HS and UHS-I modes (UHS-I mode is
+either SDR12, SDR25, SDR50, SDR104 or DDR50). Note that it is not applicable to SPI mode, UHS-II
+(UHS-III) mode and PCIe mode. In addition, when the bus mode of Fast Boot is either SDR50 or SDR104,
+forty tuning blocks are transmitted from the card prior to the boot code in order that host can determine
+appropriate sampling point (i.e. execute tuning). The tuning block is same as that defined in Table 4-3 and
+Figure 4-11.
+There are two methods called CV-mode (standing for CMD line Voltage) and CA-mode (standing for
+CMD0 Argument) for Fast Boot in SD card.
+By CV-mode, host starts Fast Boot by driving CMD line low for greater than or equal to 74 clocks after
+power up. The bus mode is determined by the value of “Preprogrammed bus mode for Fast Boot” in the
+Extension Register in card side, and host is expected to operate the card using the same bus mode.
+By CA-mode, on the other hand, host issues CMD0 with a special argument for executing Fast Boot. The
+bus mode is selected according to the argument in CMD0. In addition, if the selected bus mode is based
+on 1.8V signaling mode (in other words, UHS-I mode), host shall execute the LVS Identification Sequence
+described in Part 1 Low Voltage Interface Addendum.
+
+195
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.21.3.2 CV-mode Fast Boot
+This section is a blank in the Simplified Specification.
+4.21.3.2.1 CV-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification)
+Figure 4-85 : CV-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification)
+4.21.3.2.2 CV-mode Fast Boot Sequence (; DDR50, SDR25 or SDR12) (Removed in the Simplified
+Specification)
+Figure 4-86 : CV-mode Fast Boot Sequence (DDR50, SDR25 or SDR12) (Removed in the
+Simplified Specification)
+4.21.3.2.3 CV-mode Fast Boot Sequence (HS or DS) (Removed in the Simplified Specification)
+Figure 4-87 : CV-mode Fast Boot Sequence (HS or DS) (Removed in the Simplified
+Specification)
+4.21.3.2.4 Another CV-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification)
+Figure 4-88 : Another CV-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the
+Simplified Specification)
+
+4.21.3.3 CA-mode Fast Boot
+This section explains details of CA-mode Fast Boot sequences. In CA-mode, the bus mode for Fast Boot
+is specified by the argument of CMD0 defined in Table 4-79. Note that these special arguments of CMD0
+are only valid in ‘idle’ state. If card receives these arguments in other than ‘idle’ state, it regards as
+00000000h.
+Argument
+00000000h
+F1F1F1F1h
+
+Description
+(Handled as conventional
+CMD0)
+DS mode
+
+Notes
+
+When card receives this argument in 1.8V signaling
+mode, the argument is regarded as 00000000h.
+F2F2F2F2h
+HS mode
+(Same as the above)
+F8F8F8F8h
+Preprogrammed mode
+When card receives this argument if the current
+stored in “Preprogrammed signaling voltage does not match to that
+bus mode for Fast Boot” of corresponding to the bus mode in the register, the
+the Extension Register
+argument is regarded as 00000000h.
+F9F9F9F9h
+SDR12 mode
+When card receives this argument in 3.3V signaling
+mode, the argument is regarded as 00000000h.
+FAFAFAFAh
+SDR25 mode
+(Same as the above)
+FBFBFBFBh
+SDR50 mode
+(Same as the above)
+FCFCFCFCh
+SDR104 mode
+(Same as the above)
+FDFDFDFDh
+DDR50 mode
+(Same as the above)
+Others
+Reserved
+The argument is regarded as 00000000h.
+Table 4-79 : Special Arguments of CMD0 for Bus Mode in CA-mode Fast Boot
+When card receives CMD0 with a valid special argument, that is, the argument is not equal to and is not
+regarded as 00000000h, card shall change data bus mode from 1 bit to 4 bits. In case of other arguments,
+the data bus width is changed to 1 bit as described in Section 4.3.1.
+
+196
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Description here is a blank in the Simplified Specification.
+4.21.3.3.1 CA-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification)
+Figure 4-89 : CA-mode Fast Boot Sequence (SDR104 or SDR50) (Removed in the Simplified
+Specification)
+4.21.3.3.2 CA-mode Fast Boot Sequence (DDR50, SDR25 or SDR12) (Removed in the Simplified
+Specification)
+Figure 4-90 : CA-mode Fast Boot Sequence (DDR50, SDR25 or SDR12) (Removed in the
+Simplified Specification)
+4.21.3.3.3 CA-mode Fast Boot Sequence (HS or DS) (Removed in the Simplified Specification)
+Figure 4-91 : CA-mode Fast Boot Sequence (HS or DS) (Removed in the Simplified
+Specification)
+
+4.21.3.4 Modification of Tuning Blocks Transmission during Fast Boot
+Before fetching boot code data by Fast Boot over SDR104 or SDR50, host should execute tuning to
+determine the appropriate sampling point as described in Section 4.2.4.5. When SDR104 or SDR50 is
+selected, card continuously transmits tuning blocks 40 times with block gaps prior to boot code data as
+described in Figure 4-92.
+block gap
+
+Tuning block (#1)
+
+Tuning block (#2)
+
+block gap
+
+Tuning block (#3)
+
+Tuning block (#40)
+
+Boot code data
+
+Card transmits 40 tuning blocks without CMD19
+when bus mode is SDR104 or SDR50
+
+Figure 4-92 : Transmission of Tuning Blocks during Fast Boot
+Different from the UHS-I initialization in Figure 4-6, host needs to detect exactly 40 tuning blocks without
+issuing CMD19. If host drops one or more tuning blocks, host may regard a part of actual boot code data
+as a tuning block. This means host fails to obtain proper boot code as a result.
+Description here is a blank in the Simplified Specification.
+
+Figure 4-93 : Analysis of Tuning Block (Removed in the Simplified Specification)
+Table 4-80 : Timing Values for Tuning Block Transmission during Fast Boot (Removed in the
+Simplified Specification)
+Figure 4-94 : Tuning Block Transmission Considering NACT (Removed in the Simplified
+Specification)
+
+197
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.21.4 Boot Partition Protection Using RPMB
+SD card supporting Boot Partitions shall also support RPMB. Such card requires Boot Partition Protection
+which is configured by using RPMB (refer to Section 4.23). Figure 4-95 shows an overview of Boot
+Partition Protection.
+Boot Partition Protection Disabled
+Power up
+or reset
+
+Boot Partitions Unlocked
+
+Authenticated Device
+Configuration Block Write
+(Enabling Boot Partition Protection is permanent)
+
+Boot Partition Protection Enabled
+Power up
+or reset
+
+Boot Partitions Locked
+
+Authenticated Device
+Configuration Block Write
+Boot Partitions Unlocked
+
+Figure 4-95 : Boot Partition Lock/Unlock State
+The default state of boot partition is the “unlocked” state. In this state, host software may read and write
+to Boot Partitions without RPMB authentication. Active Boot Partition register can be modified without
+RPMB authentication. All Boot Partitions remain unlocked until Boot Partition Protection is enabled by
+host. Host enables Boot Partition Protection by setting the Boot Partition Protection Enable bit in the
+RPMB Device Configuration Block data structure (refer to Section 4.23.1.1). Once Boot Partition
+Protection is enabled, the controller shall reject Authenticated Device Configuration Block Writes that
+disable Boot Partition Protection (i.e., enabling Boot Partition Protection is permanent). Once Boot
+Partition Protection is enabled, Boot Partitions can be modified only after unlocking the Boot Partition
+using RPMB. After activating Boot Partition Protection, the default state for all Boot Partitions is the
+“Locked” state. In this state, host software may read a Boot Partition. In this state, the controller rejects
+attempts to write or erase to a Boot Partition using CMD24 or CMD25. Each Boot Partition may be locked
+or unlocked independently using the corresponding bit in the Device Configuration Block data structure.
+
+4.21.5 Pre-init mode
+Considering LVS Identification and Fast Boot, pre-init mode is introduced.
+Table 4-81 shows card states and operation modes including pre-init mode In this mode, p-init state and
+boot state are introduced as a card state. These states are not defined in CURRENT_STATE of Card
+Status. Note that pre-init mode is applicable only to SD interface.
+
+198
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Card state
+Operation mode
+Inactive State
+inactive
+P-init State
+pre-init mode
+Boot State
+Idle State
+card identification mode
+Ready State
+Identification State
+Stand-by State
+Transfer State
+Sending-data State
+data transfer mode
+Receive-data State

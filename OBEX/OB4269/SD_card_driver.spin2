@@ -1,0 +1,716 @@
+﻿{{┌──────────────────────────────────────────┐
+  │ SD card driver                           │  Verified with Panasonic 512MB SD
+  │ Author: Chris Gadd                       │                PNY 8GB SDHC
+  │ Copyright (c) 2023 Chris Gadd            │                SanDisk Extreme 32GB SDHC                                       3V3
+  │ See end of file for terms of use.        │                GSKILL 32GB Micro SDHC                                              ┌─────┐
+  └──────────────────────────────────────────┘  cards must be formatted as FAT32                                               │   ┤ Read / write        ├─────┐
+                                                                                                                             ─┼───┤ CS                  │     │
+  sd.mount(CS,MOSI,MISO,SCK)                            ' mount SD card                                                      ─┼───┤ MOSI                │     │
+  sd.newDirectory(string("folder1"))                    ' create a new directory                                               │ ┌─┤ Gnd                 │     │
+  sd.changeDirectory(string("folder1"))                 ' switch to newly created directory                                    └─┼─┤ Vcc                 │     │
+  sd.newFile(string("fileA.txt"))                       ' create a new file, leaves file open for writing                    ───┼─┤ SCK                 │     │
+  sd.writeString(string("this is file A"))              ' write to newly created file                                            ┣─┤ Gnd                 │     │
+  sd.closeFile()                                        ' close file, update filesize information                            ───┼─┤ MISO                │     │
+                                                                                                                                 │ ┤ IRQ                 │     │
+  sd.openFile(string("fileA.txt"))                      ' open file in current directory                                         │ ┤ Card detect         │     │
+  -or-                                                  ' -or-                                                                   │ ┤ Write protect       ├─────┘
+  sd.openFile(string("/folder1/fileA.txt"))             ' open file from path (1st "/" resets directory to root)                 │ └─┳───────────────────┘
+  sd.read(@buffer,sd.fileSize())                        ' read opened file into buffer                                              
+  debug(zstr(@buffer))
+}}
+CON  '' flags
+  F_OPEN    = decod 0
+  F_NEWDIR  = decod 1
+  F_NEWDATA = decod 2
+
+VAR
+  long  cs, mosi, miso, sck     ' spi pins
+  long  fat_sec,fat2_sec        ' starting sector of FAT - calculated as VBR address + number of reserved sectors
+  long  sec_per_fat             ' sectors-per-fat, as read from VBR
+  long  sec_per_clus            ' sectors-per-cluster, as read from VBR
+  long  root_sec                ' starting sector of data - calculated as fat_sec + number of FATs * sectorsPerFat
+  long  cluster_offset          ' offset of clusters from power-of-two boundaries
+  long  dir_sec                 ' starting sector of current directory
+  long  entry_address           ' byte-level address of record in directory
+  long  date_stamp              ' time and date stamp written into directory entry when creating a new file or folder
+  long  n_sec                   ' current sector number
+  long  file_idx                ' tracks position within file, ranges from 0 to filesize
+  long  flags                   ' contains flags for open file and new data
+  long  sec_in_buf              ' contains number of the sector in the buffer, used by readSector to only update when necessary
+  long  bit_delay, hcs
+  byte  buf[512]                ' main data buffer
+  byte  entry_buffer[32]        ' buffer containing entry read from the directory
+
+PUB null()                                                                      '' not a top-level object
+CON     '' management methods
+PUB mount(_cs,_mosi,_miso,_sck) : result | vbr_sec, reserved                    '' mount SD card
+  longmove(@cs,@_cs,4)
+  pinh(cs)
+  pinh(mosi)
+  pinh(sck)
+
+  closeFile()
+  sec_in_buf := -1
+  if initCard()
+    readSector(0)                                                               '  read master boot record
+    if buf[$1C2] == $0B or buf[$1C2] == $0C                                     '  offset $1C2 contains type code, $0B and $0C specify FAT32
+      vbr_sec := long[@buf + $1C6]                                              '  offset $1C6 contains volume boot record sector number
+      readSector(vbr_sec)                                                       '  read volume boot record
+    else                                                                        '
+      return                                                                    '  not a FAT32 volume
+    if word[@buf + $0B] <> 512                                                  '  $0B contains Bytes per logical sector (should always be 512)
+      return                                                                    '  bad bytes per sector
+    sec_per_clus := buf[$0D]                                                    '  $0D contains sectors per cluster (1,2,4,8,16,32,64,128)
+    if (sec_per_clus & (sec_per_clus - 1))                                      '   ensure power-of-two
+      return
+    reserved := word[@buf + $0E]                                                '  $0E contains count of reserved logical sectors
+    if buf[$10] <> 2                                                            '  $10 contains number of file allocation tables, always 2
+      return
+    sec_per_fat := long[@buf + $24]                                             '  $24 contains Logical sectors per File Allocation Table used with FAT32
+    fat_sec := vbr_sec + reserved                                               '  FAT sector address
+    fat2_sec := fat_sec + sec_per_fat
+    root_sec := (fat_sec + 2 * sec_per_fat)
+    dir_sec := root_sec
+    cluster_offset := root_sec // sec_per_clus
+    if date_stamp == 0
+      setdate(2009,01,27,07,00,00)                                              '  set default date of 1/27/2009 07:00 AM
+    return true
+
+PUB newFile(name_ptr) : result | temp                                           '' create and open a new file in the current directory
+  closeFile()
+  if searchDirectory(name_ptr)                                                  '  search directory for available entry - set entry address
+    return                                                                      '   return if file already exists
+
+  temp := (entry_address + cluster_offset << 9) & (sec_per_clus << 9 - 1)       '  apply cluster mask to entry_address
+  if temp == (sec_per_clus << 9 - 32)                                           '  if entry_address is at final entry of a directory cluster
+    if buf[480] == $00                                                          '  and the final entry is the end of the directory
+      temp := allocateCluster(byte2clus(entry_address))                         '   allocate new cluster for directory to expand
+      clearCluster(temp)                                                        '   and initialize the new cluster
+
+  byte[@entry_buffer + 11] := $20                                               '  set attribute to archive
+  long[@entry_buffer + 14] := date_stamp                                        '  set creation time and date stamp
+  word[@entry_buffer + 20] := $0000                                             '  set 1st cluster number high (cluster doesn't get allocated until 1st write)
+  long[@entry_buffer + 22] := date_stamp                                        '  set last-modified time and date stamp
+  word[@entry_buffer + 26] := $0000                                             '  set 1st cluster number low
+  long[@entry_buffer + 28] := 0                                                 '  set file size
+  flags |= F_OPEN | F_NEWDIR
+  return true
+
+PUB newDirectory(name_ptr) : result | temp                                      '' create a new folder in the current directory
+  closeFile()
+  if searchDirectory(name_ptr)                                                  '  search directory for availble entry - set entry_address
+    return                                                                      '   return if folder already exists
+
+  temp := (entry_address + cluster_offset << 9) & (sec_per_clus << 9 - 1)       '  apply cluster mask to entry_address
+  if temp == sec_per_clus << 9 - 32                                             '  if entry_address is at final entry of directory cluster
+    if buf[480] == $00                                                          '  and the final entry is the end of directory
+      temp := allocateCluster(byte2clus(entry_address))                         '   allocate new cluster for directory to expand
+      clearCluster(temp)                                                        '   and initialize the new cluster
+
+  temp := allocateCluster(0)                                                    '  allocate a cluster in the FAT for the new directory
+  long[@entry_buffer + 11] := $10                                               '  set attribute to directory
+  long[@entry_buffer + 14] := date_stamp                                        '  set creation time and date stamp
+  word[@entry_buffer + 20] := temp >> 16                                        '  set 1st cluster number high
+  long[@entry_buffer + 22] := date_stamp                                        '  set last-modified time and date stamp
+  word[@entry_buffer + 26] := temp & $FFFF                                      '  set 1st cluster number low
+  long[@entry_buffer + 28] := 0                                                 '  set file size
+
+  readSector(entry_address >> 9)                                                '  read directory sector containing available entry
+  bytemove(@buf + entry_address & 511,@entry_buffer,32)                         '  move new entry into directory
+  writeSector(entry_address >> 9)                                               '  write directory sector
+
+  bytefill(@buf,0,512)                                                          '  clear buffer
+  bytemove(@buf[0],string(".          "),11)                                    '  create entry for this directory
+  byte[@buf + 11] := $10
+  long[@buf + 14] := date_stamp
+  word[@buf + 20] := temp >> 16
+  long[@buf + 22] := date_stamp
+  word[@buf + 26] := temp & $FFFF
+
+  temp := byte2clus(entry_address)                                              '  entry_address still contains location of parent directory
+  if temp == 2                                                                  '  if the parent directory is the root directory,
+    temp := 0                                                                   '   then the cluster field must be set to 0
+  bytemove(@buf[32],string("..         "),11)                                   '  create entry for previous directory
+  byte[@buf + 32 + 11] := $10
+  long[@buf + 32 + 14] := date_stamp
+  word[@buf + 32 + 20] := temp >> 16
+  long[@buf + 32 + 22] := date_stamp
+  word[@buf + 32 + 26] := temp & $FFFF
+
+  n_sec := clus2sec(firstCluster())
+  writeSector(n_sec)                                                            '  write new directory sector
+  sec_in_buf := n_sec
+
+PUB openFile(name_ptr) : result                                                 '' open file name, returns false if not found
+  closeFile()
+  if searchDirectory(name_ptr)
+    if attributes() & %0001_1110 == 0                                           '  if not directory, volume ID, system, or hidden
+      flags |= F_OPEN
+      return true
+
+PUB changeDirectory(name_ptr) : result                                          '' change to folder name, returns false if not found
+  closeFile()
+  if searchDirectory(name_ptr)
+    if (attributes() & %0001_0000) or (dir_sec == root_sec)                     '  if directory
+      dir_sec := n_sec
+      return true
+
+PUB closeFile()                                                                 '' close the file and write changed data to the card
+  if flags & F_NEWDATA                                                          '  if new data has been written
+    writeSector(n_sec)                                                          '   write file data
+  if flags & (F_NEWDIR | F_NEWDATA)
+    readSector(entry_address >> 9)                                              '   open directory sector
+    bytemove(@buf + entry_address & 511,@entry_buffer,32)                       '   copy updated filesize into directory
+    writeSector(entry_address >> 9)                                             '   write directory
+  bytefill(@entry_buffer,0,32)
+  flags := flags & !F_NEWDATA & !F_NEWDIR & !F_OPEN
+  file_idx := 0
+
+PUB deleteFile(name_ptr) : result | cluster, p_cluster                          '' delete file name, returns false if not found
+  closeFile()
+  if searchDirectory(name_ptr) == 0                                             '  search directory for entry
+    return                                                                      '   return if file not found
+  if attributes() & %0001_1111                                                  '  check attribute byte
+    return                                                                      '   only allow deletion of unprotected files
+  buf[entry_address & 511] := $E5                                               '  replace 1st character of entry with $E5
+  writeSector(entry_address >> 9)                                               '  write directory sector
+
+  p_cluster := firstCluster()
+  repeat
+    cluster := long[readFAT(p_cluster)]                                         ' read contents of cluster entry
+    long[@buf + p_cluster << 2 & 511] := 0                                      ' clear contents in buffer
+    if cluster >> 7 - p_cluster >> 7 <> 0                                       ' if cluster entries are in different sectors - or end of chain
+      writeSector(p_cluster >> 7 + fat_Sec)                                     '  write FAT sector
+    p_cluster := cluster
+  until cluster >= $0FFF_FFF8                                                   '  repeat until end of chain found
+  return true
+
+PUB rename(old_name, new_name) : result | bookmark, temp_sec, i                 '' rename file or directory,
+  if searchDirectory(old_name)                                                  '  ensure old name exists
+    bookmark := entry_address                                                   '  bookmark entry in directory
+    temp_sec := dir_sec                                                         '  copy current directory
+    dir_sec := entry_address >> 9                                               '  change dir_sec to directory containing source name
+    i := 0
+    repeat until byte[new_name + i] == $00                                      '  strip path from new name - preserve final element - removes ambiguity if renaming a file in a path
+      if byte[new_name + i] == "/"                                              '   rename(string("folder1/old_name"),string(folder1/new_name"))
+        new_name += i+1                                                         '   works just as well as
+        i := 1                                                                  '   rename(string("folder1/old_name"),string("new_name"))
+      i++
+    if searchDirectory(new_name) == 0                                           '  search directory for destination name
+      readSector(bookmark >> 9)                                                 '  re-read source directory sector containing old name
+      bytemove(@buf + bookmark & 511,@entry_buffer,11)                          '  replace name in entry
+      writeSector(bookmark >> 9)                                                '  write entry_buffer into source directory
+      dir_sec := temp_sec                                                       '  restore directory sector
+      return true
+
+PUB moveFile(name_ptr,dest_folder) : result | bookmark, p_temp, temp_sec        '' move file from one directory into another directory
+  p_temp := @"FILENAME.TXT"
+  if openFile(name_ptr)                                                         '  ensure file exists in source directory
+    bookmark := entry_address                                                   '  bookmark entry in directory
+    bytemove(p_temp,filename(),12)                                              '  copy filename (in case name_ptr is a path)
+    temp_sec := dir_sec                                                         '  copy current directory
+    if changeDirectory(dest_folder)                                             '  ensure destination directory exists
+      if bookmark >> 9 == n_sec                                                 '  return if source directory and destination directory are the same
+        return false
+      if newFile(p_temp)                                                        '  create file in destination directory (sets entry_buffer and entry_address)
+        readSector(bookmark >> 9)                                               '  re-read source directory sector containing filename
+        bytemove(@entry_buffer,@buf + bookmark & 511,32)                        '  copy entry into entry_buffer
+        byte[@buf + bookmark & 511] := $E5                                      '  set 'deleted' value in source directory
+        writeSector(bookmark >> 9)                                              '  write source directory
+        closeFile()                                                             '  write entry_buffer into destination directory
+        dir_sec := temp_sec
+        return true
+    dir_sec := temp_sec
+
+PUB freeSpace() : result | cluster                                              '' determine the number of free sectors by counting empty clusters in the FAT
+  n_sec := fat_sec                                                              '  may take a while to complete depending on volume size , does not count empty space in occupied clusters
+  repeat sec_per_fat                                                            '  repeat for every sector in the FAT
+    readSector(n_sec++)                                                         '   read a FAT sector
+    repeat cluster from 0 to 127                                                '   128 cluster entries per FAT sector
+      if long[@buf + cluster << 2] == 0                                         '   check every 32-bit entry for 0
+        result++
+  result := result * sec_per_clus
+
+PUB setDate(year, month, day, hour, minute, second)                             '' set the current date and time for new files/folders
+  date_stamp := (year - 1980) << 25 | month << 21 | day << 16 | hour << 11 | minute << 5 | second >> 1
+
+CON     '' read/write methods
+PUB read(p_buffer,count) : result | delta                                       '' read a number of bytes into p_buffer
+  if (flags & F_OPEN) and not (attributes() & %0001_1110)                       '  file open, not directory, volume ID, system, or hidden
+    count <#= (fileSize() - file_idx)                                           '  limit count to bytes remaining in file
+    readSector(n_sec)                                                           '  read sector into buffer (only reads if not already in buffer)
+    repeat while count > 0
+      delta := (512 - (file_idx & 511)) <# count                                '  find bytes remaining in buffer, limit to number of bytes requested
+      bytemove(p_buffer,@buf + (file_idx & 511),delta)
+      file_idx += delta
+      result += delta
+      p_buffer += delta
+      count -= delta
+      if file_idx & 511 == 0                                                    '  if end of sector reached
+        readNextSector()                                                        '   read next sector into buffer
+
+PUB readByte(address) : result                                                  '' return a single byte from the open file
+  if (flags & F_OPEN) and not (attributes() & %0001_1110)
+    seek(address)
+    return buf[address & 511]
+
+PUB write(p_buffer,count) : result | delta, temp                                '' write an array of bytes to the open file
+  if (flags & F_OPEN) and (count > 0) and not (attributes() & %0001_1111)
+    if fileSize() & (sec_per_clus << 9 - 1) == 0                                '  if newly-created file or at end of cluster
+      temp := firstCluster()                                                    '   first_cluster == 0 for new files
+      repeat (fileSize()-1) / (sec_per_clus << 9)                               '   find end-of-chain for written file
+        temp := long[readFat(temp)]
+      temp := allocateCluster(temp)                                             '  allocate new cluster, insert cluster number into FAT if written file
+
+      if fileSize() == 0                                                        '  if new file
+        word[@entry_buffer + $14] := temp >> 16                                 '   insert 1st cluster location into directory entry
+        word[@entry_buffer + $1A] := temp & $FFFF
+      n_sec := clus2sec(temp)                                                   '  set n_sec to 1st sector of new cluster
+      bytefill(@buf,0,512)
+    else
+      seek(fileSize())                                                          '  seek to end of open file, read sector into buffer
+    repeat while count > 0
+      delta := (512 - (file_idx & 511)) <# count                                '  find bytes remaining in buffer, limit to number of bytes to be written
+      bytemove(@buf + file_idx & 511,p_buffer,delta)                            '  copy bytes from p_buffer into local buffer
+      sec_in_buf := n_sec
+      file_idx += delta
+      p_buffer += delta
+      long[@entry_buffer + $1C] += delta                                        '  increment file size
+      count -= delta
+      if count > 0 and file_idx & 511 == 0                                      '  if end of sector reached and more bytes to be written
+        writeSector(n_sec++)                                                    '   write current sector, increment sector number
+        bytefill(@buf,0,512)
+        if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0                 '  if next sector is in new cluster
+          temp := allocateCluster(sec2clus(n_sec-1))                            '   allocate new cluster, returns cluster number
+          n_sec := clus2sec(temp)                                               '   convert cluster number into sector
+    flags |= F_NEWDATA
+
+PUB writeByte(char) : result                                                    '' write a single byte to the open file
+  write(@char,1)
+
+PUB writeString(p_str) : result                                                 '' write a null-terminated string to the open file
+  write(p_str,strsize(p_str))
+
+PUB readDirectory(entry) : result | idx, char, attrib                           '' iterates through entries in the current directory, loads entries into entry_buffer
+  idx := 0                                                                      '   returns false if entry number doesn't exist
+  n_sec := dir_sec                                                              '   ┌────────────────────────────────────────────┐
+  readSector(n_sec)                                                             '   │ PUB displayDirectory() | i                 │
+                                                                                '   │   i := 0                                   │
+  repeat until entry == -1                                                      '   │   repeat until sd.readDirectory(i++) == 0  │
+    char := byte[@buf + idx & 511]                                              '   │     debug(zstr(sd.filename()))             │
+    attrib := byte[@buf + idx & 511 + 11]                                       '   └────────────────────────────────────────────┘
+
+    if char == $00
+      return 'false
+    elseif char <> $E5
+      if attrib & %0000_1110 == 0                                               '  don't show volume ID, system, or hidden files
+        entry--
+        if entry == -1
+          bytemove(@entry_buffer,@buf + idx & 511,32)
+          return(@entry_buffer)
+    idx += 32
+    if idx & 511 == 0
+      readNextSector()
+
+PUB seek(pos) : result | cluster                                                '' sets file_idx to any position within the file
+  if pos > fileSize()           '                                               '   return -1 if seeking beyond end of file
+    return
+  cluster := firstCluster()
+  repeat (pos / (sec_per_clus << 9))                                            '  determine if seek position is in a new cluster
+    cluster := long[readFat(cluster)]                                           '   follow FAT chain to new cluster
+  n_sec := clus2sec(cluster)                                                    '  find 1st sector of cluster
+  n_sec += (pos / 512) // sec_per_clus                                          '  add sector containing position within file
+  readSector(n_sec)                                                             '  read sector into buffer
+  file_idx := pos                                                               '  set index to position within file
+  return true
+
+CON     '' directory methods
+PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i
+  p_temp := @"FILENAMETXT"
+  if byte[name_ptr] == "/"
+    dir_sec := root_sec
+    name_ptr++
+  n_sec := dir_sec
+
+  repeat until byte[name_ptr] == $00
+    bytefill(@entry_buffer,0,32)
+    i := 0
+
+    repeat until byte[name_ptr + i] == "/" or byte[name_ptr + i] == $00         '  advance i up to "/" or null
+      i++
+    bytemove(@entry_buffer,name_ptr,i <# 12)                                    '  copy name into entry_buffer, max 12 characters
+    name_ptr += i                                                               '  advance ptr to "/" or null
+    if byte[name_ptr] == "/"                                                    '  if "/"
+      name_ptr++                                                                '   advance ptr to byte following "/"
+
+    repeat i from 0 to 11                                                       '  convert name to uppercase
+      case entry_buffer[i]
+        "a".."z" : entry_buffer[i] -= $20
+
+    i := 0                                                                      '  convert 8.3 filename into short filename
+    if strcomp(@entry_buffer,string("..")) == 0                                 '  exception if changing directory to ".."
+      repeat strsize(@entry_buffer) <# 9                                        '  search name for extension
+        if entry_buffer[i++] == "."                                             '  if extension found
+          bytemove(@entry_buffer + 8,@entry_buffer + i,3)                       '   move extension to byte 8
+          bytefill(@entry_buffer + i-1," ",9-i)                                 '   fill space between name and extension
+    bytefill(@entry_buffer + strsize(@entry_buffer)," ",12-strsize(@entry_buffer)) ' fill remaining space (in case extension < 3 characters)
+    entry_buffer[11] := $00                                                     '  append null
+
+    i := 0
+    readSector(n_sec)                                                           '  read 1st sector of directory
+    entry_address := 0
+    repeat
+      p_entry := @buf + i & 511                                                 '  locate entry in directory
+      bytemove(p_temp,p_entry,11)                                               '  copy short filename into p_temp
+      if strcomp(@entry_buffer,p_temp)                                          '  if matching entry located
+        entry_address := n_sec << 9 | i & 511                                   '   store the byte-level address of the entry
+        bytemove(@entry_buffer,p_entry,32)                                      '   copy entire entry into entry_buffer
+        if firstCluster() == 0                                                  '  exception if ".." points to root directory
+          n_sec := clus2sec(2)                                                  '   root directory located in cluster 2
+        else
+          n_sec := clus2sec(firstCluster())                                     '   set n_sec to 1st sector of 1st cluster of file
+        quit
+      elseif byte[name_ptr] == $00                                              '  if end of path reached
+        if (entry_address == 0) and (byte[p_temp] == $E5 or byte[p_temp] == $00) '  if entry_address not set, and 1st byte is $E5 or $00
+          entry_address := n_sec << 9 | i & 511                                 '    set entry_address to 1st unused entry (for newFile / newDirectory)
+
+      if byte[p_temp] == $00                                                    '  entry not found in directory
+        return false
+      i += 32                                                                   '  increment to next entry
+      if i & 511 == 0                                                           '  read new directory sector/cluster if needed
+        readNextSector()
+  file_idx := 0
+  return true
+
+PUB fileName() : result | p_temp, i                                             '' return the 8.3 filename of the currently opened file
+  p_temp := @"filename.txt"
+  bytemove(p_temp,@entry_buffer,11)
+  i := 0
+  repeat until byte[p_temp + i++] == " " or i == 9
+  bytemove(p_temp + i,p_temp + 8,3)
+  if attributes() & $10
+    byte[p_temp + i-1] := $00
+  else
+    byte[p_temp + i-1] := "."
+    byte[p_temp + i+3] := $00
+  return p_temp
+
+PUB attributes() : result                                                       '' return the attribute byte of the currently opened file
+  return entry_buffer[$0B]
+
+PRI firstCluster() : result                                                     '' return the 1st cluster location of the currently opened file
+  return word[@entry_buffer + $14] << 16 | word[@entry_buffer + $1A]
+
+PUB fileSize() : result                                                         '' return the size of the currently opened file in bytes
+  return long[@entry_buffer + $1C]
+
+CON     '' FAT and sector methods
+PRI readFat(cluster) : result | contents, p_contents                            '' read a FAT location and return a pointer to the location of that entry
+  readSector((cluster >> 7 + fat_sec))                                          '  128 entries in each FAT sector
+  result := @buf + (cluster << 2) & 511
+
+PRI allocateCluster(cluster) : result | fat_idx                                 '' searches FAT for an empty cluster, allocates cluster, returns cluster number
+  fat_idx := 0                                                                  '   if cluster parameter <> 0, writes newly allocated cluster number in parameter cell
+  repeat
+    if fat_idx & 511 == 0                                                       '  if lower nine bits of index are clear
+      readSector(fat_sec + fat_idx >> 9)                                        '   load next sector of FAT
+    result := long[@buf + fat_idx & 511]                                        '  read a cluster cell
+    if result == $0000_0000                                                     '  if cluster cell is empty
+      long[@buf + fat_idx & 511] := $0FFF_FFFF                                  '   indicate that cluster is in use
+      result := fat_idx >> 2                                                    '   store cluster number in result
+      writeSector(fat_sec + result >> 7)                                        '   and write FAT sector (128 cells per sector)
+      if cluster <> 0                                                           '  if allocateCluster was called with a non-zero cluster parameter
+        readSector(fat_sec + cluster >> 7)                                      '   read FAT sector containing cluster cell
+        long[@buf + cluster << 2 & 511] := result                               '   overwrite existing value with newly-allocated cluster number
+        writeSector(fat_sec + cluster >> 7)                                     '   and write FAT sectors
+        writeSector(fat2_sec + cluster >> 7)
+      return
+    fat_idx += 4                                                                '  advance index to next cluster cell
+
+PRI clearCluster(cluster)                                                       '' initialize entire contents of cluster to 0
+  n_sec := clus2sec(cluster)                                                    '  set n_sec to 1st sector of specified cluster
+  bytefill(@buf,0,512)                                                          '  clear buffer
+  repeat sec_per_clus                                                           '  repeat for all sectors in the cluster
+    writeSector(n_sec++)                                                        '   overwrite sector
+  sec_in_buf := n_sec - 1
+
+PRI readNextSector() | cluster, address, contents                               '' loads the next sector into buffer
+  n_sec++
+  if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0                       '  if next sector is in a different cluster
+    cluster := sec2clus(n_sec-1)                                                '   find current cluster number
+    readSector(cluster >> 7 + fat_sec)                                          '   read sector of FAT containing cluster number (128 cluster entries in each FAT sector)
+    address := @buf + (cluster << 2) & 511                                      '   find long within sector for current cluster
+    contents := long[address]                                                   '   read contents to determine next cluster number
+    n_sec := clus2sec(contents)                                                 '   convert next cluster number into sector number
+  readSector(n_sec)
+
+CON     '' helper methods
+PRI byte2clus(byte_address) : result                                            '' convert byte address to cluster number
+  return (sec2clus(byte_address >> 9))
+
+PRI sec2clus(sector) : result                                                   '' convert sector number to cluster number
+  return (sector - root_sec) / sec_per_clus + 2
+
+PRI clus2byte(cluster) : result                                                 '' convert cluster number to byte address
+  return clus2sec(cluster) << 9
+
+PRI clus2sec(cluster) :result                                                   '' convert cluster number to sector number
+  return (cluster - 2) * sec_per_clus + root_sec
+
+CON     '' low-level SPI routines
+PRI initCard() : result | t                                                     '' intialize SD card
+  sec_in_buf := -1
+  bit_delay := (clkfreq + 400_000) / 800_000 - 6                                '  set initial bit rate to 400Kbps
+  repeat 74 << 1                                                                '  send at least 74 clocks
+    pint(sck)
+    waitus(4)
+  repeat 3
+    if cmd(0,0) == $01                                                          '  reset SD card in SPI mode
+      quit
+    waitms(1)
+  cmd(8,$01AA)                                                                  '  check voltage
+  t := getct() + clkfreq
+  repeat
+    if cmd(55,0)                                                                '  send ACMD prefix
+      if cmd(41,$4000_0000) <> 1                                                '  initialize card with HCS bit
+        quit
+    if getct() - t > 0
+      return
+    waitms(1)
+  if (cmd(58,0) >> 30) & 1                                                      '  read ocr register
+    hcs := 0
+  else
+    hcs := 9
+  bit_delay := 2
+  return true
+
+PRI cmd(op,parm) : result | t                                                   '' send a SPI command
+  transfer(-1,8)                                                                '  required for certain cards (my 512MB card fails if not present)
+  pinl(cs)
+  transfer(-1,8)                                                                '  required for certain cards (my 512MB and 32GB cards fail if not present)
+  transfer($40 | op,8)
+  transfer(parm,32)
+  if op == 0
+    transfer($95,8)                                                             '  send CRC for cmd(0,0)
+  else
+    transfer($87,8)                                                             '  send CRC for cmd(8,$1AA)
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1,8)                                                    '  read 1st byte of reply
+    if result <> $FF
+      quit
+    if getct() - t > 0                                                          '  check timeout
+      pinh(cs)
+      return false
+  if op == 8 or op == 58                                                        '  read 32-bit reply for cmd8 and cmd58
+    result := transfer(-1,32)                                                   '  (memory card interface condition and operation conditions register
+  if op <> 17 and op <> 24 and op <> 55                                         '  keep cs asserted if readSector, writeSector, or application command
+    pinh(cs)                                                                    '  return cs high for all others
+
+PRI readSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr  '' read a sector into buffer
+  if sector == sec_in_buf
+    return
+  sec_in_buf := sector
+  longmove(@_cs,@cs,4)
+  ptr := @buf
+  cmd(17,sector << hcs)
+
+  org
+                drvl      _sck
+                wrfast    ##$8000_0000,ptr
+                mov       loop_ctr,#512/4
+.startloop
+                drvh      _sck
+                nop
+                drvl      _sck
+                testp     _miso                         wc
+  if_c          jmp       #.startloop
+                outh      _sck
+.read_loop
+                rep       @.end_rep,#32
+                 drvl     _sck
+                 rcl      data,#1
+                 drvh     _sck
+                 testp    _miso                         wc
+.end_rep
+                rcl       data,#1
+                movbyts   data,#%%0123
+                wflong    data
+                djnz      loop_ctr,#.read_loop
+                rep       @.rend15,#16
+                 drvl     _sck
+                 nop
+                 drvh     _sck
+                 nop
+.rend15
+  end
+  pinh(cs)
+
+PRI writeSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr, t '' write buffer into a sector
+  longmove(@_cs,@cs,4)
+  ptr := @buf
+  cmd(24,sector << hcs)
+  transfer($FE,8)
+
+  org
+                drvl      _sck
+                rdfast    ##8000_0000,ptr
+                mov       loop_ctr,#512/4
+.write_loop
+                rflong    data
+                movbyts   data,#%%0123
+                rep       @.end_rep,#32
+                 rol      data,#1                       wc
+                 drvl     _sck
+                 drvc     _mosi
+                 drvh     _sck
+.end_rep
+                drvh      _mosi
+                djnz      loop_ctr,#.write_loop
+  end
+
+  t := getct() + clkfreq
+  repeat until (result := transfer(-1,8)) <> $FF
+    if getct() - t > 0
+      pinh(cs)
+      return
+  if result & $1F <> $05
+    pinh(cs)
+    return
+  repeat until transfer(-1,8)
+    if getct() - t > 0
+      pinh(cs)
+      return
+  pinh(cs)
+  return true
+
+PRI transfer(data,bits) : result | _cs, _mosi, _miso, _sck, delay               '' transfer data to/from SD card
+  longmove(@_cs,@cs,4)
+  delay := bit_delay
+  result := data << (32-bits)                                                   '  move data to MSB
+  org
+                rep       @.end_rep,bits
+                 rcl      result,#1                     wc                      '  send from msb of result, receive into lsb of result
+                 drvl     _sck
+                 drvc     _mosi
+                 waitx    delay
+                 drvh     _sck
+                 waitx    delay
+                 testp    _miso                         wc
+.end_rep
+                drvh      _mosi
+                rcl       result,#1
+  end
+
+CON     '' debug methods
+  _CLKFREQ = 80_000_000
+PUB displaySector() | address, char, ascii_ptr, i                               '' display sector in buffer
+  ascii_ptr := string("0123456789ABCDEF")
+  repeat address from 0 to 495 step 16
+    repeat i from 0 to 15
+      case char := (buf[address + i])
+        $20..$7E: byte[ascii_ptr + i] := char
+        other:
+          if char == 0
+            byte[ascii_ptr + i] := "."
+          else
+            byte[ascii_ptr + i] := char // 26 + "a"
+    debug(uhex_word_(address),uhex_byte_array_(@buf + address,8),"-",uhex_byte_array_(@buf + address + 8,8)," | ",lstr_(ascii_ptr,16))
+
+PUB displayEntry() | address, char, ascii_ptr, i
+  ascii_ptr := string("0123456789ABCDEF")
+  repeat address from 0 to 31 step 16
+    repeat i from 0 to 15
+      case char := (entry_buffer[address + i])
+        $20..$7E: byte[ascii_ptr + i] := char
+        other:
+          if char == 0
+            byte[ascii_ptr + i] := "."
+          else
+            byte[ascii_ptr + i] := char // 26 + "a"
+    debug(uhex_word_(address),uhex_byte_array_(@entry_buffer + address,8),"-",uhex_byte_array_(@entry_buffer + address + 8,8)," | ",lstr_(ascii_ptr,16))
+
+PUB displayFAT(cluster)                                                         '' display FAT sector containing cluster number
+  n_sec := fat_sec + cluster >> 7
+  readSector(n_sec)
+  displaySector()
+
+CON {{     FAT32 file system
+  ┌─────────────────────────┐     The master boot record contains 446 bytes of boot code
+  │ Master Boot Record      │      followed by four 16-byte partition entries
+  │                         │      terminated with $55 $AA in the final 2 bytes
+  │ Partitions      $55 $AA │     The 16-byte partition
+  ├─────────────────────────┤     ┌──────┬───────┬──────┬─────┬───────┬───────────┐
+  │ Reserved                │     │ Boot │ CHS   │ Type │ CHS │ LBA   │ Number of │  Type code located at byte address $1C2
+  ├─────────────────────────┤     │ Flag │ Begin │ Code │ End │ Begin │ Sectors   │   Type code = $0B or $0C for FAT32
+  │ Volume Boot Record 1    │     ├──────┼───────┼──────┼─────┼───────┼───────────┤  LBA Begin contains address of volume boot record (VBR)
+  ├─────────────────────────┤     │      │       │  5   │     │ 9-12  │           │   VBR address located at byte address $1C6
+  │ Reserved                │     └──────┴───────┴──────┴─────┴───────┴───────────┘
+  ├─────────────────────────┤     Volume boot record contains
+  │ Volume Boot Record 2    │     ┌─────────────────────────────────┬────────┬──────┬────────────────────┐
+  ├─────────────────────────┤     │          Field                  │ Offset │ Size │ Value              │
+  │ Reserved                │     ├─────────────────────────────────┼────────┼──────┼────────────────────┤
+  ├─────────────────────────┤     │ Bytes per Sector                │  $0B   │ 16b  │       512          │
+  │ File allocation table 1 │     │ Sectors per Cluster             │  $0D   │  8b  │1/2/4/8/16/32/64/128│
+  ├─────────────────────────┤     │ Number of Reserved Sectors      │  $0E   │ 16b  │                    │
+  │ File allocation table 2 │     │ Number of FATs                  │  $10   │  8b  │        2           │
+  ├─────────────────────────┤     │ Sectors per FAT                 │  $24   │ 32b  │                    │
+  │ Root directory and      │     │ Root Directory of First Cluster │  $2C   │ 32b  │        2           │
+  │  Data region            │     │ Signature                       │ $1FE   │ 16b  │      $AA55         │
+  │                         │     └─────────────────────────────────┴────────┴──────┴────────────────────┘
+  │                         │      The address of the 1st FAT is VBR address + number of reserved sectors
+  │                         │      The address of the root directory is FAT address + number of FATs x sectors per fat
+  └─────────────────────────┘
+                                  The file system directory contains 32-byte entries for each file in the root directory
+                                  ┌─────────────────────────────────┬────────┬──────┐
+                                  │          Field                  │ Offset │ Size │  The first byte of the short filename indicates the type of entry
+                                  ├─────────────────────────────────┼────────┼──────┤   Normal entry     - as expected   "FILENAMETXT"
+                                  │ Short Filename                  │  $00   │ 11B  │   Unused/deleted   - 1st byte $E5  "åILENAMETXT"
+                                  │ Attrib Byte                     │  $0B   │  1B  │   End of directory - 1st byte $00
+                                  │ Date of creation                │  $0E   │  4B  │
+                                  │ First Cluster High              │  $14   │  2B  │
+                                  │ Date of modification            │  $16   │  4B  │
+                                  │ First Cluster Low               │  $1A   │  2B  │
+                                  │ File Size                       │  $1C   │  4B  │
+                                  └─────────────────────────────────┴────────┴──────┘
+                                  Attrib byte contains bitfields
+                                  ┌───┬───────────┬─────┬────────────────────────────────────┐
+                                  │bit│ Function  │ LFN │ Comment                            │
+                                  ├───┼───────────┼─────┼────────────────────────────────────┤
+                                  │ 7 │ Unused    │  0  │ Should be zero                     │
+                                  │ 6 │ Unused    │  0  │ Should be zero                     │
+                                  │ 5 │ Archive   │  x  │ Has been changed since last backup │
+                                  │ 4 │ Directory │  x  │ Is a subdirectory                  │
+                                  │ 3 │ Volume ID │  1  │ Filename is Volume ID              │
+                                  │ 2 │ System    │  1  │ File is operating system           │
+                                  │ 1 │ Hidden    │  1  │ Should not show in dir listing     │
+                                  │ 0 │ Read Only │  1  │ Should not allow writing           │
+                                  └───┴───────────┴─────┴────────────────────────────────────┘
+                                  Each entry in the file allocation table is 32 bits, entry 0 is associated with cluster 0, entry 1/cluster 1, and so on
+                                   The 32-bit value contains 0 if the associated cluster is available
+                                   contains $0FFF_FFFF if the data in the associated cluster ends in that cluster
+                                   contains the address of the next cluster in the file if the file occupies multiple clusters
+                                  ┌───────────┬───────────┬───────────┬───────────┐
+              clusters $00 - $03  │ 0FFF_FFFF │ 0FFF_FFFF │ 0FFF_FFFF │ 0FFF_FFFF │  1st four clusters occupied by self-contained files
+                       $04 - $07  │ 0000_0005 │ 0000_0006 │ 0000_0007 │ 0FFF_FFFF │  next four clusters occupied by a file in sequential clusters
+                       $08 - $0B  │ 0000_000A │ 0FFF_FFFF │ 0000_000C │ 0FFF_FFFF │  a fragmented file starts in cluster 8, and occupies clusters 10, 12, and ends in 14
+                       $0C - $0F  │ 0000_000E │ 0000_0000 │ 0FFF_FFFF │ 0000_0000 │  clusters 13 and 15 are unused
+}}
+CON
+{{
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                   TERMS OF USE: MIT License                                                  │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    │
+│files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    │
+│modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software│
+│is furnished to do so, subject to the following conditions:                                                                   │
+│                                                                                                                              │
+│The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.│
+│                                                                                                                              │
+│THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          │
+│WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         │
+│COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   │
+│ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+}}

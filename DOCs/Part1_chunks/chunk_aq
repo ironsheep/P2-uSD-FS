@@ -1,0 +1,2000 @@
+09
+SW: Sequential Write Range
+1
+08
+SR: Sequential Read Range
+0
+07:06 Reserved
+0
+05:04 AL: Access Latency
+00b
+03:00 AF: Access Frequency
+2h
+Starting LBA
+Start Address of Range 1
+Length in logical blocks
+Length of Range 1 in block unit
+:
+:
+:
+:
+Table 8-17 : Parameters for Set Free AU/SGS
+
+Context Attributes
+
+Range
+Range 0
+
+Value
+0
+0 to 255
+0
+1
+0
+0
+
+NR field in the Set Free AU/SGS indicates the number of ranges to be assigned as a Sequential Area by
+this command. Starting LBA shall be aligned to SGS boundary and Length in logical block shall be the
+multiple of SGS.
+When the “Set Free AU/SGS” command is issued to the SGS unit in the Sequential Area, data in the unit
+may not be preserved (the data is undefined).
+8.4.6.6.3 Maximum Command Duration
+The maximum command duration for “Set Free AU/SGS” command is defined as 30 x N [ms], where N is
+the number of SGS units to be allocated by this command (see Section 8.4.3.5.2).
+8.4.6.6.4 Error Conditions
+At least one of the following conditions is satisfied, card rejects this command and sets 80h (Conflicting
+Attributes) to the Command Specific Status Values in the corresponding CMP.
+ At least one Start Address is assigned in the Non-stream-recording Area (see Figure 8-13).
+ At least one Start Address is not aligned to the SGS boundary.
+ Illegal value is set to at least one of “Length in logical blocks” field.
+
+8.4.6.7 Release DIR/CI
+8.4.6.7.1 Description
+This function releases random areas for recording a DIR (directory entry) or a CI (continuous information).
+
+342
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.6.7.2 Parameter
+Table 8-18 shows parameters for Release DIR/CI.
+Setting of DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Field
+Dword 10
+Dword 11
+
+Byte
+15:08
+07:04
+03
+02:01
+
+00
+Range 1
+
+15:08
+07:04
+:
+
+Setting of Data Associated with the DSM Command
+Bit
+Description
+Value
+Starting LBA
+Start Address of Range 0
+Length in logical blocks
+32 (16KB in block unit)
+31:24 8 (4KB in block unit)
+8 (4KB in block unit)
+[Recommended to set to 8]
+23:11 Reserved
+0
+10
+WP: Write Prepare
+0
+09
+SW: Sequential Write Range
+0
+08
+SR: Sequential Read Range
+0
+07:06 Reserved
+0
+05:04 AL: Access Latency
+00b
+03:00 AF: Access Frequency
+0h
+Starting LBA
+Start Address of Range 1
+Length in logical blocks
+32 (16KB in block unit)
+:
+:
+:
+:
+Table 8-18 : Parameters for Release DIR/CI
+
+Context Attributes
+
+Range
+Range 0
+
+Value
+0
+0 to 15
+0
+0
+0
+0
+
+The number of random areas to be released is specified by NR. Starting LBA shall be aligned to 16KB in
+the User Area, and Length in logical blocks shall be 16KB.
+8.4.6.7.3 Maximum Command Duration
+Refer to Section 8.4.3.5.1.
+8.4.6.7.4 Error Conditions
+At least one of the following conditions is satisfied, card rejects this command and sets 80h (Conflicting
+Attributes) to the Command Specific Status Values in the corresponding CMP.
+ NR is greater than 15.
+ At least one Start Address in the “Start LBA” field does not match to that of the current Random Area.
+ Illegal value is set to at least one of “Length in logical blocks” field.
+
+8.4.7 Power and Thermal Management
+8.4.7.1 Overview
+Available Maximum Powers (or PSDs) for SD Express card depend on card type as described in Section
+8.1.8. In addition, NVMe specification has a feature of Host Controlled Thermal Management for
+controlling card’s performance in order not to rise its composite temperature so rapidly. This card’s
+343
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+operation is called thermal throttling.
+Since the objective of Speed Class Recording is to continue long time sequential write with guaranteeing
+minimum recording performance, sudden performance degradation by thermal throttling needs to be
+avoided.
+This section describes a method to reduce card power consumption and to maintain the target Speed
+Class in terms of card’s thermal design.
+
+8.4.7.2 Power State Descriptor in the SD Express Card
+Figure 8-24 shows an example of Power State Descriptor (PSD) in the ICDS. Each PSD is numbered
+with respect to Power State and has some elements including Maximum Power (MP). When host specifies
+a Power State to the card, card is allowed to consume power up to MP corresponding to the specified PS
+except cases described in Section 8.4.7.5.2.
+As described in Section 8.1.8, an SD Express card has some Power States which shall be supported
+according to the card type. In the example of Figure 8-24, card supports 7 Power States indicated by
+PSD0 through PSD6, allocated in top-aligned and descending order with respect to MP in them. In
+addition, PSDs other than PSD2 and PSD4 shall be supported by this card (refer to Table 8.1.8-1).
+
+Available PSD (or PS) shall
+be assigned in top-aligned
+and descending order of MP.
+
+PSD
+PS
+MP
+(Power State
+(Power State) (Maximum Power)
+Descriptor)
+PSD0
+0
+2.8W
+PSD1
+1
+2.5W
+PSD2
+2
+2.2W
+PSD3
+3
+1.8W
+PSD4
+4
+1.6W
+PSD5
+5
+1.44W
+PSD6
+6
+0.72W
+PSD7
+7
+:
+:
+:
+PSD31
+31
+Mandatory
+
+…
+...
+...
+...
+...
+...
+...
+...
+:
+...
+...
+
+Available PSDs
+in the card
+
+Optional
+
+Figure 8-24 : An Example of PSD Assignment (Card Type: G3L2 or G4L1)
+8.4.7.3 Thermal Management for the SD Express Speed Class
+NVMe specification defines the following parameters related to the thermal management.
+TMT1 and TMT2 indicate thresholds of temperature activating light thermal throttling and heavy thermal
+throttling respectively. They are set to the card by arguments of Set Features command (Host Controlled
+Thermal Management). If they are set to zero, the Host Controlled Thermal Management by TMT1/TMT2
+is disabled. In addition, WCTEMP (Warning Composite Temperature Threshold) in the ICDS indicates the
+minimum composite temperature that indicates an overheating condition. Refer to NVMe specification for
+more details about these parameters.
+At least, card shall be designed that its composite temperature does not to exceed WCTEMP under the
+specified Power State to maintain the Speed Class Recording, as far as host keeps the card case
+temperature as described in the Application Note below. Moreover, it is important not to fall the recording
+speed below the target class performance by the thermal throttling. In this sense, TMT2 should be less
+than or equal to WCTEMP (TMT2=WCTEMP is recommended). Note that the event that the composite
+temperature gets over WCTEMP may be reported by Thermal Excursion Event when some unexpected
+error happens due to not efficient heat removable.
+To satisfy these conditions, power and thermal management for SD Express Speed Class is introduced
+as described in Section 8.4.7.4.
+
+344
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Application Note:
+The host needs to keep card’s surface temperature to the maximum Card Case Temperature or
+lower defined in Table 3-4 of the Standard Size SD Card Mechanical Addendum or Table 3-8 of the
+microSD Card Addendum.
+The maximum Card Case Temperature depends on the Card Power Consumption in the table which
+is specified by the Maximum Power (MP) of the selected Power State Descriptor (PSD). When the
+selected PSD specifies 2.5W, for example, the maximum Card Case Temperature is kept up to 73
+deg.C. by the host.
+In addition, if the selected MP does not exactly match to the Card Power Consumption in the table,
+the higher nearest Card Power Consumption shall be referred for it. As an example, if the selected
+MP is 1.6W, the maximum Card Case Temperature shall be under 75 deg.C (corresponding to
+1.8W).
+For thermal management, host may use card’s composite temperature obtained by SMART / Health
+Information Log instead of the Card Case Temperature.
+
+8.4.7.4 Power and Thermal Management for SD Express Speed Class
+8.4.7.4.1 Managing Maximum Power Consumption during Speed Class Recording
+After completing SD Express card initialization, Slot Power Limit (SPL) is set by the host depending on
+host’s power capability. When host starts normal write operation (targeting best effort performance without
+Speed Class Recording), it will set a PSD by Set Features command, which including the highest MP
+supported by the card as far as the MP does not exceed the SPL value.
+In the SD Express Speed Class, such a higher power is not required. In terms of reducing card power
+consumption during the Speed Class, SD Express card supporting SD Express Speed Class shall have
+Speed Class Power State (SCPS) field in the Vendor Specific area of the ICDS. This field is defined
+according to each PCIe bus mode and target speed class. Refer to Table 8-20 for more details of SCPS.
+Figure 8-25 shows tables of SCPS and PSD as an example. If host selects PCIe Gen3x1 mode and
+intends to execute Class 150 Speed Class Recording, host reads corresponding value (84h) from the
+SCPS table. Then, it refers to the PSD table, detects PSD4 (1.6W), and set it as a Power State during
+Speed Class Recording by Set Features command. If TMT1 is not zero, the SCPS means a suitable
+Power State for the Speed Class when the composite temperature is between TMT1 and TMT2 (refer to
+Section 8.4.7.4.3 and 8.4.7.5.2).
+
+Byte Offset
+3088 (Class 150)
+3089 (Class 300)
+3090 (Class 450)
+3091 (Class 600)
+Bit [7]
+Validity
+(1: Valid)
+
+Bit [6:5]
+Reserved
+
+PSD
+PSD0
+PSD1
+PSD2
+PSD3
+PSD4
+PSD5
+PSD6
+PSD7
+:
+PSD31
+
+Value
+84h (PSD4)
+83h (PSD3)
+82h (PSD2)
+81h (PSD1)
+Bit [4:0]
+Index of Power State
+Descriptor
+
+Mandatory
+
+Speed Class Power State (SCPS) for Gen3x1 in ICDS
+defined by Table 8-20
+
+Optional
+
+Power State Descriptor in ICDS
+(Card Type: G4L1)
+
+Figure 8-25 : An Example of Speed Class Power State
+
+345
+
+MP
+2.8W
+2.5W
+2.2W
+1.8W
+1.6W
+1.44W
+0.72W
+:
+-
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.7.4.2 Managing Composite Temperature during Speed Class Recording
+As described above, card shall be designed that the composite temperature is under WCTEMP by thermal
+throttling or other ways. However, the appropriate values of TMT1 and TMT2 depend on the target speed
+class and card structural implementation. So, the SD Express Card supporting SD Express Speed Class
+shall indicate Speed Class TMT1 and TMT2 for the Speed Class Recording in the Vendor Specific area
+of the ICDS (they are defined as SCTMT1 and SCTMT2 respectively). These values are defined
+according to each PCIe bus mode and target speed class. Before starting Speed Class Recording, host
+reads SCTMT1 and SCTMT2 from the ICDS of the card and sets them as TMT1 and TMT2 respectively
+by Set Features command.
+Card may indicate SCTMT1 and SCTMT2 values by either one of methods below.
+(1) If card is designed without referring to TMT1 and TMT2 for keeping Speed Class Recording, card
+indicates 0 for both SCTMT1 and SCTMT2 fields. In this case, card expects to be set SCTMT1 and
+SCTMT2 value (both parameters are 0) to TMT1 and TMT2 by the host respectively. If host sets nonzero values to TMT1/2, card may not guarantee the Speed Class Recording.
+(2) Otherwise, card indicates appropriate values for TMT1 and TMT2 for each PCIe bus mode and target
+speed class. In this case, card expects to be set SCTMT1 and SCTMT2 to TMT1 and TMT2 by the
+host respectively. If host violates this rule, card may not guarantee the Speed Class Recording.
+For the second method above, there are two options for card design related to its composite temperature
+as described in Figure 8-26.
+(a) If the card intends to maintain the target speed without any throttlings, card shall be designed in order
+that its composite temperature never exceeds TMT1 (set as SCTMT1 by the host) during the Speed
+Class Recording.
+(b) If the card enables to maintain the target speed with the light throttling, card shall be designed in
+order that its composite temperature never exceeds TMT2 (set as SCTMT2 by the host) during the
+Speed Class Recording.
+Composite
+Temperature
+
+Composite
+Temperature
+(SCTMT2→TMT2)
+(SCTMT1→TMT1)
+
+Heavy throttling
+Light throttling
+
+(SCTMT2→TMT2)
+
+Heavy throttling
+
+Light throttling
+
+No throttling
+(SCTMT1→TMT1)
+
+No throttling
+
+Time
+Writing speed
+
+Writing speed
+
+No throttling
+
+Target speed is maintained
+
+Time
+No throttling
+
+Light throttling
+
+Target speed is maintained
+
+Target speed
+
+Target speed
+
+Time
+
+Time
+(a) Designing card’s composite temperature below TMT1
+
+(b) Designing card’s composite temperature below TMT2
+
+Figure 8-26 : Relationship between Composite Temperature and Writing Speed
+Refer to Table 8-20 for more details of SCTMT1 and SCTMT2.
+
+346
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.7.4.3 Speed Class Recording Including Power and Thermal Management
+The following steps take place for executing Speed Class Recording including Power and Thermal
+management. Also refer to Section 8.4.7.5 for the examples.
+(1) Host sets Slot Power Limit (SPL) according to its power capability.
+(2) If necessary, host reads the default PSD, TMT1 and TMT2 values from the card and stores them
+before starting Speed Class Recording
+(3) Host reads appropriate values of SCPS, SCTMT1 and SCTMT2 according to the selected PCIe bus
+mode and target speed class (see Table 8-20), and then sets them as PSD, TMT1 and TMT2
+respectively by Set Features command.
+a. If zero is set to TMT1 and TMT2, Host Controlled Thermal Management by TMT1/TMT2 is
+disabled. In this case, card is necessary to control power consumption up to MP specified by
+the SCPS. In addition, card shall be designed to keep Speed Class Recording by retaining the
+composite temperature under WCTEMP, as far as host maintains the conditions described in
+the Application Note of Section 8.4.7.3.
+b. If non-zero value is set to TMT1 and TMT2, card is necessary to control power consumption up
+to MP specified by the SCPS. Similar to a. above, card shall be designed to keep Speed Class
+Recording by retaining the composite temperature under WCTEMP (usually same as
+TMT2=SCTMT2).
+In this case, card may operate on a Power State whose index is less than that of specified
+SCPS while the composite temperature is under TMT1, as far as the corresponding MP does
+not exceed SPL. For example, when PSD2 is set to the card according to the SCPS table, card
+may work at either PSD1 or PSD0 if the composite temperature is lower than TMT1.
+(4) On exiting the Speed Class Recording, host may restore the saved PSD, TMT1 and TMT2 values by
+Set Features command.
+Application Note:
+If the host does not maintain the card’s surface temperature described in the Application Note in
+Section 8.4.7.3, card does not guarantee the speed class performance even host specifies the
+recommended SCTMT1 and SCTMT2 values to the card.
+
+8.4.7.5 Sample Speed Class Sequences Including Power and Thermal Management
+8.4.7.5.1 In Case of SCTMT1/2=0
+Figure 8-27 shows an example of SD Express Speed Class sequence when SCTMT1 and SCTMT2 are
+zero. In this example, host supports PCIe Gen4x1 mode, card type is G4L1 and the target speed class is
+150MB/s.
+
+347
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+PCIe mode: Gen4x1, Target Speed Class: 150MB/s, SCTMT1/2=0
+Gen4x1
+SPL=2.8W
+
+Operation
+
+Power
+ON
+
+Card
+INIT
+
+Command
+
+PSD
+PSD0
+PSD1
+PSD2
+PSD3
+PSD4
+PSD5
+PSD6
+PSD7
+:
+PSD31
+
+For storing default
+PS, TMT1/2
+
+Get default
+params.
+
+Set PSD0
+
+Update
+DIR/CI
+
+Write
+DIR
+
+Set Free
+AU/SGS
+
+Get
+ICDS
+
+Get Features
+
+Set Features
+
+DSM
+
+Write
+
+DSM
+
+Identify
+(CNS 01h)
+
+MP: 1.8W
+
+MP: 2.8W
+
+MP
+2.8W
+2.5W
+1.8W
+1.44W
+0.72W
+:
+-
+
+Mandatory
+PSD in ICDS (G4L1)
+*SC term=Operation terminating Speed Class Recording
+Set PSD2
+SCTMT1/2
+
+Start
+REC
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+SC*
+Term
+
+Set default
+params.
+
+Set Features
+
+DSM
+
+Write
+
+Write
+
+Write
+
+Write
+
+CMD
+
+Set Features
+
+Speed Class Recording State
+MP: 2.8W
+
+MP: 1.8W
+
+Byte Offset
+3120 (Class 150)
+3121 (Class 300)
+3122 (Class 450)
+3123 (Class 600)
+
+Value
+82h (PSD2)
+81h (PSD1)
+80h (PSD0)
+00h (not supported)
+
+SCPS for Gen4x1 in ICDS
+
+Figure 8-27 : Sample Speed Class Sequence Including Power and Thermal Management (1)
+At the card initialization, host selects PCIe Gen4x1 mode and sets SPL=2.8W since host can supply up
+to 2.8W to the SD Express card. Then, host issues Get Features command to read default settings of
+PSD, TMT1 and TMT2 for storing these parameters if necessary.
+After host initializes the SD Express card, it usually sets Power State whose MP is the highest one as far
+as MP does not exceed the value of SPL. In this example, since the highest MP (2.8W) is equal to SPL,
+PSD0 is set by Set Features command.
+Before starting Speed Class Recording, host issues Identify command to get Vendor Specific parameters
+for SD Express Speed Class from ICDS. At this time, host detects PSD2 (1.8W) is suitable Power State
+Descriptor for this card when the target speed class is 150 over PCIe Gen4x1 mode. In addition, host
+recognizes both SCTMT1 and SCTMT2 are zero. Then, host issues Set Features command to set these
+parameters for executing Speed Class recording. Therefore, the MP during Speed Class Recording gets
+1.8W. This means card never consumes power more than 1.8W.
+After exiting from the Speed Class Recording State, host may set default parameters stored previously.
+Figure 8-28 shows another example of SD Express Speed Class sequence when SCTMT1 and SCTMT2
+are zero. In this example, host supports only PCIe Gen3x1 mode and can supply up to 1.8W.
+
+348
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+PCIe mode: Gen3x1, Target Speed Class: 150MB/s, SCTMT1/2=0
+Gen3x1
+SPL=1.8W
+
+Operation
+
+Power
+ON
+
+Card
+INIT
+
+Command
+
+PSD
+PSD0
+PSD1
+PSD2
+PSD3
+PSD4
+PSD5
+PSD6
+PSD7
+:
+PSD31
+
+For storing default
+PS, TMT1/2
+
+Get default
+params.
+
+Set PSD2
+
+Update
+DIR/CI
+
+Write
+DIR
+
+Set Free
+AU/SGS
+
+Get
+ICDS
+
+Get Features
+
+Set Features
+
+DSM
+
+Write
+
+DSM
+
+Identify
+(CNS 01h)
+
+MP: 1.8W
+
+MP
+2.8W
+2.5W
+1.8W
+1.44W
+0.72W
+:
+-
+
+Mandatory
+PSD in ICDS (G4L1)
+*SC term=Operation terminating Speed Class Recording
+Set PSD2
+SCTMT1/2
+
+Start
+REC
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+SC*
+Term
+
+Set default
+params.
+
+Set Features
+
+DSM
+
+Write
+
+Write
+
+Write
+
+Write
+
+CMD
+
+Set Features
+
+Byte Offset
+3088 (Class 150)
+3089 (Class 300)
+3090 (Class 450)
+3091 (Class 600)
+
+Speed Class Recording State
+MP: 1.8W
+
+MP: 1.8W
+
+Value
+82h (PSD2)
+81h (PSD1)
+80h (PSD0)
+00h (not supported)
+
+SCPS for Gen3x1 in ICDS
+
+Figure 8-28 : Sample Speed Class Sequence Including Power and Thermal Management (2)
+Due to host’s capability, host selects PCIe Gen3x1 mode and sets SPL=1.8W. Thus, PSD2 (1.8W) is set
+in this host and card combination. Since the SCPS for this condition indicates PSD2, host will set PSD2
+and the maximum power consumption is still 1.8W during Speed Class Recording.
+8.4.7.5.2 In Case of SCTMT1/2≠0
+Figure 8-29 shows an example of SD Express Speed Class sequence when SCTMT1 and SCTMT2 are
+not zero. In this example, host supports PCIe Gen4x1 mode, card type is G4L1 and the target speed
+class is 150MB/s.
+PCIe mode: Gen4x1, Target Speed Class: 150MB/s, SCTMT1/2≠0
+Gen4x1
+SPL=2.8W
+
+Operation
+
+Power
+ON
+
+Card
+INIT
+
+Command
+
+PSD
+PSD0
+PSD1
+PSD2
+PSD3
+PSD4
+PSD5
+PSD6
+PSD7
+:
+PSD31
+
+For storing default
+PS, TMT1/2
+
+Get default
+params.
+
+Set PSD0
+
+Update
+DIR/CI
+
+Write
+DIR
+
+Set Free
+AU/SGS
+
+Get
+ICDS
+
+Get Features
+
+Set Features
+
+DSM
+
+Write
+
+DSM
+
+Identify
+(CNS 01h)
+
+MP: 1.8W
+
+MP: 2.8W
+
+MP
+2.8W
+2.5W
+1.8W
+1.44W
+0.72W
+:
+-
+
+Mandatory
+
+PSD in ICDS (G4L1)
+*SC term=Operation terminating Speed Class Recording
+Set PSD2
+SCTMT1/2
+
+Start
+REC
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+SC*
+Term
+
+Set default
+params.
+
+Set Features
+
+DSM
+
+Write
+
+Write
+
+Write
+
+Write
+
+CMD
+
+Set Features
+
+Speed Class Recording State
+Temp < TMT1 (≠0)
+
+MP: 2.8W
+
+TMT1 ≤ Temp < TMT2
+
+MP: 1.8W
+
+MP: 1.8W
+
+Byte Offset
+3120 (Class 150)
+3121 (Class 300)
+3122 (Class 450)
+3133 (Class 600)
+
+Value
+82h (PSD2)
+81h (PSD1)
+80h (PSD0)
+00h (not supported)
+
+SCPS for Gen4x1 in ICDS
+
+Note: Even MP is indicated as 1.8W, card may consume
+power up to SPL when the composite temperature is under
+TMT1 (up to 2.8W in this case).
+
+Figure 8-29 : Sample Speed Class Sequence Including Power and Thermal Management (3)
+Before issuing Set Features command for setting SCPS (PSD2) and SCTMT1/2 values as Power State
+and TMT1/2 respectively, host and card operations are same as those of Figure 8-27. Different from
+Figure 8-27, when the composite temperature is less than TMT1 (same as SCTMT1≠0 set by the host),
+349
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+card may consume power between the wattage between MP designated by SCPS and SPL. In this
+example, even host specifies PSD2 (whose MP is 1.8W) with reference to SCPS obtained by the card,
+card may work up to 2.8W (=SPL).
+When the composite temperature gets higher than or equal to TMT1, card can consume power up to
+1.8W.
+Figure 8-30 shows another example of SD Express Speed Class sequence when SCTMT1 and SCTMT2
+are not zero. Similar to Figure 8-28, host supports only PCIe Gen3x1 mode and can supply up to 1.8W.
+On the other hand, card supports optional Power States (2.2W and 1.6W) as shown in Figure 8-30.
+PCIe mode: Gen3x1, Target Speed Class: 150MB/s, SCTMT1/2≠0
+Gen3x1
+SPL=1.8W
+
+Operation
+
+Power
+ON
+
+Card
+INIT
+
+Command
+
+PSD
+PSD0
+PSD1
+PSD2
+PSD3
+PSD4
+PSD5
+PSD6
+PSD7
+:
+PSD31
+
+For storing default
+PS, TMT1/2
+
+Get default
+params.
+
+Set PSD3
+
+Update
+DIR/CI
+
+Write
+DIR
+
+Set Free
+AU/SGS
+
+Get
+ICDS
+
+Get Features
+
+Set Features
+
+DSM
+
+Write
+
+DSM
+
+Identify
+(CNS 01h)
+
+MP: 1.8W
+
+Mandatory
+
+MP
+2.8W
+2.5W
+2.2W
+1.8W
+1.6W
+1.44W
+0.72W
+:
+Optional
+
+PSD in ICDS (G4L1)
+*SC term=Operation terminating Speed Class Recording
+Set PSD4
+SCTMT1/2
+
+Start
+REC
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+Write
+Write
+Write
+SWS
+RU
+RU
+
+FAT
+Update
+
+SC*
+Term
+
+Set default
+params.
+
+Set Features
+
+DSM
+
+Write
+
+Write
+
+Write
+
+Write
+
+CMD
+
+Set Features
+
+Speed Class Recording State
+Temp < TMT1 (≠0)
+
+MP: 1.8W
+
+TMT1 ≤ Temp < TMT2
+
+MP: 1.6W
+
+MP: 1.6W
+
+Byte Offset
+3088 (Class 150)
+3089 (Class 300)
+3090 (Class 450)
+3091 (Class 600)
+
+Value
+84h (PSD4)
+83h (PSD3)
+82h (PSD2)
+81h (PSD1)
+
+SCPS for Gen3x1 in ICDS
+
+Note: Even MP is indicated as 1.6W, card may consume
+power up to SPL when the composite temperature is under
+TMT1 (up to 1.8W in this case).
+
+Figure 8-30 : Sample Speed Class Sequence Including Power and Thermal Management (4)
+Similar to Figure 8-28, host selects PCIe Gen3x1 mode and sets SPL=1.8W. In this card, PSD3
+corresponds to MP=1.8W, host issues Set Features command to set PSD3 after initializing the card.
+Before starting Speed Class Recording, host issues Identify command to obtain SCPS (and PSD table)
+and SCTMT1/2. SCPS indicates PSD4 in this condition, host issues Set Features command to set PSD4
+and SCTMT1/2.
+Like Figure 8-29, card may operate up to 1.8W (=SPL) while the composite temperature is under TMT1,
+even specified PSD (PSD4 in this case) indicates its MP is equal to 1.6W. When the temperature gets
+higher than or equal to TMT1, card shall work up to 1.6W as a power consumption.
+
+8.4.8 Relationship to the Conventional Speed Classes
+8.4.8.1 Supporting Speed Classes by SD Express Cards
+SD Express Speed Class specification is defined independent to that of Video Speed Class. This means
+all types of SD Express card described in Table 8-19 are allowed.
+
+350
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Type
+1
+2
+3
+4
+
+Supporting SD Express Speed Class Supporting Video Speed Class
+No
+No
+No
+Yes
+Yes
+No
+Yes
+Yes
+Table 8-19 : SD Express Card Types in Terms of Speed Classes
+
+In addition, supporting the original speed class (C2, C4, C6, and C10) and the UHS speed grade (U1 and
+U3) are also optional in SD mode for all types of SD Express Card in Table 8-19.
+
+8.4.8.2 Operation Rules When Changing Bus Mode and Power Cycle
+The following rules are applied to Type 2, 3, or 4 of the SD Express cards defined in Table 8-19.
+8.4.8.2.1 Changing Bus Mode from SD to PCIe
+ All registered address information of active AUs (assigned by Set Free AU) shall be cleared.
+ All registered address information of DIRs (assigned by Update DIR) shall be cleared.
+ The suspension address over SD bus (SUS_ADDR) is remained but inaccessible while the bus mode
+is PCIe.
+ If either write, erase, or Set Free AU/SGS operation is executed to the suspended AU (the AU
+including SUS_ADDR) through PCIe bus, the remained SUS_ADDR is cleared.
+8.4.8.2.2 Changing Bus Mode from PCIe to SD
+ All of context attributes specified by DSM commands (both random and sequential) shall be cleared.
+ The suspension addresses over PCIe bus (SD Express SUS_ADDR 1 through 8) are remained but
+inaccessible while the bus mode is SD.
+ If either write, erase, discard or Set Free AU operation is executed to the suspended SGS unit (the
+unit including SD Express SUS_ADDR) through SD bus, the remained SD Express SUS_ADDR is
+cleared.
+8.4.8.2.3 Power Cycle
+ All registered address information of active AUs (assigned by Set Free AU) shall be cleared.
+ All registered address information of DIR (assigned by Update DIR) shall be cleared.
+ All of context attributes specified by DSM commands (both random and sequential) shall be cleared.
+ The suspension addresses over both bus mode are remained.
+ If either write, erase or Set Free AU/SGS operation is executed to the suspended AU (the AU including
+SUS_ADDR) through PCIe bus, the remained SUS_ADDR is cleared.
+ If either write, erase, discard or Set Free AU operation is executed to the suspended SGS unit (the
+unit including SD Express SUS_ADDR) through SD bus, the remained SD Express SUS_ADDR is
+cleared.
+
+8.4.8.3 Recommendation for Setting SGS and VSC_AU_SIZE
+For the SD Express Type 4 card, it is preferable that both SGS value and VSC_AU_SIZE are identical.
+But if it is impossible, it is recommended that SGS value is n times or 1/n times of VSC_AU_SIZE, where
+n is a natural number, for the efficient use of the User Area accessed by both PCIe bus and SD bus.
+
+8.4.9 Detecting Termination Conditions
+When one of following events occur, it is impossible for card to continue Speed Class Recording for
+specific stream(s) or all of them. Refer to Section 8.4.1.2 for details of Area Assignment.
+
+351
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+ Termination conditions for each stream
+(1) Writing a specific stream violates the rules described in Section 8.4.1.6.
+(2) Card internal error occurs for a specific stream.
+ Termination conditions for all valid streams
+(1) Card receives a command other than Directive Receive, Directive Send, Identify, Get Log Page,
+DSM, Flush, Read or Write.
+(2) Write or erase operation is executed in the Non-assigned Area.
+(3) File system management information other than FAT and Allocation Bitmap is written to other area
+than the Random Area allocated by Update DIR/CI. Stream data are written to other area than the
+Sequential Area allocated by Set Free AU/SGS.
+(4) Card internal error which is impossible to specify its SID (e.g., error during FAT update) occurs.
+(5) PCIe bus error occurs.
+When card detects these events, it reports by Asynchronous Event function. To enable this function, host
+issues Asynchronous Event Request command before starting Speed Class Recording. When card
+detects one of termination conditions during Speed Class Recording, it posts CMP of Asynchronous Event
+Request in the Admin Completion Queue, whose Asynchronous Event Type is 111b (vendor specific) and
+Log Page Identifier is C0h (Open SID for Speed Class). If host detects these parameters in the Dword0
+of the Completion Queue Entry for the Admin Completion Queue, it should issue Get Log Page command
+with Log Page Identifier = C0h and UUID for the SD Express Speed Class. By this method, host gets
+SIDs that are no longer valid.
+After that, host should operate Release Identifier for the invalid SID.
+Refer to Section 8.4.1.7 and 8.4.10.3 for more details.
+
+8.4.10 Vendor Specific Parameters
+8.4.10.1 Getting Vendor Specific Parameters
+In order that host obtains specific parameters related to SD Express Speed Class, the following two
+methods are introduced.
+The first one is host reads parameters from the Vendor Specific field in the ICDS by Identify command.
+In this field, static parameters are indicated such as SD Express Speed Class, Speed Class Power State
+and so on.
+The second one is host gets parameters as a log by issuing Get Log Page command. Dynamically
+changing parameters such as Open SID for Speed Class or SD Express SUS_ADDR can be obtained by
+this method.
+Card supporting SD Express Speed Class shall indicate the following 128-bit value as a UUID in the UUID
+List defined in the NVMe specification.
+UUID for SD Express Speed Class:
+724e2db4-8569-406b-8ecc-b3f27f89169e
+When host issues Identify or Get Log Page command to get specific parameters for SD Express Speed
+Class, host needs to set UUID index specifying the UUID for SD Express Speed Class described above.
+
+8.4.10.2 Parameters Obtained by Identify Command
+8.4.10.2.1 Overview
+Identify Controller Data Structure includes the Vendor Specific field as described in Figure 8-31.
+
+352
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Byte offset
+0000
+
+Identify Controller
+Data Structure
+(4KB)
+
+3072
+Vendor Specific
+Field
+4095
+
+Figure 8-31 : Vendor Specific Field in the ICDS
+When host issues Identify command including UUID index designating SD Express Speed Class (see
+Section 8.4.10.1), host gets parameters defined in Table 8-20. Otherwise, the Vendor Specific field
+indicates values not related to the SD Express Speed Class.
+8.4.10.2.2 Vendor Specific Parameters in ICDS
+Table 8-20 indicates vendor specific parameters for SD Express Speed Class defined in the Vendor
+Specific field of ICDS.
+Bytes
+
+O/M1
+
+3073:3072
+
+M
+
+Description
+SD Express Speed Class: This field indicates the SD Express Speed Class
+supported by the card.
+The value of this 2 Bytes field indicates the value of the speed itself guaranteed
+by the SD Express Speed Class.
+Any SD Express Speed Class lower than the specified Class value shall be also
+supported (e.g., if the card supports SD Express Speed Class 600, then the card
+also supports SD Express Speed Class 450, 300, and 150).
+Higher classes may be added in the future, if required.
+Considering the future extension, even an undefined value is indicated in this
+field, host should not reject this card and regard that card supports its nearest
+lower class. For example, if card indicates 01F4h (500) in this field, host should
+recognize that card supports SD Express Speed Class 450.
+If card supports TCG security (refer to Section 4.22), this field can be set based
+on the performance when TCG is disabled.
+Value
+0096h
+012Ch
+01C2h
+0258h
+Others
+
+3087:3074
+
+Description
+SD Express Speed Class 150 (150MB/s)
+SD Express Speed Class 300 (300MB/s)
+SD Express Speed Class 450 (450MB/s)
+SD Express Speed Class 600 (600MB/s)
+Reserved
+
+Reserved
+
+353
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Speed Class Power State (SCPS) for Gen3x1: This field indicates the Power
+States that the host should set before starting SD Express Speed Class
+Recording in PCIe Gen3x1 mode, according to the target speed class. By this
+operation, host can save power and suppress heat generation.
+Each byte field indicates appropriate Power State (0 to 31, refer to Figure 8-24)
+in Bit [4:0] and its validity (1 means the corresponding speed class is valid or
+supported, 0 otherwise) in Bit [7] for each speed class. Card shall set ‘1’ to Bit [7]
+and appropriate Power State for all supported speed classes. Card sets ‘0’ to Bit
+[7] if it does not support the associated speed class. If card does not support
+Class 300 or higher, 00h is set to the associated byte field.
+Card supporting some Speed Class shall support lower classes as well.
+3103:3088
+
+M
+
+Bytes
+3088
+3089
+3090
+3091
+
+Bit [7]
+Validity of Speed
+Class 150
+Validity of Speed
+Class 300
+Validity of Speed
+Class 450
+Validity of Speed
+Class 600
+
+3092
+3093
+:
+3103
+
+Bits [6:5]
+
+Bits [4:0]
+Power State for Gen3x1
+Class 150
+Power State for Gen3x1
+Class 300
+Reserved
+Power State for Gen3x1
+Class 450
+Power State for Gen3x1
+Class 600
+Reserved
+Reserved
+:
+Reserved
+
+Speed
+Speed
+Speed
+Speed
+
+Speed Class Power State (SCPS) for Gen3x2: This field indicates the Power
+States that the host should set before starting SD Express Speed Class
+Recording in PCIe Gen3x2 mode, according to the target speed class.
+Setting of each field is same as that of Speed Class Power State for Gen3x1. In
+addition, if card does not support PCIe Gen3x2 mode, all of this field are filled
+with 0.
+Bytes
+3104
+3119:3104
+
+MiS
+
+3105
+3106
+3107
+
+Bit [7]
+Validity of Speed
+Class 150
+Validity of Speed
+Class 300
+Validity of Speed
+Class 450
+Validity of Speed
+Class 600
+
+3108
+3109
+:
+3119
+
+354
+
+Bits [6:5]
+
+Bits [4:0]
+Power State for Gen3x2
+Class 150
+Power State for Gen3x2
+Class 300
+Reserved
+Power State for Gen3x2
+Class 450
+Power State for Gen3x2
+Class 600
+Reserved
+Reserved
+:
+Reserved
+
+Speed
+Speed
+Speed
+Speed
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Speed Class Power State (SCPS) for Gen4x1: This field indicates the Power
+States that the host should set before starting SD Express Speed Class
+Recording in PCIe Gen4x1 mode, according to the target speed class.
+Setting of each field is same as that of Speed Class Power State for Gen3x1. In
+addition, if card does not support PCIe Gen4x1 mode, all of this field are filled
+with 0.
+Bytes
+3120
+3135:3120
+
+MiS
+
+3121
+3122
+3123
+
+Bit [7]
+Validity of Speed
+Class 150
+Validity of Speed
+Class 300
+Validity of Speed
+Class 450
+Validity of Speed
+Class 600
+
+3124
+3125
+:
+3135
+
+Bits [6:5]
+
+Bits [4:0]
+Power State for Gen4x1
+Class 150
+Power State for Gen4x1
+Class 300
+Reserved
+Power State for Gen4x1
+Class 450
+Power State for Gen4x1
+Class 600
+Reserved
+Reserved
+:
+Reserved
+
+Speed
+Speed
+Speed
+Speed
+
+Speed Class Power State (SCPS) for Gen4x2: This field indicates the Power
+States that the host should set before starting SD Express Speed Class
+Recording in PCIe Gen4x2 mode, according to the target speed class.
+Setting of each field is same as that of Speed Class Power State for Gen3x1. In
+addition, if card does not support PCIe Gen4x2 mode, all of this field are filled
+with 0.
+Bytes
+3136
+3151:3136
+
+MiS
+
+3137
+3138
+3139
+
+Bit [7]
+Validity of Speed
+Class 150
+Validity of Speed
+Class 300
+Validity of Speed
+Class 450
+Validity of Speed
+Class 600
+
+3140
+3141
+:
+3151
+3183:3152
+
+Reserved
+
+355
+
+Bits [6:5]
+
+Bits [4:0]
+Power State for Gen4x2
+Class 150
+Power State for Gen4x2
+Class 300
+Reserved
+Power State for Gen4x2
+Class 450
+Power State for Gen4x2
+Class 600
+Reserved
+Reserved
+:
+Reserved
+
+Speed
+Speed
+Speed
+Speed
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Speed Class TMTs (SCTMT1, SCTMT2) for Gen3x1: This field indicates the
+temperatures, in degrees Kelvin, that the host shall specify as TMT1 and TMT2
+when PCIe Gen3x1 mode is selected. SCTMT1 and SCTMT2 indicated in this
+field correspond to TMT1 and TMT2 specified by Set Features Command and
+depend on PCIe bus mode and the target speed class. The value of 0000h
+indicates invalid.
+Card supporting some Speed Class shall support lower classes as well. Then,
+since card supporting Class 300 or higher indicates multiple valid SCTMT1 and
+SCTMT2, host should select appropriate SCTMT1 and SCTMT2 according to the
+required performance by the host.
+If host does not set these values as TMT1 and TMT2, unexpected thermal
+throttling will happen and the SD Express Speed Class Recording may not be
+able to continue.
+Since the following relation MNTMT ≤ TMT1 < TMT2 ≤ MXTMT is regulated in the
+NVMe spec., SCTMT1 and SCTMT2 shall satisfy the following inequality.
+MNTMT ≤ SCTMT1 < SCTMT2 ≤ MXTMT
+3247:3184
+
+M
+
+If card does not support Class 300 or higher, 00h is set to the associated byte
+fields.
+Bytes
+3187:3184
+3191:3188
+3195:3192
+3199:3196
+3203:3200
+3207:3204
+:
+3247:3244
+
+Bits [31:16]
+SCTMT1 for Speed Class
+over PCIe Gen3x1
+SCTMT1 for Speed Class
+over PCIe Gen3x1
+SCTMT1 for Speed Class
+over PCIe Gen3x1
+SCTMT1 for Speed Class
+over PCIe Gen3x1
+Reserved
+Reserved
+:
+Reserved
+
+356
+
+150
+300
+450
+600
+
+Bits [15:0]
+SCTMT2 for Speed Class
+over PCIe Gen3x1
+SCTMT2 for Speed Class
+over PCIe Gen3x1
+SCTMT2 for Speed Class
+over PCIe Gen3x1
+SCTMT2 for Speed Class
+over PCIe Gen3x1
+Reserved
+Reserved
+:
+Reserved
+
+150
+300
+450
+600
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Speed Class TMTs (SCTMT1, SCTMT2) for Gen3x2: This field indicates the
+temperatures, in degrees Kelvin, that the host shall specify as TMT1 and TMT2
+when PCIe Gen3x2 mode is selected.
+Setting of each field is same as that of Speed Class TMTs (SCTMT1 and
+SCTMT2) for Gen3x1. In addition, if card does not support PCIe Gen3x2 mode,
+all of this field are filled with 0.
+Bytes
+3251:3248
+3311:3248
+
+MiS
+
+3255:3252
+3259:3256
+3263:3260
+3267:3264
+3271:3268
+:
+3311:3308
+
+Bits [31:16]
+SCTMT1 for Speed Class
+over PCIe Gen3x2
+SCTMT1 for Speed Class
+over PCIe Gen3x2
+SCTMT1 for Speed Class
+over PCIe Gen3x2
+SCTMT1 for Speed Class
+over PCIe Gen3x2
+Reserved
+Reserved
+:
+Reserved
+
+150
+300
+450
+600
+
+Bits [15:0]
+SCTMT2 for Speed Class
+over PCIe Gen3x2
+SCTMT2 for Speed Class
+over PCIe Gen3x2
+SCTMT2 for Speed Class
+over PCIe Gen3x2
+SCTMT2 for Speed Class
+over PCIe Gen3x2
+Reserved
+Reserved
+:
+Reserved
+
+150
+300
+450
+600
+
+Speed Class TMTs (SCTMT1, SCTMT2) for Gen4x1: This field indicates the
+temperatures, in degrees Kelvin, that the host shall specify as TMT1 and TMT2
+when PCIe Gen4x1 mode is selected.
+Setting of each field is same as that of Speed Class TMTs (SCTMT1 and
+SCTMT2) for Gen3x1. In addition, if card does not support PCIe Gen4x1 mode,
+all of this field are filled with 0.
+Bytes
+3315:3312
+3375:3312
+
+MiS
+
+3319:3316
+3323:3320
+3327:3324
+3331:3328
+3335:3332
+:
+3375:3372
+
+Bits [31:16]
+SCTMT1 for Speed Class
+over PCIe Gen4x1
+SCTMT1 for Speed Class
+over PCIe Gen4x1
+SCTMT1 for Speed Class
+over PCIe Gen4x1
+SCTMT1 for Speed Class
+over PCIe Gen4x1
+Reserved
+Reserved
+:
+Reserved
+
+357
+
+150
+300
+450
+600
+
+Bits [15:0]
+SCTMT2 for Speed Class
+over PCIe Gen4x1
+SCTMT2 for Speed Class
+over PCIe Gen4x1
+SCTMT2 for Speed Class
+over PCIe Gen4x1
+SCTMT2 for Speed Class
+over PCIe Gen4x1
+Reserved
+Reserved
+:
+Reserved
+
+150
+300
+450
+600
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Speed Class TMTs (SCTMT1, SCTMT2) for Gen4x2: This field indicates the
+temperatures, in degrees Kelvin, that the host shall specify as TMT1 and TMT2
+when PCIe Gen4x2 mode is selected.
+Setting of each field is same as that of Speed Class TMTs (SCTMT1 and
+SCTMT2) for Gen3x1. In addition, if card does not support PCIe Gen4x2 mode,
+all of this field are filled with 0.
+Bytes
+3379:3376
+3439:3376
+
+MiS
+
+3383:3380
+3387:3384
+3391:3388
+3395:3392
+3399:3396
+:
+3439:3436
+
+4095:3440
+
+Bits [31:16]
+SCTMT1 for Speed Class
+over PCIe Gen4x2
+SCTMT1 for Speed Class
+over PCIe Gen4x2
+SCTMT1 for Speed Class
+over PCIe Gen4x2
+SCTMT1 for Speed Class
+over PCIe Gen4x2
+Reserved
+Reserved
+:
+Reserved
+
+150
+300
+450
+600
+
+Bits [15:0]
+SCTMT2 for Speed Class
+over PCIe Gen4x2
+SCTMT2 for Speed Class
+over PCIe Gen4x2
+SCTMT2 for Speed Class
+over PCIe Gen4x2
+SCTMT2 for Speed Class
+over PCIe Gen4x2
+Reserved
+Reserved
+:
+Reserved
+
+150
+300
+450
+600
+
+Reserved
+
+Note 1) O/M definition: M = Mandatory, “MiS”: Mandatory if card supports corresponding PCIe bus mode
+O/M field is valid when the UUID for SD Express Speed Class (see Section 8.4.10.1) is included in one of
+UUID List Entry.
+
+Table 8-20 : Vendor Specific Parameters for SD Express Speed Class
+8.4.10.3 Parameters Obtained by Get Log Page Command
+8.4.10.3.1 Overview
+When host issues Get Log Page command with UUID index designating SD Express Speed Class (see
+Section 8.4.10.1) and a specific Log page Identifier (LID), host gets parameters related to SD Express
+Speed Class. The contents depend on LID as follows.
+ Open SID for Speed Class (LID=C0h)
+ SD Express SUS_ADDR (LID=C1h)
+If the UUID for SD Express Speed Class is not specified by the UUID index or the LID does not match to
+the one described above, the obtained log is not related to the SD Express Speed Class.
+8.4.10.3.2 Open SID for Speed Class (LID=C0h)
+Table 8-21 indicates log information of Open SID for Speed Class (OSID-SC). In addition, Table 8-22
+specifies Open SID for Speed Class Data Structure (OSID-SC DS) embedded the OSID-SC information
+log.
+
+358
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bytes
+01:00
+
+07:02
+15:08
+
+23:16
+31:24
+39:32
+47:40
+55:48
+63:56
+71:64
+
+Description
+Open SID Count for Speed Class (OSCSC): This field indicates the number of SID
+opened for SD Express Speed Class. Maximum value of OSCSC is min(MSL, 8). Host
+can start another stream recordings based on Speed Class specification when OSCSC is
+less than min(MSL, 8).
+If OSCSC=min(MSL, 8), “Start Recording” fails. In this case, if host detects invalid OSIDSCs from this information and operates Release Identifier for them, host can start stream
+recording because OSCSC gets less than min(MSL, 8).
+Reserved
+1st Open SID for Speed Class Data Structure (OSID-SC DS 1): This field defines the
+first Open SID for Speed Class Data Structure. OSID-SC DSes are listed in ascending
+order with respect to the applicable OSID-SC started from “OSID-SC DS 1.” If OSCSC is
+less than 8, the rest fields of OSID-SC DS are filled by zero.
+Refer to Table 8-22 for more details.
+2nd Open SID for Speed Class Data Structure (OSID-SC DS 2): This field defines the
+second Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+3rd Open SID for Speed Class Data Structure (OSID-SC DS 3): This field defines the
+third Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+4th Open SID for Speed Class Data Structure (OSID-SC DS 4): This field defines the
+fourth Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+5th Open SID for Speed Class Data Structure (OSID-SC DS 5): This field defines the
+fifth Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+6th Open SID for Speed Class Data Structure (OSID-SC DS 6): This field defines the
+sixth Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+7th Open SID for Speed Class Data Structure (OSID-SC DS 7): This field defines the
+seventh Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+8th Open SID for Speed Class Data Structure (OSID-SC DS 8): This field defines the
+eighth Open SID for Speed Class Data Structure. Refer to Table 8-22 for more details.
+Table 8-21 : Open SID for Speed Class (OSID-SC) Information Log
+
+359
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bytes
+01:00
+
+02
+
+03
+05:04
+
+07:06
+
+Description
+Open SID for Speed Class (OSID-SC): This field indicates SID for SD Express Speed
+Class Recording. When the SLBA in each 1st SWC matches to the one designated by
+“Start Recording”, the associated SID in the SWC is newly indicated in this field. 0000h
+means SID is not assigned for Speed Class Recording. In this case, other parameters in
+this OSID-SC DS are undefined. Even this field is non-zero, this OSID-SC may not be
+used for Speed Class Recording (its validity is indicated by Validity Flag for OSID-SC in
+the same OSID-SC DS).
+This field is cleared to zero when Release Identifier for this OSID-SC or Release
+Resources is executed.
+The “Open SID for Speed Class” is also indicated in the “Get Status Data Structure” of
+Streams Directive (a set of “Open SID for Speed Class” is a subset of “Get Status Data
+Structure”).
+Validity Flag for OSID-SC: This field indicates the validity of OSID-SC, that is, whether
+this OSID-SC is available for Speed Class Recording or not.
+Bits 7:1 are reserved.
+If Bit 0 indicates ‘1’, Speed Class Recording for corresponding OSID-SC is valid.
+If cleared to ‘0’, it is invalid.
+Reserved
+Submission Queue ID for OSID-SC: This indicates the oldest Submission Queue
+Identifier of the command which makes Speed Class Recording by the corresponding
+OSID-SC invalid due to the termination condition.
+If the corresponding Validity Flag is set to ‘1’, this field shall be 0000h.
+This field is cleared to zero when Release Identifier for the associated OSID-SC or
+Release Resources is executed.
+Command ID for OSID-SC: This indicates the oldest Command Identifier of the
+command which makes Speed Class Recording by the corresponding OSID-SC invalid
+due to the termination condition.
+If the corresponding Validity Flag is set to ‘1’, this field shall be 0000h.
+This field is cleared to zero when Release Identifier for the associated OSID-SC or
+Release Resources is executed.
+Table 8-22 : Open SID for Speed Class Data Structure (OSID-SC DS)
+
+8.4.10.3.3 SD Express SUS_ADDR (LID=C1h)
+Table 8-23 indicates SD Express Speed Class SUS_ADDR (suspension address) log. It is indicated by
+512KB units.
+Bytes
+03:00
+07:04
+11:08
+15:12
+19:16
+23:20
+27:24
+31:28
+
+Description
+SD Express SUS_ADDR 1: This field indicates the first suspension address (in a unit of
+512KB).
+SD Express SUS_ADDR 2: This field indicates the second suspension address.
+SD Express SUS_ADDR 3: This field indicates the third suspension address.
+SD Express SUS_ADDR 4: This field indicates the fourth suspension address.
+SD Express SUS_ADDR 5: This field indicates the fifth suspension address.
+SD Express SUS_ADDR 6: This field indicates the sixth suspension address.
+SD Express SUS_ADDR 7: This field indicates the seventh suspension address.
+SD Express SUS_ADDR 8: This field indicates the eighth suspension address.
+Table 8-23 : SD Express SUS_ADDR List Log
+
+A non-zero value indicates a valid suspension address. The value zero means invalid address. Up to 8
+valid suspension addresses are listed in ascending order without zero started from “SD Express
+
+360
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+SUS_ADDR 1.” If the number of valid suspension addresses is less than 8, the rest of this field is filled
+by zero.
+The suspension address is cleared to zero by either of these events:
+(1) The host issues the "Set Free AU/SGS" command to assign an SGS including the suspension
+address.
+(2) The host issues the "Resume AU/SGS" command specifying the suspension address.
+(3) The host writes to any location within the suspended SGS unit (that includes suspension address).
+(4) The host erases to any location within the suspended SGS unit.
+Before issuing "Resume AU/SGS", it is recommended that host gets this list by Get Log Page command.
+
+361
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+9. Sections Effective to SD I/F Mode, UHS-II Mode and PCIe
+Mode
+This section is a blank in the Simplified Specification
+
+Table 9-1 : Sections Effective to SD I/F Mode, UHS-II Mode and PCIe Mode (Removed in the
+Simplified Specification)
+
+362
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix A (Normative) : Reference
+A.1 Related Documentation
+This section is a blank in the Simplified Specification
+
+A.2 Related Documentation From Other Standard Organizations
+A.2.1 PCI-SIG :
+PCI Express Base Specification Revision 3.1a or later
+PCI Code and ID Assignment Specification Revision 1.9
+PCI Express M.2 Specification Revision 1.1
+PCI Express Card Electromechanical Specification Revision 3.0 or later
+PCI-SIG®, PCIe® and PCI Express® are registered trademarks of PCI-SIG.
+The PCI-SIG defines the PCI Express standard and specifications.
+Contact the PCI-SIG for further information URL: https://pcisig.com/.
+
+A.2.2 NVM Express:
+NVM Express Revision 1.3 or later
+NVM Express™ (word mark) and NVMe™ (word mark) are trademarks of NVM Express, Inc.
+NVM Express, Inc. defines the NVM Express standard and specifications.
+Contact NVM Express, Inc. for further information URL: http://nvmexpress.org/.
+
+A.2.3 TCG:
+TCG Storage Architecture Core Specification Version 2.01 Revision 1.00 or later
+TCG Storage Interface Interactions Specification (SIIS) Version 1.11 (r1.0) or later.
+TCG defines TCG standard and specifications.
+Contact TCG for further information URL: http://www.trustedcomputinggroup.org/.
+
+A.2.4 RPMB:
+INCITS 501-2016, Information technology – Security Features for SCSI Commands (SFSC).
+INCITS 513-2015 SPC-4 (T10) and INCITS SPC-6 (T10).
+Available from http://webstore.ansi.org
+
+363
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix B (Normative) : Special Terms
+B.1 Terminology
+active AU
+assigned AUs
+block
+boot
+boot code
+Boot Partition
+broadcast
+Blocklen
+Cache
+CA-mode
+CV-mode

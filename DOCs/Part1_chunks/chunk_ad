@@ -1,0 +1,2000 @@
+Physical Layer Simplified Specification Version 9.10
+
+4.3 Data Transfer Mode
+Until the end of Card Identification Mode the host shall remain at fOD frequency because some cards may
+have operating frequency restrictions during the card identification mode. In Data Transfer Mode the host
+may operate the card in fPP frequency range (see Section 6.6.6). The host issues SEND_CSD (CMD9) to
+obtain the Card Specific Data (CSD register), e.g. block length, card storage capacity, etc.
+The broadcast command SET_DSR (CMD4) configures the driver stages of all identified cards. It
+programs their DSR registers corresponding to the application bus layout (length) and the number of
+cards on the bus and the data transfer frequency. The clock rate is also switched from fOD to fPP at that
+point. SET_DSR command is an option for the card and the host.
+CMD7 is used to select one card and put it into the Transfer State. Only one card can be in the Transfer
+State at a given time. If a previously selected card is in the Transfer State its connection with the host is
+released and it will move back to the Stand-by State. When CMD7 is issued with the reserved relative
+card address "0x0000", all cards are put back to Stand-by State (Note that it is the responsibility of the
+Host to reserve the RCA=0 for card de-selection - refer to Table 4-23, CMD7.
+SD Memory Card State Diagram in UHS-II is defined by the UHS-II Addendum.
+
+CMD3
+
+CMD0
+
+CMD15
+
+card identification
+mode
+from all states in
+data-transfer-mode
+
+data transfer
+mode
+
+CMD13, CMD55
+no state transition
+in data-transfer-mode
+
+CMD7
+
+Stand-by State
+(stby)
+
+CMD4,9,10,3
+
+"operation
+complete"
+
+Disconnect
+State (dis)
+
+CMD7
+
+"operation
+complete"
+
+Sending-data
+State (data)
+
+CMD12, or
+"operation
+complete"
+
+CMD6,17,18,19,30,48,56(r),58
+ACMD13,22,51,53
+
+Transfer
+State (tran)
+
+CMD16,23,32,33
+ACMD6,23,42
+CMD12,22 (SDUC only)
+
+CMD24,25,26,27,42,49,56(w),59
+ACMD54
+
+CMD20,28,29,38,39
+
+Receive-data
+State (rcv)
+CMD7
+
+Programming
+State (prg)
+
+CMD7
+
+CMD12 or
+"transfer end"
+
+Figure 4-13 : SD Memory Card State Diagram (data transfer mode)
+This may be used before identifying new cards without resetting other already registered cards. Cards
+which already have an RCA do not respond to identification commands (ACMD41, CMD2, see Section
+4.2.3) in this state. CMD48, CMD49, CMD58 and CMD59 are also available in UHS-II mode.
+Important Note: The card de-selection is done if certain card gets CMD7 with un-matched RCA. That
+
+50
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+happens automatically if selection is done to another card and the CMD lines are common. So, in SD
+Memory Card system it will be the responsibility of the host either to work with common CMD line (after
+initialization is done) - in that case the card de-selection will be done automatically or if the CMD lines are
+separate then the host shall be aware to the necessity to de-select cards.
+All data communication in the Data Transfer Mode is point-to point between the host and the selected
+card (using addressed commands). All addressed commands get acknowledged by a response on the
+CMD line.
+The relationship between the various data transfer modes is summarized below.
+ All data read commands can be aborted any time by the stop command (CMD12). The data transfer
+will terminate and the card will return to the Transfer State. The read commands are such as block
+read (CMD17), multiple block read (CMD18), send write protect (CMD30), send SCR (ACMD51) and
+general command in read mode (CMD56). (Refer to Figure 4-13 for more details.)
+ All data write commands can be aborted any time by the stop command (CMD12). The write
+commands shall be stopped prior to deselecting the card by CMD7. The write commands are such
+as block write (CMD24 and CMD25), program CSD (CMD27), lock/unlock command (CMD42) and
+general command in write mode (CMD56). (Refer to Figure 4-13 for more details.)
+ As soon as the data transfer is completed, the card will exit the data write state and move either to
+the Programming State (transfer is successful) or Transfer State (transfer failed).
+ If a block write operation is stopped and the block length and CRC of the last block are valid, the data
+will be programmed.
+ The card may provide buffering for block write. This means that the next block can be sent to the
+card while the previous is being programmed.
+If all write buffers are full, and as long as the card is in Programming State (see SD Memory Card
+state diagram Figure 4-13 ), the DAT0 line will be kept low (BUSY).
+ There is no buffering option for write CSD, write protection and erase. This means that while the card
+is busy servicing any one of these commands, no other data transfer commands will be accepted.
+DAT0 line will be kept low as long as the card is busy and in the Programming State. Actually if the
+CMD and DAT0 lines of the cards are kept separated and the host keep the busy DAT0 line
+disconnected from the other DAT0 lines (of the other cards) the host may access the other cards while
+the card is in busy.
+ Parameter set commands are not allowed while card is programming.
+Parameter set commands are: set block length (CMD16), erase block start (CMD32) and erase
+block end (CMD33).
+ Read commands are not allowed while card is programming.
+ Moving another card from Stand-by to Transfer State (using CMD7) will not terminate erase and
+programming operations. The card will switch to the Disconnect State and will release the DAT line.
+ A card can be reselected while in the Disconnect State, using CMD7. In this case the card will move
+to the Programming State and reactivate the busy indication.
+ Resetting a card (using CMD0 or CMD15) will terminate any pending or active programming
+operation. This may destroy the data contents on the card. It is the host's responsibility to prevent
+this.
+ CMD34-37, CMD50 and CMD57 are reserved for SD command system expansion. State transitions
+for these commands are defined in each command system specification.
+
+51
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.3.1 Wide Bus Selection/Deselection
+Wide Bus (4 bit bus width) operation mode may be selected/deselected using ACMD6. The default bus
+width after power up or GO_IDLE (CMD0) is 1 bit bus width.
+In order to change the bus width two conditions shall be met:
+a) The card is in 'tran state'.
+b) The card is not locked
+A locked card will responds to ACMD6 as illegal command.
+
+4.3.2 2 GByte Card
+To make 2GByte card, the Maximum Block Length (READ_BL_LEN=WRITE_BL_LEN) shall be set to
+1024 bytes. However, the Block Length, set by CMD16, shall be up to 512 bytes to keep consistency with
+512 bytes Maximum Block Length cards (Less than or equal 2GByte cards).
+
+4.3.3 Data Read
+The DAT bus line level is high by the pull-up when no data is transmitted. A transmitted data block consists
+of start bits (1 or 4 bits LOW), followed by a continuous data stream. The data stream contains the payload
+data (and error correction bits if an off-card ECC is used). The data stream ends with end bits (1 or 4 bits
+HIGH). The data transmission is synchronous to the clock signal. The payload for block oriented data
+transfer is protected by 1 or 4 bits CRC check sum (See Section 4.5).
+The Read operation from SD Memory Card may be interrupted by turning the power off. The SD Memory
+Card ensures that data is not destroyed during all the conditions except write or erase operations issued
+by the host even in the event of sudden shut down or removal.
+Read command is rejected if BLOCK_LEN_ERROR or ADDRESS_ERROR occurred and no data transfer
+is performed.
+
+•
+
+Block Read
+Block read is block oriented data transfer. The basic unit of data transfer is a block whose maximum size
+is always 512 bytes. Smaller blocks whose starting and ending address are entirely contained within 512
+bytes boundary may be transmitted.
+Block Length set by CMD16 can be set up to 512 bytes regardless of READ_BL_LEN.
+A CRC is appended to the end of each block ensuring data transfer integrity. CMD17
+(READ_SINGLE_BLOCK) initiates a block read and after completing the transfer, the card returns to the
+Transfer State. CMD18 (READ_MULTIPLE_BLOCK) starts a transfer of several consecutive blocks.
+Blocks will be continuously transferred until a STOP_TRANSMISSION command (CMD12) is issued. The
+stop command has an execution delay due to the serial command transmission. The data transfer stops
+after the end bit of the stop command.
+When the last block of user area is read using CMD18, the host should ignore OUT_OF_RANGE error
+that may occur even the sequence is correct.
+If the host uses partial blocks whose accumulated length is not block aligned and block misalignment is
+not allowed, the card shall detect a block misalignment at the beginning of the first misaligned block, set
+the ADDRESS_ERROR error bit in the status register, abort transmission and wait in the Data State for
+a stop command.
+
+52
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 4-4 defines the card behavior when a partial block accesses is enabled.
+If the misaligned block is the first data block of the command (i.e. ADDRESS_ERROR was reported in
+the actual response to the command), then no data is transferred and the card remains in the TRAN state.
+CSD value
+Max block size
+READ_BL_LEN
+512Bytes
+1kBytes
+2kBytes
+
+Misalign
+
+Partial
+
+Current
+*1
+Blocklen
+
+0 (Disable)
+0 (Disable)
+0 (Disable)
+
+1 (Enable)
+1 (Enable)
+1 (Enable)
+
+1- 512 bytes
+1- 512 bytes
+1- 512 bytes
+
+Read CMD
+Start Address
+*2
+
+Any address is accepted.
+*2
+Any address is accepted.
+*2
+Any address is accepted.
+
+*1: "Current Blocklen" size is set or changed by CMD16. If value is less than or equal 512 bytes
+(There are no relations with Misalign and Partial option), it is set with no error.
+*2: When the Blocklen size data range crosses 512 bytes block boundary, card outputs the data until the 512
+bytes block boundary" and then the data becomes invalid and CRC error also may occur. The card will send
+"ADDRESS_ERROR" on the next command response. Host should issue CMD12 to recover.
+
+Table 4-4 : Read Command Blocklen
+
+4.3.4 Data Write
+The data transfer format is similar to the data read format. For block oriented write data transfer, the CRC
+check bits are added to each data block. The card performs 1 or 4 bits CRC parity check (See Section
+4.5) for each received data block prior to the write operation. By this mechanism, writing of erroneously
+transferred data can be prevented.
+Write command is rejected if BLOCK_LEN_ERROR or ADDRESS_ERROR occurred and no data transfer
+is performed.
+
+•
+
+Block Write
+During block write (CMD24 - 27, 42, 56(w)) one or more blocks of data are transferred from the host to
+the card with 1 or 4 bits CRC appended to the end of each block by the host. A card supporting block
+write shall be required that Block Length set by CMD16 shall be 512 bytes regardless of WRITE_BL_LEN
+is set to 1k or 2k bytes.
+Table 4-5 defines the card behavior when partial block accesses is disabled (WRITE_BL_PARTIAL = 0).
+CSD value
+Max block size
+WRITE_BL_LEN
+512Bytes
+1kBytes
+2kBytes
+
+Misalign
+
+Partial
+
+Current
+*1
+Blocklen
+
+0 (Disable)
+0 (Disable)
+0 (Disable)
+
+0 (Disable)
+0 (Disable)
+0 (Disable)
+
+512 bytes
+*2
+512 bytes
+*2
+512 bytes
+
+*2
+
+Write CMD
+Start Address
+*3
+
+n * 512 bytes (n: Integer)
+*3
+n * 512 bytes (n: Integer)
+*3
+n * 512 bytes (n: Integer)
+
+*1: "Current Blocklen" size is set or changed by CMD16. If value is less than 512 bytes (there are no relations
+with Misalign and Partial option), it is set with no error. And then "Current Blocklen" size is tested when write
+command execution.
+*2: If the current Blocklen is other than this value, the card indicates "BLOCK_LEN_ERROR" on the Write
+command response.
+*3: If start address is other than this value, the card will send "ADDRESS_ERROR" on the Write command
+response.
+
+Table 4-5 : Write Command Blocklen
+If WRITE_BL_PARTIAL is allowed (=1) then smaller blocks, up to resolution of one byte, can be used as
+well. If the CRC fails, the card shall indicate the failure on the DAT line (see below); the transferred data
+will be discarded and not be written, and all further transmitted blocks (in multiple block write mode) will
+be ignored.
+53
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Multiple block write command shall be used rather than continuous single write command to make faster
+write operation.
+If the host uses partial blocks whose accumulated length is not block aligned and block misalignment is
+not allowed (CSD parameter WRITE_BLK_MISALIGN is not set), the card shall detect the block
+misalignment error and abort programming before the beginning of the first misaligned block. The card
+shall set the ADDRESS_ERROR error bit in the status register, and while ignoring all further data transfer,
+wait in the Receive-data-State for a stop command.
+Note that the first data block is misaligned for write command (i.e. ADDRESS_ERROR is reported in the
+actual response of the write command), the card remains in tran state and no data is programmed.
+The write operation shall also be aborted if the host tries to write over a write protected area. In this case,
+however, the card shall set the WP_VIOLATION bit.
+Programming of the CSD register does not require a previous block length setting. The transferred data
+is also CRC protected. If a part of the CSD register is stored in ROM, then this unchangeable part shall
+match the corresponding part of the receive buffer. If this match fails, then the card will report an error
+and not change any register contents.
+Some cards may require long and unpredictable times to write a block of data. After receiving a block of
+data and completing the CRC check, the card will begin writing and hold the DAT0 line low if its write
+buffer is full and unable to accept new data from a new WRITE_BLOCK command. The host may poll the
+status of the card with a SEND_STATUS command (CMD13) at any time, and the card will respond with
+its status. The status bit READY_FOR_DATA indicates whether the card can accept new data or whether
+the write process is still in progress). The host may deselect the card by issuing CMD7 (to select a different
+card) which will displace the card into the Disconnect State and release the DAT line without interrupting
+the write operation. When reselecting the card, it will reactivate busy indication by pulling DAT to low if
+programming is still in progress and the write buffer is unavailable. Actually, the host may perform
+simultaneous write operation to several cards with inter-leaving process. The interleaving process can be
+done by accessing each card separately while other cards are in busy. This process can be done by
+proper CMD and DAT0-3 line manipulations (disconnection of busy cards).
+
+•
+
+Pre-erased Setting prior to a Multiple Block Write Operation
+Setting a number of write blocks to be pre-erased (ACMD23) will make a following Multiple Block Write
+operation faster compared to the same operation without preceding ACMD23. The host will use this
+command to define how many number of write blocks are going to be send in the next write operation. If
+the host will terminate the write operation (Using stop transmission) before all the data blocks sent to the
+card the content of the remaining write blocks is undefined(can be either erased or still have the old data).
+If the host will send more number of write blocks than defined in ACMD23 the card will erase block one
+by one(as new data is received). This number will be reset to the default (=1) value after Multiple Blocks
+Write operation.
+It is recommended using this command preceding CMD25, some of the cards will be faster for Multiple
+Write Blocks operation. Note that the host should send ACMD23 just before WRITE command if the host
+wants to use the pre-erased feature. If not, pre-erase-count might be cleared automatically when another
+commands (ex: Security Application Commands) are executed.
+
+•
+
+Send Number of Written Blocks
+Systems that use Pipeline mechanism for data buffers management are, in some cases, unable to
+determine which block was the last to be well written to the flash if an error occurs in the middle of a
+Multiple Blocks Write operation. The card will respond to ACMD22 with the number of well written blocks.
+
+54
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.3.5 Erase/Discard/FULE
+4.3.5.1 Erase
+It is desirable to erase many write blocks simultaneously in order to enhance the data throughput.
+Identification of these write blocks is accomplished with the ERASE_WR_BLK_START (CMD32),
+ERASE_WR_BLK_END (CMD33) commands.
+The host should adhere to the following command sequence: ERASE_WR_BLK_START,
+ERASE_WR_BLK_END and ERASE (CMD38). If 00000001h or 000000002h is set in argument of
+CMD38, ERASE may not be executed if card supports DISCARD or FULE.
+If an erase (CMD38) or address setting (CMD32, 33) command is received out of sequence, the card
+shall set the ERASE_SEQ_ERROR bit in the status register and reset the whole sequence.
+If an out of sequence command (except SEND_STATUS) is received, the card shall set the
+ERASE_RESET status bit in the status register, reset the erase sequence and execute the last command.
+If the erase range includes write protected sectors, they shall be left intact and only the non-protected
+sectors shall be erased. The WP_ERASE_SKIP status bit in the status register shall be set.
+The address field in the address setting commands is a write block address in byte units. The card will
+ignore all LSB's below the WRITE_BL_LEN (see CSD) size.
+As described above for block write, the card will indicate that an erase is in progress by holding DAT0
+low. The actual erase time may be quite long, and the host may issue CMD7 to deselect the card or
+perform card disconnection, as described in the Block Write section, above.
+The data at the card after an erase operation is either '0' or '1', depends on the card vendor.
+The SCR register bit DATA_STAT_AFTER_ERASE (bit 55) defines whether it is '0' or '1'.
+
+4.3.5.2 Discard
+The DISCARD operation is similar to the default ERASE operation. Card may de-allocate the discarded
+blocks partially or completely. The contents of a region where the discard function has been applied shall
+be treated as ‘don’t care’ by host. After discard operation the previously written data may be partially or
+fully read by the host, depending on the card implementation.
+It is desirable to discard many write blocks simultaneously in order to enhance the data throughput.
+Identification of these write blocks is accomplished with the ERASE_WR_BLK_START (CMD32),
+ERASE_WR_BLK_END (CMD33) commands. The host should adhere to the following command
+sequence: ERASE_WR_BLK_START, ERASE_WR_BLK_END and DISCARD (CMD38) and CMD38
+arguments shall be set as 00000001h. The host which supports DISCARD shall check for
+DISCARD_SUPPORT bit (b313) in SD_STATUS register. If the card does not support DISCARD, the host
+shall not issue DISCARD command. If the card does not support DISCARD, card shall execute ERASE.
+If DISCARD (CMD38) or address setting (CMD32, 33) command is received out of sequence, the card
+shall set the ERASE_SEQ_ERROR bit in the status register and reset the whole sequence.
+If an out of sequence command (except SEND_STATUS) is received, the card shall set the
+ERASE_RESET status bit in the status register, reset the DISCARD sequence and execute the last
+command.
+If the host provides an out of range address as an argument to CMD32 or CMD33, the card shall indicate
+OUT_OF_RANGE error in R1 (ERX) for CMD38 or in R1 of next command and reset the whole DISCARD
+sequence. Host shall check for any errors after DISCARD command.
+The DISCARD is supported for SDHC and SDXC cards only and not supported through SPI interface.
+As described above for block write, the card shall indicate that DISCARD is in progress by holding DAT0
+low. The busy timeout is 250ms per DISCARD command.
+The host may issue CMD7 to deselect the card or perform card disconnection, as described in the Block
+Write section.
+
+55
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+On executing power cycle, card forgets pending Discard. Figure 4.3.5-1 shows the flowchart of card
+behavior for erase command sequence, including DISCARD and FULE operations
+Application Note: Host is recommended not to issue DISCARD command to the file system area,
+since the content of the discarded area shall be ‘don’t care’
+
+4.3.5.3 Full User Area Logical Erase (FULE)
+The FULE operation is similar to the default ERASE operation, except the card shall logically erase the
+entire user area completely.
+It is desirable to logically erase the complete user area. Identification of the full user area is accomplished
+with the ERASE_WR_BLK_START (CMD32), argument equal to 0, and ERASE_WR_BLK_END
+(CMD33), argument equal to end of user area, commands.
+The host should adhere to the following command sequence: ERASE_WR_BLK_START,
+ERASE_WR_BLK_END and FULE (CMD38) and CMD38 arguments shall be set as 00000002h
+The host that supports FULE shall check for FULE_SUPPORT bit (b312) in SD_STATUS register. If the
+card does not support FULE, host shall not issue FULE command. If the card does not support FULE,
+card shall execute ERASE.
+If FULE (CMD38) or address setting (CMD32, 33) command is received out of sequence, the card shall
+set the ERASE_SEQ_ERROR bit in the status register and reset the whole sequence.
+If an out of sequence command (except SEND_STATUS) is received, the card shall set the
+ERASE_RESET status bit in the status register, reset the FULE sequence and execute the last command.
+If the host does not provide the full user area using CMD32 and CMD33, then card shall execute ERASE
+operation with the busy timeout as specified in Section 4.10.2.5 and Section 4.10.2.6. The FULE is
+supported for SDHC and SDXC cards only and not supported through SPI interface.
+As described above for block write, the card shall indicate that FULE is in progress by holding DAT0 low.
+The busy timeout is 1 second per FULE command.
+The host may issue CMD7 to deselect the card or perform card disconnection, as described in the Block
+Write section.
+
+56
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 4.3.5-1 shows the flowchart of card behavior for erase command sequence, including DISCARD
+and FULE operations.
+Ready
+
+Card receives erase sequence
+CMD32 = Start LBA
+CMD33 = End LBA
+CMD38
+
+Is
+command sequence
+in order?
+
+No
+
+Card indicates
+‘ERASE_SEQ_ERROR’ in
+R1 (ER)
+
+Yes
+Is CMD38
+argument
+00000001h?
+
+Yes
+
+Is
+Start LBA ≤ End LBA ≤ Max.
+LBA?
+
+Yes
+
+Card executes
+DISCARD with 250ms
+max busy timeout
+
+No
+
+No
+
+Card indicates
+‘OUT_OF_RANGE’ in
+R1 (ERX)
+No
+Is CMD38
+argument
+00000002h?
+
+Yes
+
+Is
+Start LBA ≤ End LBA ≤ Max.
+LBA?
+
+Yes
+
+Is
+Start LBA=LBA 0
+and
+End LBA=Max LBA ?
+
+No
+
+Yes
+
+Card executes FULE
+with 1s max busy
+timeout
+
+No
+
+Card executes ERASE with max busy as per
+‘ERASE_SIZE’ and ‘ERASE_TIMEOUT’
+calculation.
+
+End
+
+Figure 4.3.5-1 : Flowchart of Card Behavior for Erase Command Sequence
+Application Note: If the card does not support DISCARD or FULE,
+ The host may proceed with ERASE operation
+ The host may proceed to overwrite data
+
+4.3.6 Write Protect Management
+Three write protect methods are supported in the SD Memory Card as follows:
+- Mechanical write protect switch (Host responsibility only)
+- Card internal write protect (Card's responsibility)
+- Password protection card lock operation.
+
+57
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+•
+
+Mechanical Write Protect Switch
+A mechanical sliding tablet on the side of the card (refer to Part 1 Standard Size SD Card Mechanical
+Addendum) will be used by the user to indicate that a given card is write protected or not. If the sliding
+tablet is positioned in such a way that the window is open it means that the card is write protected. If the
+window is close the card is not write-protected.
+A proper, matched, switch on the socket side will indicate to the host that the card is write-protected or
+not. It is the responsibility of the host to protect the card. The position of the write protect switch is unknown to the internal circuitry of the card.
+
+•
+
+Card's Internal Write Protection
+This section is a blank in the Simplified Specification.
+
+4.3.7 Card Lock/Unlock Operation
+4.3.7.1 General
+The password protection feature enables the host to lock a card while providing a password, which later
+will be used for unlocking the card. The password and its size are kept in a 128-bit PWD and 8-bit
+PWD_LEN registers, respectively. Optionally, Force Erase Password can be stored in additional 128-bit
+FEP and 8-bit FEP_LEN registers shall be present in case Card Ownership Protection (COP) is supported
+by the card. These registers are non-volatile so that a power cycle will not erase them.
+Locked cards respond to (and execute) all commands in the "basic" command class (class 0), ACMD41,
+CMD16 and "lock card" command class. Thus, the host is allowed to reset, initialize, select, query for
+status, etc., but not to access data on the card. If the password was previously set (the value of PWD_LEN
+is not 0), the card will be locked automatically after power on.
+Similar to the existing CSD register write commands, the lock/unlock command is available in "transfer
+state" only. This means that it does not include an address argument and the card shall be selected before
+using it.
+The card lock/unlock command has the structure and bus transaction type of a regular single block write
+command. The transferred data block includes all the required information of the command (password
+setting mode, PWD itself, card lock/unlock etc.).
+Content protection is managed by PWD. Physical Card Ownership is managed with COP feature.
+The password protection mechanism defined in this section is effective to the User Area (including TCG
+MBR Table described in Section 4.22.2.1) and the Protected Area (unless otherwise noted such as for
+force erase). It is not effective to Boot Partitions, RPMB Unit and TCG Tables except TCG MBR Table for
+both SD and PCIe interfaces (see Figure 4-84).
+4.3.7.1.1 Card Ownership Protection
+Card Ownership Protection (COP) prevents re-use of COP Card without knowing the protection password
+PWD. Once Force Erase Password (FEP) is set, it disables “Force Erase” operation, and “Clear PWD”
+operations. Alternatively, “FEP Force Erase” can be used. As this behavior is different from the Physical
+Layer Specification Version 5.00 or earlier, COP Unlock is required to operate the card after power up
+when FEP=set, to ensure only the hosts familiar with COP operations can use such a card.
+Application Note:
+Card Ownership Protection is addressing specific user needs and applications. It is not recommended
+for support on host devices that are not designed for specific applications that know how to make use
+of this feature. It is recommended to support this feature only in cards specially designed to work with
+those designated hosts.
+
+58
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.3.7.1.2 Special Terms for Lock/Unlock
+The following terms and notations are introduced in this section:
+ COP: Card Ownership Protection
+– COP feature: set of additional functions to support Card Ownership Protection
+– COP bit: bit4 of CMD42 argument that indicates COP-specific functions vs. PWD functions
+ COP Card / Non-COP Card
+– COP Card is a card that supports COP features
+– Non-COP Card is another expression of Type 1, 2 Cards that does not support COP feature
+ PWD: Card Lock Password
+– PWD indicates a register to hold a password to lock the card
+– "PWD=0" indicates that PWD is not set and PWD_LEN is set to 0
+– "PWD=set" indicates that a password is set to PWD and the password length is set to PWD_LEN
+ FEP: Force Erase Password
+– "FEP" indicates a register to hold a password to protect Force Erase
+– "FEP=0" indicates that FEP is not set and FEP_LEN is set to 0
+– "FEP=set" indicates that a password is set to FEP and the password length is set to FEP_LEN
+ Force Erase: is the function of CMD42[08h] (with no password) to erase PWD, PWD_LEN and all
+memory area. This function is disabled when FEP=set
+ FEP Force Erase: is the function of CMD42[18h] (with FEP) to erase PWD, PWD_LEN and all
+memory area. This function is disabled when FEP=0
+ COP Unlock
+– command CMD42 with argument 1Fh (notated as CMD42[1Fh]) that is required to access COP
+feature functions. Also, if FEP=set, after power on reset or reset COP Unlock is required to enable
+any other CMD42 functions.
+ COP Locked state
+– state of the card after power on reset or reset, when any other argument to CMD42 is not
+accessible till COP Unlock is performed. Also, the card shall behave as locked card to any other
+commands.
+ Clean COP Card - COP Card with no FEP/PWD set
+ Locked COP Card – COP Card with PWD set
+ PWD functions - COP Card CMD42 functions defined by Table 4.3.7-1
+ COP functions - COP Card CMD42 functions defined by Table 4.3.7-2
+4.3.7.1.3 Card Behavior
+Figure 4.3.7-1 shows simplified behavior of Non-COP Card. After power on, card is "PWD Locked" if
+PWD=set or "PWD Unlocked" if PWD=0. Force Erase allows to reset the PWD, while erasing all the User
+area data.
+CMD42[1Fh] is not defined and Non-COP Card returns LOCK_UNLOCK_FAILED error in R1.
+
+59
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Power on
+non-COP Card
+PWD=set
+PWD
+Locked
+
+PWD=0
+Unlock
+Lock
+
+PWD
+Unlocked
+
+Force Erase
+Force Erase
+
+PWD=Set
+
+Set Password
+
+PWD=0
+
+Reset Password
+
+CMD42 Ver.1.0
+Figure 4.3.7-1 : Simplified Non-COP Card State Diagram
+Figure 4.3.7-2 shows simplified behavior of a COP Card. After power on reset or reset, COP Card
+starts in CMD42 Ver.1.0 Compatible mode:
+ If FEP=0, CMD42 functions are compatible with CMD42 Ver.1.0, except the support of
+additional argument 1Fh (COP Unlock).
+ If FEP=1, COP Card is in COP Locked state to prevent access by Non-COP Hosts. COP
+Card does not execute any CMD42 function and indicates CARD_IS_LOCKED status and
+LOCK_UNLOCK_FAILED error except CMD42[1Fh]. On receiving CMD42[1Fh] COP Card
+moves to CMD42 Ver.2.0 mode.
+In CMD42 Ver.2.0 mode, "FEP Locked" is disabled and CMD42 functions are extended with
+functions accessible with COP bit set to ‘1’. There are three additional features to Ver.1.0:
+(1) FEP Management
+FEP is managed by Reset FEP, Set FEP and Replace FEP functions.
+(2) Force Erase
+There are 2 types of Force Erase operation supported based on FEP state:
+"Force Erase" (CMD42[08h] with no password) to erase PWD, PWD_LEN and all memory
+area can be executed as long as FEP=0. It is disabled if FEP=set.
+"FEP Force Erase" (CMD42[18h] with password) to erase PWD, PWD_LEN and all memory
+area which if executed if the password matches FEP. It is enabled if FEP=set and disabled
+if FEP=0.
+(3) Reset PWD inhibit
+Once PWD is set, PWD can be replaced, but PWD cannot be reset during FEP=set.
+
+60
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Power on
+Reset
+COP Card
+PWD=0&FEP=0
+
+FEP=1
+
+PWD=set&FEP=0
+Unlock
+PWD
+Lock
+Locked
+
+COP
+Locked
+state
+
+PWD
+Unlocked
+
+Force Erase
+
+CMD42 LOCK_UNLOCK_FAILED=1
+
+Force Erase
+
+PWD=Set
+
+FEP=0
+
+FEP=Set
+
+Set Password
+
+PWD=0
+
+Reset Password
+
+FEP cannot be changed
+
+CMD42 Ver.1.0 Compatible
+COP Unlock
+CMD42[1Fh]
+COP
+Locked
+state
+
+Unlock
+Lock
+
+PWD
+Locked
+
+PWD
+Unlocked
+
+Force Erase (if COP=0&FEP=0)
+FEP Force Erase (if COP=1, FEP matched)
+Force Erase or FEP Force Erase
+FEP=Set
+
+FEP=0
+
+PWD=Set
+
+Set Password
+
+PWD=0
+
+Reset Password (if FEP=0)
+
+FEP Set. Reset, Replace (COP=1)
+
+CMD42 Ver.2.0
+Figure 4.3.7-2 : Simplified COP Card State Diagram
+
+61
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.3.7.1.4 Lock Card Data Structure
+Table 4-6 describes the structure of the command data block. Note that the host compliant to the Physical
+Layer Specification Version 5.10 or later shall set reserved bits (Bit7-5) to 0 when issuing CMD42.
+Byte #
+0
+
+Bit 7
+
+Bit 6
+
+Bit 5
+
+Reserved
+(shall be set to 0)
+
+Bit 4
+
+Bit 3
+
+COP
+
+ERASE
+
+Bit 2
+
+LOCK_
+UNLOCK
+PWDS_LEN
+
+1
+2
+...
+PWDS_LEN + 1
+
+Bit 1
+
+Bit 0
+
+CLR_
+PWD
+
+SET_
+PWD
+
+Password data
+
+Table 4-6 : Lock Card Data Structure
+ COP: When set to 1, indicates Card Ownership Protection feature operations
+ ERASE: 1 Defines Force Erase Operation. In byte 0, bit 3 will be set to 1 (all other bits shall be 0).
+All other bytes of this command will be ignored by the card.
+ LOCK/UNLOCK: 1 = Locks the card. 0 = Unlock the card (note that it is valid to set this bit together
+with SET_PWD but it is not allowed to set it together with CLR_PWD).
+ CLR_PWD: 1 = Clears PWD.
+ SET_PWD: 1 = Set new password to PWD
+ PWDS_LEN: Defines the following password(s) length (in bytes). In case of a password change,
+this field includes the total password lengths of old and new passwords.
+The password length is up to 16 bytes. In case of a password change, the total length of the old
+password and the new password can be up to 32 bytes.
+ Password data: In case of setting a new password, it contains the new password. In case of a
+password change, it contains the old password followed by the new password.
+The data block size shall be defined by the host before it sends the card lock/unlock command. The block
+length shall be set to greater than or equal to the required data structure of the lock/unlock command. In
+the following explanation, changing block size by CMD16 is not a mandatory requirement for the
+lock/unlock command. If preset block length is larger than length of required data structure, dummy data
+shall be sent by the host for unused data area of the block.
+Since block length shall always be even in DDR50 mode, the block length for CMD42 shall always be
+rounded up to an even size. If CMD16 is used prior to CMD42 to set the block length, it shall always
+specify an even length.
+4.3.7.1.5 Command Sequences Common to COP/Non-COP Cards
+The following paragraphs define the various lock/unlock command sequences common to COP/Non-COP
+Cards (items relevant to COP Cards only are marked by square brackets []):
+
+•
+
+Setting PWD
+ Select a card (CMD7), if not previously selected.
+ Define the block length (CMD16), given by the 8-bit card lock/unlock mode, the 8-bits password size
+(in bytes), and the number of bytes of the new password. In the case that a password replacement
+is done, then the block size shall consider that both passwords-the old and the new one-are sent with
+the command.
+62
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ Send the Card Lock/Unlock command with the appropriate data block size on the data line including
+the 16-bit CRC. The data block shall indicate the mode (SET_PWD), the length (PWDS_LEN) and
+the password itself. In the case that a password replacement is done, then the length value
+(PWDS_LEN) shall include both passwords (the old and the new one) and the password data field
+shall include the old password (currently used) followed by the new password. Note that the card
+shall handle the calculation of the new password length internally by subtracting the old password
+length from PWDS_LEN field.
+ [In CMD42 ver.2.0 mode, COP Card can execute this command when COP bit=0.]
+ In the case that the sent old password is not correct (not equal in size and content), then the
+LOCK_UNLOCK_FAILED error bit will be set in the status register and the old password does not
+change. In the case that the sent old password is correct (equal in size and content), then the given
+new password and its size will be saved in the PWD and PWD_LEN registers, respectively.
+Note that the password length register (PWD_LEN) indicates if a password is currently set. When it equals
+0, there is no password set. If the value of PWD_LEN is not equal to zero, the card will lock itself after
+power up. COP Card shall also lock itself after CMD0. Non-COP Card lock status after CMD0 is up to
+implementation. It is possible to lock the card immediately in the current power session by setting the
+LOCK/UNLOCK bit (while setting the password) or sending an additional command for card lock.
+
+•
+
+Resetting PWD:
+ Select a card (CMD7), if not previously selected.
+ Define the block length (CMD16), given by the 8-bit card lock/unlock mode, the 8-bit password size
+(in bytes), and the number of bytes of the currently used password.
+ Send the card lock/unlock command with the appropriate data block size on the data line including
+the 16-bit CRC. The data block shall indicate the mode CLR_PWD, the length (PWDS_LEN), and
+the password itself. If the PWD and PWD_LEN content match the sent password and its size, then
+the content of the PWD register is cleared and PWD_LEN is set to 0. If the password is not correct,
+then the LOCK_UNLOCK_FAILED error bit will be set in the status register.
+ [In CMD42 ver.2.0 mode, COP Card can execute this command when COP bit=0.]
+ [If FEP is set, PWD and PWD_LEN registers shall not be affected, and the LOCK_UNLOCK_FAILED
+error bit shall be set in the status register.]
+ [Resetting PWD shall not affect FEP and FEP_LEN registers.]
+
+•
+
+Locking PWD Unlocked Card:
+ Select a card (CMD7), if not previously selected.
+ Define the block length (CMD16), given by the 8-bit card lock/unlock mode, the 8-bit password size
+(in bytes), and the number of bytes of the currently used password.
+ Send the card lock/unlock command with the appropriate data block size on the data line including
+the 16-bit CRC. The data block shall indicate the mode LOCK, the length (PWDS_LEN) and the
+password itself.
+ [In CMD42 ver.2.0 mode, COP Card can execute this command when COP bit=0.]
+In PWD Unlocked state, if the PWD content is equal to the sent password, then the card will be PWD
+locked and the card-locked status bit will be set in the status register. If the password is not correct, then
+the LOCK_UNLOCK_FAILED error bit will be set in the status register.
+Note that it is possible to set the password and to lock the card in the same sequence. In such a case,
+the host shall perform all the required steps for setting the password (as described above) including the
+bit LOCK set while the new password command is sent. If the password was previously set (PWD_LEN
+is not 0), then the card will be PWD locked automatically after power on reset.
+An attempt to lock a locked card or to lock a card that does not have a password will fail and the
+63
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+LOCK_UNLOCK_FAILED error bit will be set in the status register, unless it was done during a password
+definition or change operations.
+
+•
+
+Unlocking PWD Locked Card:
+ Select a card (CMD7), if not previously selected.
+ [If FEP=set, after power on reset or reset with CMD0, COP Unlock is required ( refer to Unlocking
+COP locked state sequence in Section 4.3.7.1.6)]
+ Define the block length (CMD16), given by the 8-bit card lock/unlock mode, the 8-bit password size
+(in bytes), and the number of bytes of the currently used password PWD.
+ Send the card lock/unlock command with the appropriate data block size on the data line including
+the 16-bit CRC. The data block shall indicate the mode UNLOCK, the length (PWDS_LEN) and the
+password itself.
+ [In CMD42 ver.2.0 mode, COP Card can execute this command when COP bit=0.]
+If the PWD content is equal to the sent password, then the card will be unlocked and the card-locked
+status bit will be cleared in the status register. If the password is not correct, then the
+LOCK_UNLOCK_FAILED error bit will be set in the status register.
+Note that unlocking is done only for the current power session. As long as the PWD [or FEP] is not cleared,
+the card will be locked automatically on the next power up. Only if PWD=0 [and FEP=0], the card shall
+be unlocked after power on and CMD0.
+An attempt to unlock an unlocked card will fail and LOCK_UNLOCK_FAILED error bit will be set in the
+status register, unless it was done during PWD definition or change operation.
+4.3.7.1.6 COP specific Command Sequences
+The following paragraphs define the various lock/unlock command sequences applicable to COP Cards
+only:
+
+
+
+Enabling Card Ownership Protection (COP) Function Set
+If FEP=0, after power on reset or reset COP Card shall not execute any COP function of CMD42 other
+than COP Unlock and shall interpret it as PWD function as defined by Table 4.3.7-1, unless it was done
+after COP functions are unlocked after the power on reset or reset by the sequence below:
+ Select a card (CMD7), if not previously selected.
+ Define the block length (CMD16) to 1 byte (8-bit card lock/unlock command). Send the card
+lock/unlock command with the appropriate data block of one byte on the data line including the 16
+bit CRC. The data block shall have COP, ERASE, LOCK_UNLOCK, CLR_PWD, SET_PWD bits set
+to 1.
+If COP Unlock was accepted, then the card shall go to CMD42 ver.2.0 mode. While FEP=0, the only COP
+function supported is set FEP. “Set PWD” command shall require COP bit to be set to 0, as described in
+the Section 4.3.7.2.
+Before receiving COP Unlock, COP Card is CMD42 Ver.1.0 Compatible mode and CMD42 with COP
+bit=1 is ignored (except COP Unlock).
+Note: For the card not supporting COP, the LOCK_UNLOCK_FAILED error bit shall be set in the status
+register and the COP enabling request is rejected.
+
+
+
+Setting Force Erase Password (FEP):
+ Unlock COP function set.
+ Define the block length (CMD16), given by the 8-bit card lock/unlock mode, the 8-bits password size
+(in bytes), and the number of bytes of the new password. In the case that a password replacement
+is done, then the block size shall consider that both passwords-the old and the new one-are sent with
+the command.
+64
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ Send the Card Lock/Unlock command with the appropriate data block size on the data line including
+the 16-bit CRC. The data block shall indicate the mode (SET_PWD and COP), the length
+(PWDS_LEN) and the password itself. In the case that a password replacement is done, then the
+length value (PWDS_LEN) shall include both passwords (the old and the new one) and the password
+data field shall include the old password (currently used FEP) followed by the new password. Note
+that the card shall handle the calculation of the new password length internally by subtracting the old
+password length from PWDS_LEN field.
+ In the case that the sent old password is incorrect (not equal in size and content), then the
+LOCK_UNLOCK_FAILED error bit shall be set in the status register and the old password does not
+change. In the case that the sent old password is correct (equal in size and content), then the given
+new password and its size shall be saved in the FEP and FEP_LEN registers, respectively.
+ Setting FEP automatically disables “Force Erase” and “Reset PWD” (CLR_PWD) operations. No
+power cycle is required.
+Note that the password length register (FEP_LEN) indicates if a FEP is currently set. When it equals 0,
+there is no password set. Setting FEP is not affecting current card LOCK/UNLOCK state.
+
+
+
+Unlocking COP Locked State
+
+If FEP=1, after power on reset or reset with CMD0, COP Card shall be in locked state (see Section 4.3.7.5)
+and shall fail any other CMD42 parameter and LOCK_UNLOCK_FAILED error bit shall be set in the status
+register, unless it was done after COP function set is unlocked after the power on reset or reset by the
+sequence below:
+ Select a card (CMD7), if not previously selected.
+ Define the block length (CMD16) to 1 byte (8-bit card lock/unlock command). Send the card
+lock/unlock command with the appropriate data block of one byte on the data line including the 16
+bit CRC. The data block shall have COP, ERASE, LOCK_UNLOCK, CLR_PWD, SET_PWD bits set
+to 1. This command does not require any password to be included in data block.
+If COP Unlock was accepted, then COP Card shall go to CMD42 ver.2.0 mode and processing of other
+CMD42 operations shall be enabled by the card. PWD commands shall require COP bit to be set to 0, as
+described in the Section 4.3.7.2.
+Note: For the card not supporting COP, the LOCK_UNLOCK_FAILED error bit shall be set in the status
+register and the COP enabling request is rejected.
+
+
+
+Resetting FEP:
+ Unlock COP function set, if not unlocked already.
+ Define the block length (CMD16), given by the 8-bit card lock/unlock mode, the 8-bit password size
+(in bytes), and the number of bytes of the currently used password.
+ Send the card lock/unlock command with the appropriate data block size on the data line including
+the 16-bit CRC. The data block shall indicate the mode (CLR_PWD and COP), the length
+(PWDS_LEN), and the password itself. If the FEP and FEP_LEN content match the sent password
+and its size, then the content of the FEP register is cleared and FEP_LEN is set to 0. If the password
+is not correct, then the LOCK_UNLOCK_FAILED error bit shall be set in the status register.
+ If resetting FEP fails, FEP and FEP_LEN registers are maintained, and the LOCK_UNLOCK_FAILED
+error bit shall be set in the status register.
+ Resetting FEP shall not affect current card LOCK/UNLOCK state.
+ Resetting FEP shall not affect PWD and PWD_LEN registers.
+ Clearing FEP enables “Force Erase” and “Reset PWD” operations.
+ Clearing FEP disables “FEP Force Erase” and other COP operations.
+
+65
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.3.7.1.7 Card Ownership Protection Flowcharts
+Figure 4.3.7-3 presents COP protection setup sequence (left) and FEP Force Erase sequence (right).
+Figure 4.3.7-4 presents Lock/Unlock operations sequence on COP Card with FEP set.
+
+CMD7
+Yes
+Not a Clean
+COP card
+
+CMD7
+
+CARD_IS_LOCKED?
+No
+
+Not a Locked
+COP card
+
+COP unlock
+CMD42[1Fh]
+Yes
+
+Yes
+
+LOCK_UNLOCK_FAILED?
+
+No
+
+No
+COP card
+FEP=0 , PWD=0
+Unlocked
+
+LOCK_UNLOCK_FAILED?
+No
+CARD_IS_LOCKED?
+Yes
+
+Error
+
+FEP set
+CMD42[11h]
+
+COP unlock
+CMD42[1Fh]
+
+FEP Force Erase
+CMD42[18h]
+Yes
+LOCK_UNLOCK_FAILED?
+Yes
+
+COP card
+FEP set , PWD=0
+Unlocked
+
+No
+CARD_IS_LOCKED?
+No
+COP card
+FEP set , PWD=0
+Unlocked
+
+PWD set
+CMD42[01h]
+COP card
+FEP set , PWD set
+Unlocked
+
+Figure 4.3.7-3 : COP Card Protection Setup (left) and FEP Force Erase (right) Sequences
+
+66
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+CMD7
+Not a Locked
+COP card
+Yes
+No
+
+COP Unlock
+CMD42[1Fh]
+
+Lock
+CMD42[04h]
+
+LOCK_UNLOCK_FAILED?
+No
+CARD_IS_LOCKED?
+
+CARD_IS_LOCKED?
+Yes
+COP card
+PWD=set
+Locked
+
+Yes
+COP card
+PWD set
+Locked
+Wrong PWD
+
+Yes
+
+No
+
+Error
+
+Unlock
+CMD42[00h]
+
+Unlock
+CMD42[00h]
+
+CARD_IS_LOCKED?
+
+Yes
+
+No
+COP card
+PWD=set
+Unlocked
+
+CARD_IS_LOCKED?
+No
+COP card
+PWD=set
+Unlocked
+
+Use the card
+Use the card
+
+Figure 4.3.7-4 : COP Card Unlock/Lock Sequence
+4.3.7.2 Parameter and the Result of CMD42
+The block length shall be greater than or equal to the required data structure of CMD42; otherwise, the
+result of CMD42 is undefined and the card may be in the unexpected locked state. Table 4-7 clarifies the
+behavior of CMD42 for Non-COP Cards. Table 4.3.7-1 clarifies the behavior of PWD commands for COP
+Card. Table 4.3.7-2 clarifies the behavior of COP specific functions for COP Card. The reserved bits in
+the parameter (bit7-5 for COP Card and bit 7-4 for Non-COP Card) of CMD42 shall be don't care. In the
+case that CMD42 requires the password, it is assumed that the old password and the new password are
+set correctly; otherwise the card indicates an error regardless of Table 4-7, Table 4.3.7-1 and Table
+4.3.7-2. If the password length is 0 or greater than 128 bits, the card indicates an error. If errors occur
+during execution of CMD42, the LOCK_UNLOCK_FAILED (Bit24 of Card Status) shall be set to 1
+regardless of Table 4-7, Table 4.3.7-1 and Table 4.3.7-2. The CARD_IS_LOCKED (Bit25 of Card Status)
+in the response of CMD42 shall be the same as Current Card State in Table 4-7, Table 4.3.7-1 and Table
+4.3.7-2. In the field of Card Status, 0 to 1 means the card changes to Locked and 1 to 0 means the card
+changes to Unlocked after execution of CMD42. It can be seen in the response of CMD13 after the
+CMD42. The LOCK_UNLOCK_FAILED (Bit24 of Card Status) as the result of CMD42 can be seen in the
+response of either CMD42 or the following CMD13.
+
+67
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+CMD42 Parameter in the data
+Bit3: ERASE
+Bit2: LOCK_UNLOCK
+Bit1: CLR_PWD
+Bit0: SET_PWD
+
+Related bits in the Card Status
+Bit25: CARD_IS_LOCKED
+Bit24: LOCK_UNLOCK_FAILED
+
+CMD42 Parameter
+
+Current PWD_LEN
+Card
+State and PWD
+Bit3 Bit2 Bit1 Bit0
+After Power On
+
+Result of the Function
+
+Card Status
+Bit25 Bit24
+
+Exist
+
+The card is locked
+
+1
+
+0
+
+Cleared
+
+The card is unlocked
+
+0
+
+0
+
+Table 4-8
+
+1
+
+0
+
+0
+
+0
+
+Locked
+
+Exist
+
+Force Erase
+
+1
+
+0
+
+0
+
+0
+
+Unlocked
+
+Exist
+
+Error
+
+0
+
+1
+
+1
+
+0
+
+0
+
+0
+
+Unlocked
+
+Cleared
+
+Error
+
+0
+
+1
+
+0
+
+1
+
+0
+
+0
+
+Locked
+
+Exist
+
+Error
+
+1
+
+1
+
+0
+
+1
+
+0
+
+0
+
+Unlocked
+
+Exist
+
+Lock the card
+
+0 to 1 0
+
+0
+
+1
+
+0
+
+0
+
+Unlocked
+
+Cleared
+
+Error
+
+0
+
+1
+
+0
+
+1
+
+0
+
+1
+
+Locked
+
+Exist
+
+Replace password and the card is still locked
+
+1
+
+0
+
+0
+
+1
+
+0
+
+1
+
+Unlocked
+
+Exist
+
+Replace password and the card is locked
+
+0 to 1 0
+
+0
+
+1
+
+0
+
+1
+
+Unlocked
+
+Cleared
+
+Set Password and lock the card
+
+0 to 1 0
+
+0
+
+0
+
+1
+
+0
+
+Locked
+
+Exist
+
+Clear PWD_LEN and PWD and the card is unlocked 1 to 0 0
+
+0
+
+0
+
+1
+
+0
+
+Unlocked
+
+Exist
+
+Clear PWD_LEN and PWD
+
+0
+
+0
+
+0
+
+0
+
+1
+
+0
+
+Unlocked
+
+Cleared
+
+Error (Note *4 Refer to Table 4-10)
+
+0
+
+1
+
+0
+
+0
+
+0
+
+1
+
+Locked
+
+Exist
+
+Replace password and the card is unlocked
+
+1 to 0 0
+
+0
+
+0
+
+0
+
+1
+
+Unlocked
+
+Exist
+
+Replace password and the card is unlocked
+
+0
+
+0
+
+0
+
+0
+
+0
+
+1
+
+Unlocked
+
+Cleared
+
+Set password and the card is still unlocked
+
+0
+
+0
+
+0
+
+0
+
+0
+
+0
+
+Locked
+
+Exist
+
+Unlock the card
+
+1 to 0 0
+
+0
+
+0
+
+0
+
+0
+
+Unlocked
+
+Exist
+
+Error
+
+0
+
+1
+
+0
+
+0
+
+0
+
+0
+
+Unlocked
+
+Cleared
+
+Error
+
+0
+
+1
+
+Other combinations Don't care Don't care Error (Note *1 Refer to Table 4-10)
+
+Table 4-7 : CMD42 Ver.1.0 Mode (Non-COP Card) Lock Unlock Function
+
+68
+
+0 or 1 1
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD42 Parameter in the data
+Bit4: COP
+Bit3: ERASE
+Bit2: LOCK_UNLOCK
+Bit1: CLR_PWD
+Bit0: SET_PWD
+CMD42 Parameter
+Bit4 Bit3 Bit2 Bit1 Bit0
+
+Current
+Card
+State
+
+After Power On or Reset
+
+Related bits in the Card Status
+Bit25: CARD_IS_LOCKED
+Bit24: LOCK_UNLOCK_FAILED
+
+Card Status
+Result of the Function
+
+PWD
+
+Bit25 Bit24
+
+Exist
+
+The card is locked
+
+1
+
+0
+
+Cleared
+
+The card is unlocked
+
+0
+
+0
+
+1
+
+0
+
+Don’t care The card is locked (If FEP is set (4))
+X(2) 1
+
+0
+
+0
+
+0
+
+Locked
+
+X(2) 1
+
+0
+
+0
+
+0
+
+Unlocked Exist
+
+Error
+
+0
+
+1
+
+X(2) 1
+X(2) 0
+
+0
+
+0
+
+0
+
+Unlocked Cleared
+
+Error
+
+0
+
+1
+
+1
+
+0
+
+0
+
+Locked
+
+Error
+
+1
+
+1
+
+X(2) 0
+
+1
+
+0
+
+0
+
+Unlocked Exist
+
+Lock the card
+
+0 to 1 0
+
+X(2) 0
+
+1
+
+0
+
+0
+
+Unlocked Cleared
+
+Error
+
+0
+
+1
+
+0
+
+1
+
+0
+
+1
+
+Locked
+
+Replace PWD and the card is still locked
+
+1
+
+0
+
+X(2) 0
+
+1
+
+0
+
+1
+
+Unlocked Exist
+
+Replace PWD and the card is locked
+
+0 to 1 0
+
+X(2) 0
+
+1
+
+0
+
+1
+
+Unlocked Cleared
+
+Set PWD and lock the card
+
+0 to 1 0
+
+X(2) 0
+
+0
+
+1
+
+0
+
+Locked
+
+Clear PWD_LEN and PWD and the card is unlocked (1)
+
+1 to 0 0
+
+X(2) 0
+
+0
+
+1
+
+0
+
+Unlocked Exist
+
+Clear PWD_LEN and PWD (1)
+
+0
+
+0
+
+X(2) 0
+
+0
+
+1
+
+0
+
+Unlocked Cleared
+
+Error
+
+0
+
+1
+
+X(3) 0
+
+0
+
+0
+
+1
+
+Locked
+
+Exist
+
+Replace PWD and the card is unlocked
+
+1 to 0 0
+
+X(3) 0
+
+0
+
+0
+
+1
+
+Unlocked Exist
+
+Replace PWD and the card is unlocked
+
+0
+
+0
+
+X(3) 0
+
+0
+
+0
+
+1
+
+Unlocked Cleared
+
+Set PWD and the card is still unlocked
+
+0
+
+0
+
+X(2) 0
+
+0
+
+0
+
+0
+
+Locked
+
+Unlock the card
+
+1 to 0 0
+
+X(2) 0
+
+0
+
+0
+
+0
+
+Unlocked Exist
+
+Error
+
+0
+
+1
+
+X(2) 0
+
+0
+
+0
+
+0
+
+Unlocked Cleared
+
+Error
+
+0
+
+1
+
+X(2)
+
+Exist
+
+Exist
+
+Exist
+
+Exist
+
+Exist
+
+Force Erase (1)
+
+Table 4-8
+
+Table 4.3.7-1 : PWD Related Lock Unlock Function for COP Card
+Notes:(1) – Disabled as long as FEP=set
+(2) - Bit4 can be set to either 0 or 1 as long as FEP=0. Bit4 shall be set to 0 as long as FEP=set.
+
+Functions that shall be accepted with Bit4=1 are defined by Table 4.3.7-2.
+(3) - Bit4 shall be set to 0 after CMD42[1Fh].
+(4) – If FEP=set, all CMD42 functions are blocked before receiving CMD42[1Fh].
+5 - COP Unlock (CMD42[1Fh]) enables CMD42 COP function set. No FEP is required
+6 - CMD42[1Fh] followed by CMD42[11h]+FEP sequence is used to set FEP
+Application Note:
+To replace password, the host should consider following cases. When PWD_LEN and password data exist,
+the card assumes old and new passwords are set in the data structure. When PWD_LEN and PWD are
+cleared, the card assumes only new password is set in the data structure. In this case, the host shall not
+set old password in the data structure; otherwise, unexpected password is set.
+
+69
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD42 Parameter
+
+Card Status
+
+Current
+Bit4 Bit3 Bit2 Bit1 Bit0 Card State
+
+PWD
+
+FEP
+
+Result of the Function
+
+Bit25 Bit24
+
+1
+
+1
+
+0
+
+0
+
+0
+
+Locked
+
+Exist
+
+Exist
+
+Protected Force Erase (with proper FEP)(5)
+
+1 to 0 0
+
+1
+
+1
+
+0
+
+0
+
+0
+
+Locked
+
+Cleared
+
+Exist
+
+Error
+
+1
+
+1
+
+1
+
+0
+
+0
+
+0
+
+Unlocked
+
+Don’t care Exist
+
+Error
+
+0
+
+1
+1
+
+1
+
+0
+
+0
+
+1
+
+0
+
+Locked
+
+Exist
+
+Clear FEP and the card is still locked(5)
+
+1
+
+0
+
+1
+
+0

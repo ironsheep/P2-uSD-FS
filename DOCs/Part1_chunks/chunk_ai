@@ -1,0 +1,2000 @@
+4
+0
+4
+100
+750
+20
+Class 6
+6
+0
+6
+100
+750
+20
+Class 10
+10
+0
+10
+100
+750
+20
+Table 4-64 : Performance Requirements for Each Class (SDXC/SDUC)
+4.13.2.7.3 Requirements of SD File System
+This specification can be applied only to the SD file system formatted card defined by the latest version
+of File System Specification. This includes complying with the format parameter calculation specified
+in the Appendix C of the latest version of File System Specification.
+Furthermore, the Number of Hidden Sectors shall be adopted as minimum number that meets
+Boundary Unit Recommendation for Data Area. And in case of exFAT file system, Allocation Bitmap
+shall be stored in the first 4MB of Cluster Heap.
+
+4.13.2.8 Speed Class Control Command (CMD20)
+CMD20 is defined to optimize card operation to support Speed Class recording. Figure 4-53 shows the
+definition of CMD20 timing and arguments. If any error occurs during the CMD20 busy period, it will be
+reported in the R1 response of next command. The host may issue CMD13 to check the occurrence of
+an error.
+Speed Class Control (SCC) in the argument controls several functions which assist the card in supporting
+and meeting Class performance.
+The response type of CMD20 is R1b. The maximum busy indication period depends on the function
+selected by SCC in the argument.
+Error Check
+CMD
+
+CMD20
+
+R1b
+
+DAT[0]
+
+CMD13
+
+R1
+
+Busy
+
+if CMD20 does not indicate busy, following
+CMD13 is not required.
+
+tBUSY (max.)
+
+Speed Class Control Command (CMD20)
+S T Index SCC
+0 1 010100 xxxx
+
+Reserved
+all 0
+
+CRC7 E
+xx
+1
+
+Speed Class Control
+
+tBUSY (max.)
+
+0000b: Start Recording
+0001b: Update DIR
+0010b: Reserved for Multiple Streams Recording
+0011b: Reserved for Multiple Streams Recording
+0100b: Update CI
+others: Reserved
+
+1 second
+10ms
+
+10ms
+
+Figure 4-53 : Definition of CMD20
+
+148
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Support of CMD20 is indicated by CMD_SUPPORT of SCR[32].
+If an SDXC/SDUC Card supports Speed Class, support of CMD20 is mandatory and host shall use
+CMD20. SDXC/SDUC Cards can meet Class performance only when host uses CMD20. (cf. In case of
+SDHC, support of CMD20 is optional for card and host may or may not use CMD20. SDHC cards meet
+Class performance without CMD20.)
+4.13.2.8.1 Definition of Each CMD20 Function
+(1) Start Recording
+This function indicates that Speed Class host starts stream recording. When the card receives
+CMD20 Start Recording function, the card indicates busy up to 1 second to prepare recording
+(Garbage collection, clean-up of internal status, etc.).
+(2) Update DIR
+This function indicates that following write command shall be a directory entry write. On receiving
+CMD20 Update DIR function, the card shall recognize and manage the 512-byte area (DIR) specified
+by the following single block write command (either CMD24 or CMD25) as a location of the directory
+entry updated during the stream recording. The designated area (DIR) shall be written by single block
+writes and may be written repeatedly without preceding CMD20 Update DIR. Write to DIR (even
+without FAT write) counts in one of 8 times FAT write cycles. This function is always needed before
+Start Recording. If this function is issued during the recording, the card recognizes that the current
+recording is ended and the following write command is recognized as the directory entry for the next
+recording. After that, the host shall issue CMD20 Start Recording to start the next Speed Class
+recording. The busy indication of this function is up to 10ms for this function.
+(3) Update CI
+This function indicates that the following write command is a write to a CI cluster. When the card
+receives CMD20 Update CI function during the recording, the card recognizes that following 512byte single block write (either CMD24 or CMD25) is an update to a CI cluster. Busy indication of
+CMD20 Update CI is up to 10ms for this function.
+4.13.2.8.2 Requirements for Speed Class Host
+There are requirements for host to support CMD20
+ If host records data to SDXC or SDUC card, it shall support CMD20 to indicate Start Recording.
+ The host shall issue CMD20 Update DIR before Start Recording regardless of updating CI during
+the recording.
+ If host updates CI during the recording, it shall issue CMD20 Update CI just before the 512-byte
+single block write (either CMD24 or CMD25) updating CI.
+
+4.13.2.9 Example of Speed Class Recording Sequence
+Figure 4-54 shows example sequence of Speed Class recording.
+Even if the write data size after CMD20 Update DIR is wrong (larger than 512-byte), the card accepts data
+writes without error but Speed Class performance is not maintained.
+The host starts Speed Class recording by CMD20 indicating the Start Recording function and exits by
+either CMD20 indicating the Update DIR function or non-Speed Class write command. During the
+recording period, allowable write operations are limited to those shown below.
+1. Stream data is written by one or more RU
+2. FAT Update consists of three write commands, FAT(  16KB)+Bitmap(  16KB)+DIR(512-byte)
+3. CI Update consists of single block write (512-byte by either CMD24 or CMD25 always preceded by
+CMD20 Update CI)
+149
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Even if the write data size after CMD20 Update CI is wrong (larger than 512-byte), the card accepts data
+writes without error but Speed Class performance is not maintained.
+The SDXC or SDUC Speed Class host shall issue CMD20 Update DIR before CMD20 Start Recording
+so that the card can distinguish DIR and CI properly. Between Update DIR and Start Recording, data
+read/write/erase commands and secure commands are allowed. In addition, read commands of
+registers/status are also allowed.
+If any other commands are issued, CMD20 Update DIR shall be issued again before CMD20 Start
+Recording.
+Always preceding the write command updating CI (Write CI)
+(Need to be issued just before "Write CI")
+
+Always Issued before
+Start Recording
+Update
+DIR
+
+Write
+DIR
+
+Other
+Write
+
+Start
+Rec
+
+Write
+RU
+
+Update
+CI
+
+Write
+CI
+
+FAT
+Update
+
+Write
+RU
+
+(DIR address is used in the recording)
+
+Speed Class Recording Period
+
+Write Busy ~ 500ms
+
+Write Busy ~ 250ms
+
+.....
+
+Other
+Write
+Write
+CI
+
+- Non-Speed Class write
+- CI may be written after
+the recording
+
+Update Write
+DIR
+DIR
+
+"Update DIR" means
+DIR for next stream
+
+Write Busy ~ 500ms
+
+Figure 4-54 : Example of Speed Class Recording Sequence
+
+150
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.3 Speed Grade Specification for UHS-I and UHS-II
+4.13.3.1 Speed Grade Parameters
+4.13.3.1.1 UHS Speed Grade
+Following grades are defined and indicated by UHS_SPEED_GRADE in SD Status. Speed Grade may
+be supported in SDHC, SDXC and SDUC. Any cards having a specific Speed Grade shall also satisfy
+the requirements and conditions of lower Speed Grades. In case of UHS-II card supports Speed Grade
+1, both UHS-I mode and UHS-II mode shall support Speed Grade 1. Similarly, in case of UHS-II card
+supports Speed Grade 3, both UHS-I mode and UHS-II mode shall support Speed Grade 1 and 3.
+(1) Speed Grade 0: Performance is less than 10MB/sec
+(2) Speed Grade 1: Performance is 10MB/sec and above
+(3) Speed Grade 3: Performance is 30MB/sec and above
+4.13.3.1.2 AU (Allocation Unit)
+AU size of Speed Grade is specified by UHS_AU_SIZE in SD Status. The maximum AU size is 64MB.
+Card should indicate smaller AU Size as much as possible. Refer to Section 4.10.2 for more details.
+4.13.3.1.3 RU (Recording Unit)
+RU size is 512KB.
+4.13.3.1.4 Pw (Write Performance)
+The definition of Pw is the same as SDXC and SDUC. Refer to Section 4.13.2.2.
+4.13.3.1.5 Pm (Performance Move)
+Pm shall be treated as 0 regardless of the register value.
+4.13.3.1.6 Pr and TFR(4KB) (Read Performance)
+The definition of Pr and TFR(4KB) are the same as SDXC and SDUC. Refer to Section 4.13.2.3.
+4.13.3.1.7 UHS-II Parameters
+Host may use any N_FCU size in case of using Speed Grade 1 and more than or equal to N_FCU=4
+in case of using Speed Grade 3. Use of larger N_FCU is recommended. Speed Grade is not supported
+in 2L-HD Mode or Low Power Mode.
+
+4.13.3.2 Support of Speed Class Control Command (CMD20)
+With regard to Speed Grade supported Host and Card, support of CMD20 is mandatory for SDXC and
+SDUC; and optional for SDHC. In order to maintain backward compatibility, Speed Grade SDHC cards
+shall support Speed Class and Speed Grade without the host indication of CMD20.
+
+151
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.3.3 Speed Grade Measurement Conditions
+Speed Grades Measurement Conditions are defined in Table 4-65.
+Item
+Pw Measurement
+Conditions for UHS-I
+
+Definition
+Performance is measured the same as Pw under following conditions.
+RU=512KB, Power Limit=1.44W (400mA at 3.6V)
+An AU Size is used described in UHS_AU_SIZE (Up to 64MB).
+[For Speed Grade 1]
+SDCLK=80MHz for SDR and 40MHz for DDR
+[For Speed Grade 3]
+SDCLK=90MHz for SDR and 45MHz for DDR
+The measurement method of UHS-I performance is the same as SDXC and
+SDUC. If AU size is larger than 4MB, performance is measured in each 4MB
+sub-unit.
+Pw Measurement
+Performance is measured the same as Pw under following conditions.
+Conditions for UHS-II
+RU=512KB, Power Limit=1.44W (400mA at 3.6V)
+An AU Size is used described in UHS_AU_SIZE (Up to 64MB).
+[For Speed Grade 1]
+RCLK=35MHz, Transmission Speed Range=Range A (x15 Multiplier)
+In FD Mode and Fast Mode. N_FCU=1.
+[For Speed Grade 3]
+RCLK=26MHz, Transmission Speed Range=Range B (x30 Multiplier)
+In FD Mode and Fast Mode. N_FCU=4.
+The measurement method of UHS-II performance is the same as SDXC and
+SDUC. Performance is measured in each 4MB sub-unit.
+FAT Update / CI Update Same as existing Speed Class
+Write busy
+Each write busy shall be less than or equal to 250ms
+Except DIR write of SDXC and SDUC card may be up to 500ms
+Table 4-65 : Speed Grade Measurement Conditions for UHS-I and UHS-II
+
+4.13.3.4 Notes for Preparation Time of UHS-I and UHS-II Card
+At the beginning of a recording, the SD Memory Card indicates busy as preparation time to start Speed
+Class Recording. The maximum preparation time is considered as 1 second. If CMD20 is received, the
+card shall indicate the preparation time in busy of CMD20 Start Recording. If CMD20 is not received, the
+card should indicate the preparation time in the busy of write operations, which writes to the first AU. In
+this case, the card is not necessary to include preparation time of the first AU in Pw and host should
+estimate 1 second preparation time to write the first AU.
+4.13.3.5 Host Operating Frequency
+In case of Non UHS-II mode, Host needs to use higher frequency clock than that of measurement
+condition.
+In case of Speed Grade 1 in UHS-II mode, as Speed Grade of card is measured at 35MHz Range A, host
+needs to set higher bit rate than measurement bit rate. That is when UHS-II is used in Transmission Speed
+Range A (x15 Multiplier), host needs to provide RCLK more than or equal to 35MHz. When UHS-II card
+is used in Transmission Speed Range B (x30 Multiplier), any frequency of RCLK range (26MHz - 52MHz)
+may be used.
+In case of Speed Grade 3 in UHS-II mode, as Speed Grade of card is measured at 26MHz Range B, host
+needs to set higher bit rate than measurement bit rate. That is when UHS-II card is used in Transmission
+Speed Range B (x30 Multiplier), any frequency of RCLK range (26MHz - 52MHz) may be used. Speed
+Grade 3 is not supported in Range A (x15 Multiplier).
+
+152
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.4 Video Speed Class Specification
+4.13.4.1 AU Use in Video Speed Class
+4.13.4.1.1 Video Speed Class Introduction
+In Video Speed Class, the AU (see Section 4.13.4.2.2) is used differently than in the other speed class
+methods. In Video Speed Class recording, the following steps occur:
+1. The host issues one or more (up to eight) CMD20 "Update DIR" functions (see Section
+4.13.4.7.3) to set up directory entries.
+2. The host selects an LBA space on AU boundaries that contains no data to be retained or
+prepares the space by moving the data to be retained to free the AU (see Section 4.13.1.1). If
+there is data in this LBA space to be retained, then the host is responsible to relocate this data
+to other logical areas in the card.
+3. The host tells the card to use the selected LBA space by specifying one to eight AUs using the
+CMD20 "Set Free AU" command (see Section 4.13.4.7.7), which informs the card that the
+contents of the specified AUs have been released by the host and those AUs may be prepared
+for efficient sequential writing.
+4. The host issues the CMD20 "Start Recording" command (see Section 4.13.4.7.2).
+5. The host begins issuing sequential write operations from the lowest LBA in the first active AU in
+units of RU. The host uses assigned AUs sequentially from the lowest to the highest. If the host
+writes to non-sequential locations within the assigned AUs, the card may drop out of Video
+Speed Class recording without warning (i.e., subsequent writes will have non-speed class
+timing).
+6. If the assigned AUs have been completely written, then:
+a) the host may continue Video Speed Class recording by issuing another CMD20 "Set Free
+AU" command and issuing sequential write operations from the lowest LBA in the first newlyactive AU;
+b) issuing CMD20 "Start Recording" is optional after an AU boundary if the previous AU was
+completely written (i.e., the last RU in this AU was written); and
+c) issuing CMD20 "Start Recording" is required after an AU boundary if the previous AU was
+not completely written (i.e., the last RU in this AU was not written).
+If the card receives CMD20 "Set Free AU" command before completing an active AU (e.g., step 6c)
+above), then the data stored in the unwritten LBAs in those AUs is undefined.
+Use of Speed Class (see Section 4.13.1 and 4.13.2) or UHS Speed Grade (see Section 4.13.3) during
+Video Speed Class recording results indeterminate card behavior.
+As described in step 3 above, AUs become assigned through a CMD20 "Set Free AU" command.
+As described in step 6 above, the active assigned AU is released by sequentially writing all its LBAs
+from its lowest LBA to its highest LBA. If another AU remains assigned, Video Speed Class recording
+may continue in that AU.
+A CMD20 "Suspend AU" command releases all assigned AUs (i.e., only the active AU is suspended)
+and terminates Video Speed Class recording (i.e., Pw (see Section 4.13.4.3.1) is not maintained).
+Video Speed Class recording may be resumed by a CMD20 "Resume AU" command (see Section
+4.13.4.1.2).
+If any violating condition from Table 4-66 occurs while there are assigned AUs:
+a) all assigned AUs shall be released;
+b) Video Speed Class recording shall be terminated (i.e., Pw (see Section 4.13.4.3.1) is not
+maintained); and
+c) without a suspend address, Video Speed Class recording is not resumable.
+
+153
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Commands
+CMD0-CMD11
+CMD14-CMD16
+CMD22
+
+Violating Conditions
+Any CMD0 through CMD11 terminates the Video Speed Class recording.
+Any CMD14 through CMD16 terminates the Video Speed Class recording.
+Any CMD22 for SDHC and SDXC cards terminates the Video Speed Class
+recording.
+CMD22 for SDUC cards is required and it is included in sequential write
+performance calculation of Video Speed Class recording after Start Recording
+CMD24
+If CMD24 addresses any non-sequential LBA in an active AU, then the Video
+Speed Class recording is terminated.
+Any other CMD24 in an active AU breaks SU timing.
+CMD25
+If CMD25 addresses any non-sequential LBA in an active AU, then the Video
+Speed Class recording is terminated.
+Any CMD25 that is not multiple RU size in an active AU breaks SU timing.
+Any CMD25 that does not start on an RU boundary in an active AU breaks SU
+timing.
+CMD26-CMD31
+Any CMD26 through CMD31 terminates the Video Speed Class recording.
+CMD34-37
+If any CMD34 through CMD37 addresses any non-sequential LBA in an active AU,
+then the Video Speed Class recording is terminated.
+Any CMD34 through CMD37 that is not multiple RU size in an active AU breaks
+SU timing. Any CMD34 through CMD37 that does not start on an RU boundary in
+an active AU breaks SU timing.
+CMD38
+If an LBA area designated by CMD32 and CMD33 includes a part of an active AU,
+CMD38 terminates the Video Speed Class recording.
+CMD39
+Any CMD39 terminates the Video Speed Class recording.
+CMD41-CMD47
+Any CMD41 through CMD47 terminates the Video Speed Class recording.
+CMD50
+If CMD50 addresses any non-sequential LBA in an active AU, then the Video
+Speed Class recording is terminated.
+Any CMD50 that is not multiple RU size in an active AU breaks SU timing.
+Any CMD50 that does not start on an RU boundary in an active AU breaks SU
+timing.
+CMD51
+Any CMD51 terminates the Video Speed Class recording.
+CMD56
+Any CMD56 terminates the Video Speed Class recording.
+CMD57
+If CMD57 addresses any non-sequential LBA in an active AU, then the Video
+Speed Class recording is terminated.
+Any CMD57 that is not multiple RU size in an active AU breaks SU timing.
+Any CMD57 that does not start on an RU boundary in an active AU breaks SU
+timing.
+CMD60-63
+Any CMD60 through CMD63 terminates the Video Speed Class recording.
+ACMD1-ACMD12 Any ACMD1 through ACMD12 terminates the Video Speed Class recording.
+ACMD17
+Any ACMD17 terminates the Video Speed Class recording.
+ACMD19-ACMD21 Any ACMD19 through ACMD21 terminates the Video Speed Class recording.
+ACMD24
+Any ACMD24 terminates the Video Speed Class recording.
+ACMD27
+Any ACMD27 terminates the Video Speed Class recording.
+ACMD29-ACMD37 Any ACMD29 through ACMD37 terminates the Video Speed Class recording.
+ACMD39-42
+Any ACMD39 through ACMD42 terminates the Video Speed Class recording.
+ACMD50
+Any ACMD50 terminates the Video Speed Class recording.
+ACMD52-ACMD54 Any ACMD52 through ACMD54 terminates the Video Speed Class recording.
+ACMD56-ACMD63 Any ACMD56 through ACMD63 terminates the Video Speed Class recording.
+Table 4-66 : Video Speed Class Violating Conditions
+
+154
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.13.4.1.2 Suspend and Resume in Video Speed Class
+In Video Speed Class it is possible to continue using an AU across a power cycle. This involves a save
+of the current write state of an AU, an optional power cycle the card, and then a resume of the Video
+Speed Class write operations.
+To save the current write location in the active AU the host suspends the AU by issuing the CMD20
+"Suspend AU" command (see Section 4.13.4.7.5).
+While the card is performing Video Speed Class recording, the results of processing a CMD20
+"Suspend AU" command between RU writes are:
+a) all assigned DIR slots shall be released;
+b) unused assigned AUs shall be released;
+c) if the lowest address of the subsequent RU is in an active AU, then the SUS_ADDR field shall
+be set to the lowest address of the subsequent RU; and
+d) if the lowest address of the subsequent RU is not in an active AU, then the SUS_ADDR field
+shall be set to zero.
+While the card is performing Video Speed Class recording, the current RU is partially filled and a
+CMD20 "Suspended AU" command is issued, then:
+a) all assigned DIR slots shall be released;
+b) all active AUs shall be released; and
+c) the SUS_ADDR field shall be set to zero.
+If the card doesn't have active AU (e.g., a CMD20 "Set Free AU" command has not been issued) and
+the card receives a CMD20 "Suspend AU", then the SUS_ADDR field shall not be changed.
+If the SUS_ADDR field is non-zero, the process to resume the Video Speed Class write operations to
+a suspended AU in a card is:
+1) the host shall issue one or more CMD20 "Update DIR" commands;
+2) the host shall issue the CMD20 "Resume AU" command;
+3) the host shall issue the CMD20 "Start Recording" command; and
+4) the host may continue write operations starting at the suspend address.
+If the SUS_ADDR field is zero, then the card is not configured to resume and the host should select a
+new free AU to start Video Speed Class recording (see Section 4.13.4.1.1).
+While the AU is suspended, any write to the suspended AU will result in the SUS_ADDR field being
+cleared to zero (see Section 4.10.2.12).
+4.13.4.1.3 Multiple File Recording in Video Speed Class Introduction
+In Video Speed Class, an AU may contain multiple files. It is possible to concatenate multiple files in
+an AU, or to interleave write operations of different files within an AU. Video Speed Class supports up
+to eight directory locations to be opened at the same time. Each directory location is assigned using
+the CMD20 "Update DIR" command (with CNT/ID "slot ID") (see Section 4.13.4.7.3) and released for
+reassignment using the CMD20 "Release DIR" command (with CNT/ID "slot ID") (see Section
+4.13.4.7.8).
+Figure 4-55 is a video recording with multiple captures of still photo. In this example the host will assign
+a CNT/ID "slot ID" for the video file and another CNT/ID "slot ID" to be used for each of the capture
+photos. In this example:
+1. the host configures the directory entries for the first two files;
+2. begins writing file #1;
+3. writes file #2;
+
+155
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.
+5.
+6.
+7.
+8.
+9.
+10.
+
+writes additional data for file #1;
+reconfigures CNT/ID "slot ID" for file #3;
+writes file #3;
+writes additional data for file #1;
+reconfigures CNT/ID "slot ID" for file #4;
+writes file #4; and
+fills the remaining blocks in the AU with data for file #1.
+AU
+start
+Write
+Write
+Write
+RU
+RU
+RU
+
+Command Update Write Update Write Set Free Start
+Rec
+Sequence DIR(s1) DIR(s1) DIR(s2) DIR(s2) AU
+Configure DIR
+for slot 1 (s1) and 2 (s2)
+
+FAT
+Update
+(s1)
+
+File #1
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+FAT
+Update
+(s2)
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+File #2
+
+FAT Release Update Write
+Update
+(s1) DIR (s2) DIR(s2) DIR(s2)
+
+Reconfigure
+slot 2 (s2) for File #3
+
+File #1
+
+AU
+end
+Write
+Write
+Write
+RU
+RU
+RU
+
+FAT
+Update
+(s2)
+
+File #3
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+FAT
+Update
+(s1)
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+File #1
+
+FAT Release Update Write
+Update
+(s1) DIR (s2) DIR(s2) DIR(s2)
+
+File #1
+
+Reconfigure
+slot 2 (s2) for File #4
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+FAT
+Update
+(s2)
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+File #4
+
+FAT
+Update
+(s1)
+
+File #1
+
+Figure 4-55 : Example of Interleaved Multiple File Write in One AU
+The example shown in Figure 4-56 includes the concatenated write of two files. In this example the
+host will assign a CNT/ID "slot ID" for the first file and reassign the CNT/ID "slot ID" for the second file.
+In this example:
+1. the host configures the directory entries for file #1;
+2. completes writing file #1;
+3. reconfigures CNT/ID "slot ID" for file #2; and
+4. completes writing file #2.
+
+AU
+start
+Command Update Write Set Free Start
+Rec
+Sequence DIR(s1) DIR(s1) AU
+Configure DIR
+for slot 1 (s1)
+
+AU
+end
+Write
+Write
+Write
+RU
+RU
+RU
+
+FAT Release Update Write
+Update
+(s1) DIR (s1) DIR(s1) DIR(s1)
+
+File #1
+
+Reconfigure
+slot 1 (s1) for File #2
+
+Write
+Write
+Write
+RU
+RU
+RU
+
+FAT
+Update
+(s1)
+
+File #2
+
+Figure 4-56 : Example of Concatenated File Write in One AU
+4.13.4.1.4 Access Rules for Multiple File Recording
+When a host writes multiple files in one AU, the following access rules apply:
+a) file data of multiple files are recorded sequentially in one AU by the multiple size of RU, where
+partial RUs are to be padded by the host (the preferred pad value is zero); and
+b) if the DIR address or the CI address of the next file differs from the address of the previous file,
+then the new address may be assigned by using the CMD20 "Release DIR", the CMD20 "Update
+DIR" or the CMD20 "Update CI" during the recording period.
+
+156
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Examples of these rules are shown in Figure 4-57.
+“Start Rec” is NOT required.
+Write size is multiple
+size of RU.
+
+Write data of end of file
+is padded to RU size.
+
+AU#1
+Data#1 (File1)
+Data#2 (File1)
+Data#3 (File1)
+Data#1 (File2)
+Data#2 (File2)
+Data#1 (File3)
+
+AU#2
+Data#2 (File3)
+Data#3 (File3)
+Data#4 (File3)
+Data#5 (File3)
+
+“Start Rec” is required.
+
+AU#3
+Data#6 (File3)
+Data#7 (File3)
+Data#8 (File3)
+
+Figure 4-57 : Access Rules for Multiple Files Recording
+4.13.4.1.5 CMD25 Boundary Crossovers in Video Speed Class
+Cards shall maintain Pw (see Section 4.13.4.3.1) for CMD25, WRITE_MULTIPLE_BLOCK commands
+that cross SU (see Section 4.13.4.2.4) boundaries within the active AUs.
+Cards shall maintain Pw for CMD25, WRITE_MULTIPLE_BLOCK commands that cross AU
+boundaries within the assigned AUs.
+Cards may not maintain Pw (see Section 4.13.4.3.1) for the portion
+WRITE_MULTIPLE_BLOCK commands that cross the end of the active AUs.
+
+of
+
+CMD25,
+
+4.13.4.1.6 Read Response and Data in Active AUs
+When the card processes a CMD20 "Set Free AU" command, AUs to be selected become active (see
+Section 4.13.4.7.7). When the CMD20 "Set Free AU" command received, the host has released the
+content of active AUs. In Video Speed Class recording, these active AUs are filled sequentially.
+If the host reads LBAs in the active AUs that have been sequentially written, then the data that was
+written should be returned.
+If the host reads LBAs in the active AUs that have not been written yet, then the data to be returned
+changes during recording process. The data to be returned is undefined.
+
+4.13.4.2 Video Speed Class Parameters
+4.13.4.2.1 Video Speed Class
+The Video Speed Class of the card is specified by VIDEO_SPEED_CLASS (see Section 4.10.2.10) in
+SD Status.
+4.13.4.2.2 AU (Allocation Unit)
+The AU size for Video Speed Class is specified by VSC_AU_SIZE (see Section 4.10.2.11) in SD Status.
+The maximum AU size is 512MB. Card should indicate the smallest valid AU size that meets the card
+design target.
+4.13.4.2.3 RU (Recording Unit)
+The RU size for Video Speed Class is 512KB.
+
+157
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.4.2.4 SU (Sub Unit)
+An AU is composed of multiple SU's. Pw measurement (see Section 4.13.4.3.1) is collected across
+each SU. The SU size for Video Speed Class is defined by the card's AU size (see Section 4.10.2.11).
+4.13.4.2.5 N_FCU
+The configured N_FCU is reported in the LINK/TRAN Settings Register and the card's maximum
+N_FCU is reported in the Device-specific N_FCU in the LINK/TRAN Capabilities Register. Both
+registers are described in the SD Part1 Physical Layer Specification UHS-II Addendum.
+The minimum configured N_FCU required for Video Speed Class is defined in the Video Speed Class
+Measurement Conditions (see Section 4.13.4.8.2).
+
+4.13.4.3 Video Speed Class Timing
+4.13.4.3.1 Pw (Write Performance)
+The sum of the time for the sequential write operations needed to write a SU (see Section 4.13.4.2.4)
+defines the performance measurement period of that SU. The performance measurement period of the
+first SU in the first AU preceded by a CMD20 "Set Free AU" command includes the busy time of the
+CMD20 "Set Free AU" command that is issued after CMD20 "Start Recording". See Figure 4-58. If a
+RU write is halted (e.g., CMD12) on an address that does not complete the RU, then the Pw
+measurement over the affected SU (i.e. the SU which contains the interrupted RU) is not valid. If the
+AU writing remains sequential, the timing of next SU is valid.
+CMD20
+CMD
+“Set Free AU”
+
+RES
+
+Busy
+
+CMD25
+(RU Write)
+
+CMD
+
+RES
+C
+
+Data R
+C
+
+Busy
+
+C
+
+Data R
+C
+
+Busy
+
+Figure 4-58 : Time Components for Video Speed Class Performance Write Measurement
+The time needed to complete any other commands including write commands outside of the SU is not
+included in the time measurement period of any SU (e.g., CMD20 "Start Recording", CMD20 "Update
+DIR" operations, CMD20 "Release DIR", CMD20 "Update CI" operations, CMD20 "Suspend AU",
+CMD20 "Resume AU", CMD17, CMD18, CMD23).
+The measured performance write time period (Pw time) of a card is the largest performance time
+measurement period of each of the SUs that are included in all AUs except the AUs in the card that
+contain file system information. The measured Pw of SU is the SU size in MB (see Section 4.13.4.2.4)
+divided by Pw_time in seconds. The value reported by VIDEO_SPEED_CLASS (see Section
+4.10.2.10) is equal or less than the measured Pw.
+
+158
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+The card shall satisfy the above measured Pw regardless of the frequency of FAT Update cycles during
+Video Speed Class write. The minimum FAT Update frequency is zero. The card stops performing
+Video Speed Class recording, if receives any of the commands in Table 4-66.
+Figure 4-59 shows the measurement of an AU's Pw.
+
+Command Update Write
+Sequence DIR(s1) DIR(s1)
+
+Set
+Free
+AU
+
+A
+
+Start
+Rec
+
+Write
+SU
+
+Write
+SU
+
+Write
+SU
+
+B
+
+B
+
+B
+
+FAT
+Update
+
+Write
+SU
+
+Set
+Free
+AU
+
+Write
+SU
+
+Write
+SU
+
+B
+
+C
+
+D
+
+B
+
+FAT
+Update
+
+A: Not included in Pw measurement (“Set Free AU” before “Start Recording”)
+B: Pw measurement period
+C+D: Combined Pw measurement period
+Performance is measured over each Pw measurement period.
+Performance of the AU = min (Pw1, Pw2, … PwN)
+N = the number of SUs in the AU
+
+Figure 4-59 : Measurement of Pw
+4.13.4.3.2 Pm (Performance Move)
+Pm doesn't apply to Video Speed Class.
+4.13.4.3.3 Pr and TFR(4KB) (Read Performance)
+The read performance period of an SU is the sum of the time used for the sequential read operations
+(see Figure 4-60) that are needed to read the entire SU (see Section 4.13.4.2.4), given:
+a) the SU is aligned within an AU (see Section 4.13.4.2.2);
+b) the SU is in an AU that does not contain file system information as defined in: SD Specifications,
+Part 2, File System Specification;
+c) the sequential read commands have a data size equal to an RU (see Section 4.13.4.2.3); and
+d) the sequential read commands are not interleaved with any other commands.
+The Pr of a given SU is the SU's size in MB divided by read performance period of that SU in seconds.
+The Pr of the card is the smallest Pr for all the SUs in the card that are in AUs that do not contain file
+system information as defined in: SD Specifications, Part 2, File System Specification.
+If Video Speed Class recording is supported, then the card's Pr shall be greater than, or equal to the
+card's Pw (see Section 4.13.4.3.1).
+TFR(4KB) is defined as the maximum time to read a 4KB FAT and Directory Entry (see Figure 4-60),
+given:
+a) the read command addresses a 4KB extent that contains file system information as defined in:
+SD Specifications, Part 2, File System Specification; and
+b) the read command is a single read command with a data size of 4KB.
+
+159
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+The TFR(4KB) of the card is the largest all TFR(4KB) reads.
+CMD18
+(RU Read and
+4KB FAT Read)
+
+CMD
+
+RES
+C
+
+Data R
+
+C
+
+C
+
+Data R
+
+C
+
+C
+
+Data R
+C
+
+C
+
+Data R
+C
+
+Figure 4-60 : Read Performance Period for Pr and TFR(4KB)
+TFR(4KB) of the card shall be less than or equal to 20ms.
+4.13.4.3.4 Busy Times for CMD20 Operations
+The busy time for CMD20 operations and whether the busy times are included in Pw measurement is
+defined in Table 4-67.
+No.
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+CMD20 Function
+
+tBUSY
+
+Applies to
+VSC Pw
+Start Recording
+1 second
+No
+Update DIR
+10ms
+No
+Associated Write Command to (2) 250ms (SDHC) / 500ms (SDXC and SDUC) No
+Update CI
+10ms
+No
+Associated Write Command to (4) 250ms
+No
+Suspend AU
+250ms
+No
+Resume AU
+250ms
+No
+Set Free AU
+250ms
+Yes
+Release DIR
+50ms
+No
+Table 4-67 : Busy Time for CMD20 Operations
+
+4.13.4.4 SD Interface Mode Requirements for Video Speed Classes
+The requirements for lower Video Speed Class support (see Section 4.10.2.10) and the SD interface
+mode requirements (see Section 3.10.5) interact. Two examples of interacting requirements on a card
+supports Video Speed Class 90 are:
+a) the card supports Video Speed Class 6 and its required SD interface mode (e.g., High Speed
+mode); and
+b) the card supports Video Speed Class on all SD interface modes that the card supports (e.g., if
+UHS-I SDR104 is supported, then all supported Video Speed Classes are supported on UHS-I
+SDR104).
+Table 4-68 defines the SD interface modes that shall be supported for each Video Speed Class. This
+table also defines the SD interface modes that shall be supported if the combination of a Video Speed
+Class and a SD interface mode is supported.
+Note: DS and SDR12 interface modes are not applicable to Video Speed Class specification.
+
+160
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Video
+Speed
+Class
+
+UHS-I
+HS
+
+SDR25 SDR50 DDR50 SDR104
+
+UHS-II
+FD
+
+HD
+
+VSC6
+M
+MiS MiS MiS
+MiS
+MiS
+MiS
+VSC10
+M
+MiS MiS MiS
+MiS
+MiS
+MiS
+VSC30
+M
+MiS
+MiS
+MiS
+MiS
+VSC60
+M
+MiS
+VSC90
+M
+MiS
+"M": Video Speed Class support is mandatory.
+"MiS": Video Speed Class support is mandatory if the SD interface mode is supported.
+Table 4-68 : SD Interface Mode Requirements for Video Speed Classes
+
+4.13.4.5 Requirements of SD File System for Video Speed Class
+See Section 4.13.1.8.3 and 4.13.2.7.3.
+4.13.4.6 FAT Updates in Video Speed Class
+4.13.4.6.1 Multiple Files in an AU
+The FAT update cycle is defined in Section 4.13.1.7. In Video Speed Class, up to eight directory entries
+(see Section 4.13.4.1.3) may be supported to allow simultaneous access of up to eight files, resulting
+in up to eight FAT update cycles between any RU accesses. The Average FAT Write Time and
+Maximum FAT Write Time for Video Speed Class Specification are described below.
+4.13.4.6.2 Average FAT Write Time
+Equation (6) defines Average FAT Write Time (TFW(ave.)) of Video Speed Class for Single Slot mode,
+which has compatibility to that of Speed Class. Equation (7) defines Average FAT Write Time
+(TFW(ave.)) of Video Speed Class for Multi-Slot mode.
+Average FAT Write Time:
+8
+
+TFW (ave.) 
+
+T
+i 1
+
+FW
+
+(i )
+ 100ms (max .) for Slot 1 only .......................................(6)
+
+8
+8
+
+TFW (ave.) 
+
+T
+i 1
+
+FW
+
+8
+
+(i )
+ 150ms (max .) for multiple slots .....................................(7)
+
+Single Slot is default mode. Card keeps Single Slot mode or switches to Multi-Slot mode depends on
+assignment of DIR Slots on receiving CMD20 "Start of Recording" command:
+(1) when no DIR Slot has been assigned, card is in Single Slot mode (default)
+If any of DIR Slots is assigned, another "Start Recording" command is required
+(2) when only DIR Slot 1 has been assigned, card is in Single Slot mode
+DIR Slot 1 can be re-assigned after "Start Recording" command
+If any of DIR Slot 2 to Slot 8 is assigned, another "Start Recording" command changes to MultiSlot mode
+(3) when card has been assigned any of DIR Slot 2 to Slot 8, card is in Multi-Slot mode
+Any of DIR Slots can be re-assigned after "Start Recording" command
+Host needs to prepare buffer to save streaming data while FAT update is performed. For example, if
+
+161
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+host budgets time for 8 FAT updates cycles, 800ms (=8x100ms) host buffer is required for single slot
+mode and 1.2seconds (=8x150ms) host buffer is required for Multi-Slot mode regardless of the number
+of slots.
+4.13.4.6.3 Maximum FAT Write Time
+Equation (8) limits the Maximum FAT Write Time (TFW (max.)) of Video Speed Class Specification.
+Maximum FAT Write Time:
+
+TFW (max .)  750ms
+
+........................................................(8)
+
+At most one TFW(max.) may be indicated during any 8 FAT update cycles to satisfy sliding average
+requirement by managing DIR slots.
+4.13.4.6.4 Example Sequence of FAT Cycle
+TFW(ave.) is calculated as the sliding average of 8 FAT updates cycles among all DIR slots (see Section
+4.13.4.6.2). Host may perform any slot combination of FAT Update.
+
+Slot 1
+Slot 2
+
+FAT
+Update
+
+FAT
+Update
+
+FAT
+Update
+
+FAT
+Update
+
+FAT
+Update
+
+FAT
+Update
+FAT
+Update
+
+FAT
+Update
+
+FAT
+Update
+
+Slot 3
+
+8 FAT Updates sliding average
+8 FAT Updates sliding average
+8 FAT Updates sliding average
+
+Figure 4-61 : Example Sequence of FAT Cycle
+
+162
+
+FAT
+Update
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.4.7 CMD20 in Video Speed Class
+4.13.4.7.1 CMD20 in Video Speed Class Overview
+CMD20 for Video Speed Class has several functions that were not defined in earlier speed classes.
+If a card supports Video Speed Class, support of CMD20 is mandatory regardless of capacity.
+Host shall use CMD20 to perform Video Speed Class recording.
+
+CMD
+
+CMD20
+
+Error Check
+CMD13
+
+R1b
+
+R1
+
+DAT[0]
+
+If CMD20 does not indicate busy, following
+CMD13 is not required.
+
+tBUSY(max.)
+
+Speed Class Control Command (CMD20)
+S
+
+T
+
+Index
+
+SCC
+
+VSC
+
+CNT/ID
+
+Reserved
+
+ADDR
+
+CRC7
+
+E
+
+0
+
+1
+
+010100
+
+xxxx
+
+x
+
+xxx
+
+00
+
+xxxxxxh
+
+xx
+
+1
+
+Speed Class Control
+
+CNT/ID
+
+ADDR
+
+0000b: Start Recording
+0001b: Update DIR
+0010b: Reserved
+0011b: Reserved
+0100b: Update CI
+0101b: Suspend Recording
+0110b: Resume Recording
+0111b: Set Free AU
+1000b: Release DIR
+Others: Reserved
+
+xxxb: Command Specific
+
+512KB Unit Address
+(22 bits)
+
+VSC
+0b: Legacy Speed Class or UHS Speed Grade
+1b: Video Speed Class
+
+Figure 4-62 : Definition of CMD20 (Video Speed Class)
+4.13.4.7.2 Start Recording
+4.13.4.7.2.1 Start Recording Description
+
+A value of 0000b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Start Recording". Video Speed
+Class uses this CMD20 function differently than Speed Class and UHS Speed Grade.
+In Video Speed Class, this function indicates that host intends to starts stream recording (see Section
+4.13.4.2.1). This function requests the card to prepare recording (Garbage collection, clean-up of
+internal status, etc.).
+4.13.4.7.2.2 Start Recording Parameters
+
+For CMD20 "Start Recording":
+a) VSC is set to 1b;
+b) CNT/ID is reserved; and
+c) ADDR is reserved.
+4.13.4.7.2.3 Start Recording Busy Timing
+
+The maximum tBUSY for CMD20 "Start Recording" is 1 second (see Section 4.13.4.3.4).
+4.13.4.7.2.4 Start Recording Error Conditions
+
+CMD20 "Start Recording" has no error conditions.
+163
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.13.4.7.3 Update DIR
+4.13.4.7.3.1 Update DIR Description
+
+A value of 0001b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Update DIR". Video Speed
+Class has added parameters and functionality to this CMD20 function that are not used in Speed Class
+and UHS Speed Grade.
+This function indicates that following write command shall be a directory entry write. On receiving
+CMD20 "Update DIR", the card shall recognize and manage the 512-byte area (DIR) specified by the
+Slot ID in the CNT/ID field. The address of the following single block write command (either CMD24 or
+CMD25) is the location of the directory entry specified by the Slot ID in the CNT/ID field. The designated
+area (DIR) shall be written by single block writes and may be written repeatedly without preceding
+CMD20 "Update DIR". Subsequent write commands to this location apply to FAT update timings as
+defined in Section 4.13.4.6.
+Cards shall support eight concurrently active Slot IDs.
+The assignment of any directory entry write areas in the card shall not persist over power cycles or
+after processing a CMD20 "Suspend AU" command.
+This function may be issued before Start Recording and during Video Speed Class writing.
+Application Note:
+(1) VSC application should use the minimum number of Directory Entries as much as possible so that
+8 DIR slots can be efficiently utilized.
+(2) VSC application should consider that DIR locations are not distributed. If all DIRs belong to an AU,
+release of DIRs will generate a write back to the AU. However, if DIRs are distributed to multiple
+AUs, release of DIRs will generate inefficient write backs to the all AUs in which DIRs have been
+assigned.
+4.13.4.7.3.2 Update DIR Parameters
+
+For CMD20 "Update DIR":
+a) VSC is set to 1b;
+b) CNT/ID shall contain the slot ID to be assigned (e.g., 000b is the first slot); and
+c) ADDR is reserved.
+4.13.4.7.3.3 Update DIR Busy Timing
+
+The maximum tBUSY for CMD20 "Update DIR" is 10ms (see Section 4.13.4.3.4).
+The maximum tBUSY for the write command associated with CMD20 "Update DIR" is 250ms (SDHC)
+/ 500ms (SDXC/SDUC) (see Section 4.13.4.3.4).
+4.13.4.7.3.4 Update DIR Error Conditions
+
+If the card receives CMD20 "Update DIR" to a slot ID that has been assigned and not released (CMD20
+"Release DIR"), then the card indicates ERROR in R1 (ERX).
+If the card does not receive one or more CMD20 "Update DIR" in the sequence before CMD20 "Start
+Recording", then the card may not enter Video Speed Class recording without warning.
+And if host changes DIR address that has already been stored in a specific slot to other DIR address
+without power cycle, host shall release the registration by issuing CMD20 "Release DIR" and then
+register other DIR address by issuing CMD20 "Update DIR" with the same "SLOT ID".
+164
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.13.4.7.4 Update CI
+4.13.4.7.4.1 Update CI Description
+
+A value of 0100b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Update CI". The use of this
+function in Video Speed Class is described in Section 4.13.4.1.1.
+This function indicates that the following write command is a write to a CI cluster. When the card
+receives CMD20 Update CI function during the recording, the card recognizes that following 512-byte
+single block write (either CMD24 or CMD25) is an update to a CI cluster.
+4.13.4.7.4.2 Update CI Parameters
+
+For CMD20 "Update DIR":
+a) VSC is set to 1b;
+b) CNT/ID is reserved; and
+c) ADDR is reserved.
+4.13.4.7.4.3 Update CI Busy Timing
+
+The maximum tBUSY for CMD20 "Update CI" is 10ms (see Section 4.13.4.3.4).
+The maximum tBUSY for the write command associated with CMD20 "Update CI" is 250ms
+(SDHC/SDXC/SDUC) (see Section 4.13.4.3.4).
+4.13.4.7.4.4 Update CI Error Conditions
+
+CMD20 "Update CI" has no error conditions.
+4.13.4.7.5 Suspend AU
+4.13.4.7.5.1 Suspend AU Description
+
+A value of 0101b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Suspend AU". This function is
+not used in Speed Class recording or in UHS Speed Grade recording.
+This function indicates that Video Speed Class host intends to suspend Video Speed Class recording.
+On receiving CMD20 "Suspend AU", the card shall recognize that Video Speed Class recording is
+suspended, and store the lowest address in the next RU to be recorded as the suspension address.
+This suspension address is available in the SUS_ADDR field (see Section 4.10.2.12).
+After suspension, the card leaves the recording period and it doesn't ensure performance based on
+Video Speed Class Specification. To restart Video Speed Class recording, the host shall follow the
+resume procedure (see Section 4.13.4.1.2).
+And after suspension, if host alters any data in the target AU which includes the suspension address,
+the suspension address is cleared by the card (see Section 4.10.2.12).
+If CMD20 "Suspend AU" is issued under the conditions that the suspension address has already been
+registered in the card, the suspension address is not changed.
+If CMD20 "Suspend AU" command is issued to a partially filled RU (see Section 4.13.4.1.2), then:
+a) any assigned DIR slot are released;
+b) any active AUs are released; and
+c) the SUS_ADDR field is cleared to zero.
+
+165
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Application Note: If CMD20 "Suspend AU" is not issued at SU boundary, the host should estimate the
+write time of the incomplete SU as write time of one complete SU.
+4.13.4.7.5.2 Suspend AU Parameters
+
+For CMD20 "Suspend AU":
+a) VSC is set to 1b;
+b) CNT/ID is reserved; and
+c) ADDR is reserved.
+4.13.4.7.5.3 Suspend AU Busy Timing
+
+The maximum tBUSY for CMD20 "Suspend AU" is 250ms (see Section 4.13.4.3.4).
+4.13.4.7.5.4 Suspend AU Error Conditions
+
+CMD20 "Suspend AU" has no error conditions.
+Application Note: If the card did not suspend for any reason, then the only warning to the host is that
+the SUS_ADDR field (see Section 4.10.2.12) is set to zero.
+4.13.4.7.6 Resume AU
+4.13.4.7.6.1 Resume AU Description
+
+A value of 0110b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Resume AU". This function is
+not used in Speed Class recording or in UHS Speed Grade recording.
+This function indicates that Video Speed Class host intends to resume stream recording. Video Speed
+Class hosts issue this command at any time after suspension. See Section 4.13.4.1.2 for a description
+of the procedure to suspend and resume.
+Application Note: After CMD20 "Resume AU" is issued and before CMD20 "Start Recording" is issued,
+any write command to the AU to be resumed clears the SUS_ADDR field so that the card will not
+resume Video Speed Class recording when requested.
+Application Note: If CMD20 "Resume AU" is not issued at SU boundary, the host should estimate the
+write time of the incomplete SU as write time of one complete SU.
+4.13.4.7.6.2 Resume AU Parameters
+
+For CMD20 "Resume AU":
+a) VSC is set to 1b;
+b) CNT/ID is reserved; and
+c) ADDR is reserved.
+4.13.4.7.6.3 Resume AU Busy Timing
+
+The maximum tBUSY for CMD20 "Resume AU" is 250ms (see Section 4.13.4.3.4).
+4.13.4.7.6.4 Resume AU Error Conditions
+
+If the card receives CMD20 "Resume AU" command and the SUS_ADDR field (see Section
+4.10.2.12) is zero, then the card indicates ERROR in R1 (ERX).
+
+166
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.13.4.7.7 Set Free AU
+4.13.4.7.7.1 Set Free AU Description
+
+A value of 0111b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Set Free AU". This function is
+not used in Speed Class recording or in UHS Speed Grade recording.
+This function indicates that Video Speed Class host assigns one or more sequential write AUs for Video
+Speed Class recording. See Section 4.13.4.1 for a description of the Video Speed Class recording
+flow.
+After issuing this command, data stored in the active AUs may not be preserved and the card may
+return indeterminate data until subsequent write commands succeed.
+If more than one AU is bundled in this command, then the AUs are assigned are sequential, starting at
+the AU specified in the ADDR field (see Section 4.13.4.7.7.2).
+If the card receives a CMD20 "Set Free AU" command before the current assigned AUs are filled, then
+a) the contents of the unwritten portion of the previous bundled AUs are undefined; and
+b) the contents of the newly assigned AUs may not be preserved (e.g. the data is undefined).
+The read response for LBAs that are assigned by this command is specified in Section 4.13.4.1.6.
+Figure 4-63 illustrates an example of the relationship between assigned AUs and the active AU. The
+figure illustrates the assigned AUs and the active AU after a sequence where:
+1. A CMD20 "Set Free AU" assigned four AUs
+2. The first two AUs have been filled by Video Speed Class recording
+3. The third AU of the original bundle is to be used for the next Video Speed Class recording (i.e.,
+the active AU)
+4. The third AU and fourth AU of the original bundle are still reserved for Video Speed Class
+recording (i.e., the assigned AUs)
+
+AUs that were assigned by
+a CMD20 “Set Free AU”
+
+AUs that have been filled and
+are no longer relevant to
+Video Speed Class recording
+
+Assigned AUs: AUs that have
+not been filled and are still
+relevant to Video Speed
+Class recording
+
+First Bundled
+AU
+Second Bundled
+AU
+Third Bundled
+AU
+
+Active AU: The AU that will be
+written to by Video Speed
+Class recording
+
+Fourth Bundled
+AU
+
+Figure 4-63 : Example of the Relationship between Assigned AUs and the Active AU
+
+167
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+4.13.4.7.7.2 Set Free AU Parameters
+
+For CMD20 "Set Free AU":
+a) VSC is set to 1b;
+b) CNT/ID contains the count of the number of bundled AUs to be assigned (e.g., 000b is one AU,
+111b is eight AUs); and
+c) ADDR contains the lowest address of the first bundled AU where the address is in 512KB units
+(e.g., the first usable free AU may be AU 3).
+Cards shall support all CNT/ID field count values.
+4.13.4.7.7.3 Set Free AU Busy Timing
+
+The maximum tBUSY for CMD20 "Set Free AU" is 250ms (see Section 4.13.4.3.4).
+The busy time of CMD20 "Set Free AU" is included in Pw calculations (see Section 4.13.4.3.1).
+4.13.4.7.7.4 Set Free AU Error Conditions
+
+If the card receives CMD20 "Set Free AU" command with non-AU aligned address, then the card
+indicates ERROR in R1 (ERX).
+Application Note: If the card receives CMD20 "Set Free AU" command with the ADDR field set in the
+file system area (see Section 4.13.4.5), then the Video Speed Class performance may not be
+achieved.
+
+4.13.4.7.8 Release DIR
+4.13.4.7.8.1 Release DIR Description
+
+A value of 1000b in the SCC field (see Section 4.13.4.7.1) of CMD20 is "Release DIR". This function
+is not used in Speed Class recording or in UHS Speed Grade recording.
+This function indicates that the DIR address stored in the specified slot shall be cleared. This function
+used before reassigning the directory entry assigned to a slot ID as shown in Section 4.13.4.1.3.
+4.13.4.7.8.2 Release DIR Parameters
+
+For CMD20 "Release DIR":
+a) VSC is set to 1b;
+b) CNT/ID shall contain the slot ID to be released (e.g., 000b is the first slot); and
+c) ADDR is reserved.
+4.13.4.7.8.3 Release DIR Busy Timing
+
+The maximum tBUSY for CMD20 "Release DIR" is 50ms (see Section 4.13.4.3.4).
+4.13.4.7.8.4 Release DIR Error Conditions
+
+CMD20 "Release DIR" has no error conditions.
+
+168
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.4.8 Video Speed Class Measurement Conditions
+4.13.4.8.1 Video Speed Class Measurement Conditions Overview
+Video Speed Class Measurement Conditions are defined in Table 4-69.
+Item
+Definition
+AU Size
+See Section 4.13.4.2.2
+RU Size
+See Section 4.13.4.2.3
+SU Size
+See Section 4.13.4.2.4 and Section 4.10.2.11
+Clock Condition
+See Section 4.13.4.8.2
+Power Limit
+See Section 4.13.4.8.3
+Pw Measurement Method
+See Section 4.13.4.3.1
+FAT Update Timing
+See Section 4.13.4.6
+Update CI Timing
+See Section 4.13.4.7.4.3
+Update DIR Timing
+See Section 4.13.4.7.3.3
+Table 4-69 : Video Speed Class Measurement Conditions
+4.13.4.8.2 Clock Condition
+Clock condition to measure each Video Speed Class value is shown in Table 4-70. Video Speed Class
+is not supported in Low Power Mode of UHS-II.
+VSC
+Value
+
+DS
+[MHz]
+
+VSC61
+
+N/A
+
+UHS-I
+UHS-II FD
+UHS-II HD
+HS
+SDR12
+SDR25
+DDR50
+SDR50
+SDR104
+RCLK
+PLL
+RCLK
+PLL
+[MHz]
+N_FCU
+N_FCU
+[MHz] [MHz] [MHz] [MHz] [MHz] [MHz] Range2
+[MHz] Range2
+
+20
+
+N/A
+
+20
+
+40
+
+80
+
+80
+
+26
+A
+1
+26
+A
+1
+26
+B
+26
+B
+VSC101 N/A
+40
+N/A
+40
+40
+80
+80
+35
+A
+1
+35
+A
+1
+26
+B
+26
+B
+VSC30 N/A
+N/A
+N/A N/A
+45
+90
+90
+26
+B
+4
+26
+B
+4
+VSC60 N/A
+N/A
+N/A N/A N/A N/A N/A
+38
+B
+4
+38
+B
+4
+VSC90 N/A
+N/A
+N/A N/A N/A N/A N/A
+47
+B
+16
+47
+B
+16
+Note1: Video Speed Class 6 and Video Speed Class 10 shall support both conditions A and B of PLL
+Range shown in this table.
+Note2: "PLL Range" means "Transmission Speed Range".
+
+Table 4-70 : Clock Condition for Video Speed Class
+4.13.4.8.3 Power Limit
+The following table shows the Power Limit for each interface when measuring Video Speed Class
+performance. Host should supply this power supply level or more to ensure Video Speed Class
+performance.
+For a given interface, the power requirements of the card will be lower for lower speeds.
+Interface
+HS
+
+Power Limit [W]
+Video Speed Class
+0.72
+6, 10
+0.72
+6, 10 (SDR25)
+UHS-I
+1.44
+6, 10, 30 (DDR50, SDR50 and SDR104)
+1.44
+6, 10, 30
+UHS-II
+1.80
+6, 10, 30, 60, 90
+Table 4-71 : Power Limit per Interface for Video Speed Class
+
+169
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.4.9 Host Operating Frequency
+Card performance is specified with a fixed clock frequency for each Video Speed Class mode and Bus
+Speed mode, see Table 4-70. To ensure a level of performance, a host has to use the specified frequency
+or higher for Video Speed Class recording.
+In case of UHS-II mode, use of Range B covers all Video Speed Class modes but the RCLK frequency is
+different for each Video Speed Class mode. Video Speed Class 6, Video Speed Class 10 and Video
+Speed Class 30 can be used in RCLK range 26MHz to 52MHz, Video Speed Class 60 can be used in
+38MHz to 52MHz and Video Speed Class 90 can be used in 47MHz to 52MHz. For example, if the
+measurement condition defines RCLK=38MHz in Transmission Speed Range B (x30 Multiplier), the host
+needs to use 38MHz to 52MHz with Transmission Speed Range B (x30 Multiplier).
+
+4.13.5 SD Express Speed Class Specification
+SD Express Speed Class specification is introduced to perform real time recording over PCIe bus of SD
+Express card. Refer to Section 8.4 for its detailed specification.
+
+170
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.14 Erase Timeout Calculation
+This chapter provides the guideline for long erase and a method to calculate erase timeout value.
+
+4.14.1 Erase Unit
+The Speed Class Specification defines a new management unit of AU (Allocation Unit). Erase timeout
+calculation is defined as the basis of AU. SD memory card supports block erase but it takes more time to
+erase blocks, which are part of AU (partial erase AU). In this case, the host should add 250 ms to the
+result of timeout calculated on AU basis. When the start and end blocks are in the same partially erase
+AU, 500ms should be added.
+
+4.14.2 Case Analysis of Erase Time Characteristics
+Figure 4-64 shows an example of erase characteristics, number of AU erased versus erase time. Erase
+time is derived from erasing specified numbers of AUs by one erase command. Assuming that Erase is
+performed on AU basis and its erase characteristics can be approximated to a linear line. The line A
+illustrated in Figure 4-64 is an example characteristic.
+The red line indicates the erase timeout value the host should use. The timeout value can be determined
+by line A. If the erase timeout is less than 1 second the host should use 1 second as timeout. If the timeout
+is bigger than 1 second the host should use the value determined by Line A.
+Register parameters NERASE, TERASE and TOFFSET define the shape of the line. TERASE indicates timeout for
+erasing NERASE AUs from TOFFSET. TERASE and NERASE determine the slope of the line. TOFFSET adjusts the
+line by moving in parallel on the upper side. The card manufacturer shall determine these parameters so
+that the line is always greater than the erase time of any AUs. Actual erase time shall be always less than
+erase timeout and the slope of the line shall be less than 3 second per AU.
+
+Erase Timeout [Sec]
+
+TERASE
+
+3
+2
+
+Line A
+
+1
+
+Number of AU Erased
+
+TOFFSET
+0
+
+1
+
+2
+
+3
+
+NERASE
+
+Figure 4-64 : Example Erase Characteristics (Case 1 TOFFSET=0)
+
+171
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+The line B illustrated in Figure 4-65 shows another example of erase characteristics. The red line indicates
+the erase timeout value that the host should use. Since the time-out is bigger than 1 second, the red line
+and line B are equivalent.
+Erase time of an AU shall be less than 3 second. TOFFSET is mainly used to adjust erase timeout of an AU.
+
+Erase Timeout [Sec]
+
+TERASE
+TOFFSET
+
+3
+Line B
+
+2
+1
+
+Number of AU Erased
+0
+
+1
+
+2
+
+3
+
+NERASE
+
+Figure 4-65 : Example Erase Characteristics (Case 2 TOFFSET=2)
+
+4.14.3 Method for Erase Large Areas
+The calculated erase timeout for multiple AUs might be too large compared with the actual erase time.
+The calculation of erase timeout is not accurate because calculated timeout includes a margin. A margin
+per AU accumulates and the result of calculating the timeout for large number of AUs will include large
+margins. Such calculations would be meaningless because the range of margin might be in order of
+minutes. Therefore, a small number of AUs should be erased at one time. This enables the host to
+calculate smaller timeout with fewer errors.
+Application Note:
+When a large area is erased, the host should divide it into small areas at the AU boundary and
+continuously erase the small areas using a small area erase timeout. It may take a long time to erase
+a large area, so the host should inform the user about the erase progress, otherwise the user might
+abort the execution of the erase.
+
+4.14.4 Calculation of Erase Timeout Value Using the Parameter Registers
+Erase Timeout of X AU can be calculated by Equation (9).
+Erase Time-out of X AU 
+
+TERASE
+ X  TOFFSET ...........................................(9)
+N ERASE
+
+Erase timeout is determined by following steps:
+(1) Calculate Equation (9).
+(2) If the result of (1) is less than 1 second, the timeout is set to 1 second.
+(3) 250 ms should be added to the result of (2) for each partial erase AU. When the start and end blocks
+are in partially erase AUs, add 500 ms to the result of (2).
+172
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.15 Set Block Count Command
+CMD12 has been used to stop multiple-block Read / Write operation. However, CMD12 is timing
+dependent and it is difficult to control timing to issue CMD12 at exact timing. As UHS104 card has large
+delay variation between clock and data, CMD23 is useful for the host to stop multiple read / write operation
+instead of CMD12. Host is not necessary to control timing of CMD12. This command is applicable to
+always 512-byte block length read/write operation and then SDSC card does not support this command.
+Support of CMD23 is mandatory for UHS104 card.
+Support of CMD23 is defined in SCR. The response type of CMD23 is R1 and busy is not indicated.
+CMD23 is accepted in transfer state and effective to the multiple-block read/write command (CMD18 or
+CMD25) just behind CMD23. If another command follows CMD23, set block count is canceled (including
+CMD13). For SDUC, CMD13 does not cancel the operation sequence (see Section 4.20.3 for more
+details). If command CRC error occurs, the card does not return R1 response for CMD23. In this case,
+Set block count is not valid and retry of CMD23 is required. If multiple CMD23 are issued, the last one is
+valid.
+Figure 4-66 shows the definition of CMD23. If block count in the argument is set to 0, CMD23 has no
+effect. The block count value set by CMD23 is not checked by the card and then CMD23 does not indicate
+any error in the response (A previous command error is indicated in the response of CMD23). If illegal
+block count is set, out of range error will be indicated during read/write operation (For example, data
+transfer is stopped at user area boundary). Host needs to issue CMD12 if any error is detected in the
+CMD18 and CMD25 operations. If a CMD25 is aborted and the amount of data transferred is less than
+the amount of data indicated by the preceding CMD23, then the area specified by CMD23 that is unwritten
+may contain undefined data. If the amount of data transferred is greater than the amount of data indicated
+by the preceding CMD23, then the extra data is not written.
+
+Block Count
+00000000h: No Effect
+00000001h: 1 block
+00000002h: 2 blocks
+............
+FFFFFFFFh: 4294967295 blocks
+Set Block Count Command
+S T Index
+0 1 010111
+
+Block Count
+32-bit
+
+CMD
+
+CRC7 E
+xx 1
+
+CMD23
+
+No error is indicated by CMD23.
+
+R1
+
+CMD18/25
+
+R1
+
+DAT[0]
+
+Figure 4-66 : Set Block Count Command
+ACMD53 (SECURE_RECEIVE) and ACMD54 (SECURE_SEND) requires CMD23 prior to these
+commands to designate the number of transmission blocks. So if card supports ACMD53/54, it always
+shall support CMD23. ACMD53 and ACMD54 that are not preceded by CMD23 shall be considered as
+Illegal commands.
+Note that there are some additional rules for SDSC card supporting ACMD53/54 as follows:
+ CMD23 affects only ACMD53/54 that follow after it.
+ The size of data transmission block is always 512 bytes regardless of BLOCK_LEN value.
+173
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ CMD23 does not work (or is ignored) for any other commands except ACMD53/54.
+For example, when SDSC card receives CMD23, CMD18 and ACMD53 in this order, the card operation
+is as follows:
+ CMD23 will be accepted.
+ CMD18 will be executed (based on the BLOCK_LEN specified by CMD16). CMD23 setting will be
+discarded.
+ ACMD53 will fail as it is not preceded by CMD23
+.
+
+174
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.16 Application Performance Specification
+The Application Performance specification classifies card random performance levels under specific
+conditions. The specification defines a level of performance that satisfies both random and sequential
+access requirements as defined below. The level of performance may be used to indicate a sufficient
+performance levels for specific products.
+
+4.16.1 Application Performance Classes
+4.16.1.1 Application Performance Class 1
+Application Performance Class 1 assures the following performance levels:
+ Random Performance under the defined conditions as defined in Section 4.16.2:
+Read : 1500 IOPS
+Write : 500 IOPS
+ Sustained Sequential Write performance:
+Minimum of 10MB/s write performance while writing any contiguous
+1GB range using aligned 4MB chunks, overwriting a fully sequentially written card.
+The preconditions and test method of the given levels provided in the following sections.
+4.16.1.2 Application Performance Class 2
+Application Performance Class 2 assures the following performance levels with the following
+conditions:
+ Command Queue and Cache shall be enabled as below:
+1. SD Express Card or SDUC Card:
+If Command Queue is supported, Command Queue shall be enabled and used (as support
+of Command Queue is optional) along with Cache enabled.
+2. Other type of Card:
+Command Queue shall be enabled and used (as support of Command Queue is
+mandatory) along with Cache enabled.
+ Random Performance under the conditions as defined in Section 4.16.2:
+Read : 4000 IOPS
+Write : 2000 IOPS
+ Sustained Sequential Write performance:
+Minimum of 10MB/s write performance while writing any contiguous 1GB range using aligned
+4MB chunks, overwriting a fully sequentially written card.
+Application Performance Class 2 supported card also shall support Application Performance Class 1
+under the condition of disabling Command Queue and Cache.
+Application Note:
+For SD Express cards and SDUC cards, Command Queue feature is optional to meet A2. If Card
+indicates support for CQ and A2, then host can achieve A2 performance with CQ enabled. If Card
+indicates support of A2 only without the support of CQ, then host can achieve A2 performance
+without CQ scheme.
+Card shall indicate the queue depth required to meet Application Performance Class 2 in both
+Performance Enhancement Function Register Byte[6], refer to Table 5-30, and
+SD_STATUS(bit[335:331]), refer to Table 4.10.2-2. Card that meets Application Performance Class
+2 shall support LV signaling, refer to Low Voltage Interface Addendum.
+The preconditions and test method of the given levels provided in the following sections
+
+175
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.16.2 Application Performance Class Measurement Conditions
+The Application Performance Class measurement conditions include the clock condition, power limit,
+precondition state of the card and the performance parameters
+
+4.16.2.1 Clock Condition
+Clock condition to measure random and sustained sequential performance is shown in Table 4-72.
+Application Performance is not supported in Low Power Mode of UHS-II.
+UHS-I
+UHS-II FD
+UHS-II HD
+Application
+DS
+HS
+Performance
+SDR12
+SDR25
+DDR50
+SDR50
+SDR104
+RCLK
+PLL
+RCLK
+PLL
+[MHz] [MHz]
+N_FCU
+N_FCU
+Class
+[MHz] [MHz] [MHz] [MHz] [MHz] [MHz] Range2
+[MHz] Range2
+
+A1/A2
+
+N/A
+
+NA
+
+N/A
+
+NA
+
+40
+
+80
+
+80
+
+35
+A
+1
+35
+26
+B
+26
+Table 4-72 : Clock Condition for Application Performance Class
+
+A
+B

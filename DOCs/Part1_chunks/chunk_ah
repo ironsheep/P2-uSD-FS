@@ -1,0 +1,2000 @@
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+14
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+13 12:9 8
+
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+
+x
+
+x
+
+x
+x
+
+x
+
+x
+x
+x
+x
+x
+x
+
+x
+x
+
+6
+
+5
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+
+x
+x
+x
+x
+x
+
+x
+x
+x
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+(1) The response to CMD3 is R6 that includes only bits 23, 22, 19 and 12:9 out of the Card Status
+(2) This command was defined in version 1.10
+(3) Bit 06 will be set in R1 (R1b) response after entering "tran" state.
+
+Table 4-43 : Card Status Field/Command - Cross Reference
+
+124
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.10.2 SD Status
+The SD Status contains status bits that are related to the SD Memory Card proprietary features and may
+be used for future application-specific usage. The size of the SD Status is one data block of 512 bit. The
+content of this register is transmitted to the Host over the DAT bus along with a 16-bit CRC. The SD Status
+is sent to the host over the DAT bus as a response to ACMD13 (CMD55 followed with CMD13). ACMD13
+can be sent to a card only in 'tran_state' (card is selected). The SD Status structure is described in below.
+Unused reserved bits shall be set to 0.
+The same abbreviation for 'type' and 'clear condition' were used as for the Card Status above.
+Bits
+Identifier
+511:510 DAT_BUS_WIDTH
+
+509
+
+508:502
+501:499
+498:496
+
+495:480
+
+479:448
+
+Type
+Value
+S R '00'= 1 (default)
+'01'= reserved
+'10'= 4 bit width
+'11'= reserved
+
+Description
+Clear
+Shows the currently
+A
+defined data bus width
+that was defined by
+SET_BUS_WIDTH
+command
+SECURED_MODE
+S R '0'= Not in the mode
+Shows if the card is in
+A
+'1'= In Secured Mode
+the secured mode of
+operation or not. (refer
+to "Part 3 Security
+Specification").
+Reserved for Security Functions (Refer to “Part 3 Security Specification”)
+reserved
+SECURE_CMD_STATUS
+S R '000'= Successful
+Provides card status
+A
+Completion
+after SECURE_SEND
+'001'= Invalid Field in
+and
+command
+SECURE_RECEIVE
+'010’ = Command
+command
+NOTE: For further
+sequence error
+'011’ = Access denied
+information refer to
+'100’-‘111'= reserved
+Extended Security
+Addendum specification
+SD_CARD_TYPE
+S R '00xxh'= SD Memory
+In the future, the 8 LSBs
+A
+Cards as defined by this
+will be used to define
+document ('x'=don't care). different variations of an
+The following cards are
+SD Memory Card (Each
+currently defined:
+bit will define different
+'0000h'= Regular SD
+SD Types).
+RD/WR Card.
+'0001h'= SD ROM Card
+'0002h'=OTP
+SIZE_OF_PROTECTED_AREA S R Size of protected area
+(See Section 4.10.2.1)
+A
+
+447:440 SPEED_CLASS
+439:432 PERFORMANCE_MOVE
+
+SR
+SR
+
+431:428 AU_SIZE
+427:424 reserved
+423:408 ERASE_SIZE
+
+SR
+SR
+
+Speed Class of the card
+(See Section 4.10.2.2)
+Performance of move
+(See Section 4.10.2.3)
+indicated by 1 [MB/s] step.
+Size of AU
+(See Section 4.10.2.4)
+
+A
+A
+
+Number of AUs to be
+erased at a time
+
+A
+
+125
+
+(See Section 4.10.2.5)
+
+A
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bits
+Identifier
+407:402 ERASE_TIMEOUT
+
+401:400 ERASE_OFFSET
+399:396 UHS_SPEED_GRADE
+395:392 UHS_AU_SIZE
+391:384 VIDEO_SPEED_CLASS
+383:378 reserved
+377:368 VSC_AU_SIZE
+
+Type
+Value
+S R Timeout value for erasing
+areas specified by
+UNIT_OF_ERASE_AU
+S R Fixed offset value added to
+erase time.
+S R Speed Grade for UHS
+mode
+S R Size of AU for UHS mode
+S R Video Speed Class value
+of the card
+SR
+
+Description
+(See Section 4.10.2.6)
+
+Clear
+A
+
+(See Section 4.10.2.7)
+
+A
+
+(See Section 4.10.2.8)
+
+A
+
+(See Section 4.10.2.9)
+(See Section 4.10.2.10)
+
+A
+A
+
+AU size in MB for Video
+Speed Class
+Suspension Address
+
+(See Section 4.10.2.11)
+
+A
+
+(See Section 4.10.2.12)
+
+A
+
+Application Performance
+Class Value of the card
+Support for Performance
+Enhancement
+functionalities
+
+(See Section 4.10.2.13)
+
+A
+
+(See Section 4.10.2.14)
+
+A
+
+Write Protect Until Power
+Cycle Support
+(See Section 4.23.5)
+Boot Partition Support
+(See Section 4.21.1)
+Discard Support.
+(See Section 4.3.6)
+Full User Area Logical
+Erase Support.
+(See Section 4.3.7)
+
+A
+
+367:346 SUS_ADDR
+345:340 reserved
+339:336 APP_PERF_CLASS
+
+SR
+
+335:328 PERFORMANCE_ENHANCE
+
+SR
+
+327:316 reserved
+315
+WP_UPC_SUPPORT (1)
+
+SR
+
+'0'= Not supported
+'1'= Supported
+
+314
+
+BOOT_PARTITION_SUPPORT
+
+SR
+
+313
+
+DISCARD_SUPPORT
+
+SR
+
+312
+
+FULE_SUPPORT
+
+SR
+
+'0'= Not supported
+'1'= Supported
+‘0’ Not Supported
+‘1’ Supported
+‘0’ Not Supported
+‘1’ Supported
+
+311:0
+
+reserved for manufacturer
+
+SR
+
+A
+A
+A
+
+Note (1):Write Protect Until Power Cycle may be supported only if RPMB is enabled.
+
+Table 4-44 : SD Status
+4.10.2.1 SIZE_OF_PROTECTED_AREA
+Setting this field differs between SDSC and SDHC/SDXC.
+In case of SDSC Card, the capacity of protected area is calculated as follows:
+Protected Area = SIZE_OF_PROTECTED_AREA_* MULT * BLOCK_LEN.
+SIZE_OF_PROTECTED_AREA is specified by the unit in MULT*BLOCK_LEN.
+In case of SDHC and SDXC Cards, the capacity of protected area is calculated as follows:
+Protected Area = SIZE_OF_PROTECTED_AREA
+SIZE_OF_PROTECTED_AREA is specified by the unit in byte.
+In case of SDUC Cards, the capacity of protected area is zero.
+For Non CPRM Cards, SIZE_OF_PROTECTED_AREA shall be set to the minimum value that is defined
+
+126
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+in Appendix D.2 through D.5 of the Part 3 Security Specification Version 7.00.
+
+4.10.2.2 SPEED_CLASS
+This 8-bit field indicates the Speed Class. Classes lower than indicated by this field are also effective. For
+example, Class 10 is indicated, host should consider Class 2 to 6 is also effective.
+SPEED_CLASS
+Value Definition
+00h
+Class 0
+01h
+Class 2
+02h
+Class 4
+03h
+Class 6
+04h
+Class 10
+05h – FFh
+Reserved
+Table 4-45 : Speed Class Code Field
+Application Note:
+If a Class value indicated in SD Status (including reserved value) is larger than that of host supported,
+the host should read as any Class can be used with the card.
+
+4.10.2.3 PERFORMANCE_MOVE
+This 8-bit field indicates Pm and the value can be set by 1 [MB/sec] step. If the card does not move used
+RUs, Pm should be considered as infinity. Setting to FFh means infinity. The minimum value of Pm is
+defined by in Table 4-46. Pm is defined for Class 2 to 6 in Default Speed Mode. When host uses Class
+10, Pm indicated in SD Status shall be ignored and treated as 0.
+PERFORMANCE_MOVE
+Value Definition
+00h
+Sequential Write
+01h
+1 [MB/sec]
+02h
+2 [MB/sec]
+.......
+......
+FEh
+254 [MB/sec]
+FFh
+Infinity
+Table 4-46 : Performance Move Field
+
+4.10.2.4 AU_SIZE
+This 4-bit field indicates AU Size and the value can be selected from 16 KB.
+
+127
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+AU_SIZE
+Value Definition
+0h
+Not Defined
+1h
+16 KB
+2h
+32 KB
+3h
+64 KB
+4h
+128 KB
+5h
+256 KB
+6h
+512 KB
+7h
+1 MB
+8h
+2 MB
+9h
+4 MB
+Ah
+8 MB
+Bh
+12 MB
+Ch
+16 MB
+Dh
+24 MB
+Eh
+32 MB
+Fh
+64 MB
+Table 4-47 : AU_SIZE Field
+The maximum AU size, depends on the card capacity, is defined in Table 4-48. The card can set any AU
+size specified in Table 4-47 that is less than or equal to the maximum AU size. The card should set smaller
+AU size as much as possible.
+AU_SIZE can be selected as integer multiple of exFAT cluster size. Regarding cluster size, refer to
+Appendix C.5.3 of the Part 2 File System Specification Version 7.00.
+Card Capacity
+
+up to 64MB
+
+Maximum AU Size
+
+up to 256MB
+
+up to 512MB
+
+512 KB
+1 MB
+2 MB
+Table 4-48 : Maximum AU size
+
+up to 32GB
+4 MB
+
+up to
+128TB
+64MB
+
+Application Notes:
+The host should determine host buffer size based on total busy time of 4MB and the card supported
+class. The host can treat multiple AUs combined as one unit.
+
+4.10.2.5 ERASE_SIZE
+This 16-bit field indicates NERASE. When NERASE numbers of AUs are erased, the timeout value is specified
+by ERASE_TIMEOUT (Refer to ERASE_TIMEOUT). The host should determine proper number of AUs
+to be erased in one operation so that the host can indicate progress of erase operation. If this field is set
+to 0, the erase timeout calculation is not supported.
+ERASE_SIZE
+0000h
+0001h
+0002
+0003
+.......
+FFFFh
+
+Value Definition
+Erase Time-out Calculation is not supported.
+1 AU
+2 AU
+3 AU
+.......
+65535 AU
+Table 4-49 : Erase Size Field
+
+4.10.2.6 ERASE_TIMEOUT
+This 6-bit field indicates the TERASE and the value indicates erase timeout from offset when multiple AUs
+128
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+are erased as specified by ERASE_SIZE. The range of ERASE_TIMEOUT can be defined as up to 63
+seconds and the card manufacturer can choose any combination of ERASE_SIZE and
+ERASE_TIMEOUT depending on the implementation. Once ERASE_TIMEOUT is determined, it
+determines the ERASE_SIZE. The host can determine timeout for any number of AU erase by the
+Equation (9). Refer to Section 4.14 for the concept of calculating erase timeout. If ERASE_SIZE field is
+set to 0, this field shall be set to 0.
+ERASE_TIMEOUT
+Value Definition
+00
+Erase Time-out Calculation is not supported.
+01
+1 [sec]
+02
+2 [sec]
+03
+3 [sec]
+.......
+.......
+63
+63 [sec]
+Table 4-50 : Erase Timeout Field
+
+4.10.2.7 ERASE_OFFSET
+This 2-bit field indicates the TOFFSET and one of four values can be selected. The erase offset adjusts the
+line by moving in parallel on the upper side. Refer to Figure 4-65 and Equation (9) in Section 4.14. This
+field is meaningless if ERASE_SIZE and ERASE_TIMEOUT fields are set to 0.
+ERASE_OFFSET
+Value Definition
+0h
+0 [sec]
+1h
+1 [sec]
+2h
+2 [sec]
+3h
+3 [sec]
+Table 4-51 : Erase Offset Field
+
+4.10.2.8 UHS_SPEED_GRADE
+This 4-bit field indicates the UHS mode Speed Grade. Reserved values are for future speed grades larger
+than the highest defined value. Host shall treat reserved values (undefined) as highest grade defined.
+UHS_SPEED_GRADE Value Definition
+0h
+Less than 10MB/sec
+1h
+10MB/sec and above
+2h
+Reserved
+3h
+30MB/sec and above
+4h – Fh
+Reserved
+Table 4-52 : UHS_SPEED_GRADE Field
+
+4.10.2.9 UHS_AU_SIZE
+This 4-bit field indicates AU Size for UHS Speed Grade of UHS-I and UHS-II cards. Card should set
+smaller value as much as possible. Host shall refer to UHS_AU_SIZE instead of AU_SIZE when the card
+is operating as UHS Speed Grade in UHS-I or UHS-II bus speed modes.
+UHS_AU_SIZE can be selected as integer multiple of exFAT cluster size. Regarding cluster size, refer to
+Appendix C.5.3 of the Part 2 File System Specification Version 7.00.
+
+129
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+UHS_AU_SIZE
+Value Definition
+0h
+Not Defined
+1h -6h
+Not Used
+7h
+1 MB
+8h
+2 MB
+9h
+4 MB
+Ah
+8 MB
+Bh
+12 MB
+Ch
+16 MB
+Dh
+24 MB
+Eh
+32 MB
+Fh
+64 MB
+Table 4-53 : UHS_AU_SIZE Field
+
+4.10.2.10 VIDEO_SPEED_CLASS
+Table 4-54 defines an 8-bit field that indicates the Video Speed Class supported by the card. The Video
+Speed Class defined in the table shall be equal or less than the minimum write performance of the card
+in Video Speed Class as specified in Section 4.13.4.3.1 (e.g., Video Speed Class 6 supports at least
+6MB/s). Any Video Speed Class lower than the specified Video Speed Class value shall also be supported
+(e.g., if the value in this field is 1Eh, then Video Speed Class 10 and Video Speed Class 6 are supported).
+VIDEO_SPEED_CLASS
+0 (=00h)
+6 (=06h)
+10 (=0Ah)
+30 (=1Eh)
+60 (=3Ch)
+90 (=5Ah)
+Others
+
+Value Definition
+Video Speed Class 0
+(Video Speed Class is not supported)
+Video Speed Class 6
+Video Speed Class 10
+Video Speed Class 30
+Video Speed Class 60
+Video Speed Class 90
+Reserved
+Table 4-54 : VIDEO_SPEED_CLASS Field
+
+130
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.10.2.11 VSC_AU_SIZE
+Table 4-55 defines a 10-bit field that indicates the AU Size for Video Speed Class recording. It is
+recommended that cards report the smallest value if multiple values are valid. This field shall be set to
+one of the specified AU sizes described in Table 4-56 or zero (e.g., if VSC_AU_SIZE is 480MB, 1E0h
+(=480) is set in this field). Note that the other values which are not specified in Table 4-56 are reserved.
+Since these reserved values may be assigned by SDA in future, card manufacturers shall not use these
+reserved values until SDA defines those in future versions of specification.
+And SU size is also determined by this field, because a unique SU size is bound for each AU size. For
+example, if VSC_AU_SIZE is set as 160MB, SU size is 8MB as shown in Table 4-56.
+VSC_AU_SIZE
+0
+1 to 1023 (=3FFh)
+
+Value Definition
+Video Speed Class is not supported
+AU Size for Video Speed Class of the
+card in unit of [MB]
+Table 4-55 : VSC_AU_SIZE Field
+
+131
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+VSC_AU_SIZE
+AU Size
+SU Size
+008h
+8MB
+8MB
+010h
+16MB
+8MB
+015h
+21MB
+7MB
+018h
+24MB
+8MB
+01Bh
+27MB
+9MB
+01Ch
+28MB
+7MB
+01Eh
+30MB
+10MB
+020h
+32MB
+8MB
+024h
+36MB
+9MB
+028h
+40MB
+8MB
+02Ah
+42MB
+7MB
+02Dh
+45MB
+9MB
+030h
+48MB
+8MB
+036h
+54MB
+9MB
+038h
+56MB
+8MB
+03Ch
+60MB
+10MB
+040h
+64MB
+8MB
+048h
+72MB
+8MB
+050h
+80MB
+8MB
+060h
+96MB
+8MB
+070h
+112MB
+8MB
+078h
+120MB
+8MB
+080h
+128MB
+8MB
+090h
+144MB
+8MB
+0A0h
+160MB
+8MB
+0C0h
+192MB
+8MB
+0D8h
+216MB
+8MB
+0E0h
+224MB
+8MB
+0F0h
+240MB
+8MB
+100h
+256MB
+8MB
+120h
+288MB
+8MB
+140h
+320MB
+8MB
+180h
+384MB
+8MB
+1B0h
+432MB
+8MB
+1C0h
+448MB
+8MB
+1E0h
+480MB
+8MB
+200h
+512MB
+8MB
+Table 4-56 : Valid AU Size and SU Size
+SDHC cards shall have a minimum of 40 AU blocks (e.g., for a 4GB card, AU sizes over 96MB do not
+result in 40 AUs). SDXC cards shall have a minimum of 80 AU blocks.
+VSC_AU_SIZE can be selected as integer multiple of exFAT cluster size. Regarding cluster size, refer to
+Appendix C.5.3 of the Part 2 File System Specification Version 7.00.
+
+4.10.2.12 SUS_ADDR
+Table 4-57 defines a 22-bit field that indicates a valid suspension address in 512KB units. If this field is
+set to zero, then this card does not have a valid suspension address. If this field is non-zero, then a valid
+suspension address is reported by this field.
+
+132
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+SUS_ADDR
+0
+Non-zero
+
+Value Definition
+No valid suspension address
+Valid suspension address in 512KB units
+Table 4-57 : SUS_ADDR Field
+
+A valid suspension address is set by the CMD20 "Suspend AU" command (see Section 4.13.4.7.5).
+The suspension address is cleared by any of these events:
+a) the host issues a CMD20 "Set Free AU" command (see Section 4.13.4.7.7);
+b) the host writes to any location within the suspended AU; and
+c) the host erases any location within the suspended AU.
+Also refer to Section 8.4.8.2 if card supports PCIe bus.
+
+4.10.2.13 APP_PERF_CLASS
+Table 4.10.2-1 defines a 4-bit field that indicates the Application Performance Class supported by the
+card. The Application Performance Class defined in the table shall be equal or less than the average
+random performance of the card as specified in Section 4.16.1.
+APP_PERF_CLASS
+Value Definition
+0h
+Application Performance Class is not supported
+1h
+A1, Application Performance Class 1
+2h
+A2, Application Performance Class 2
+3h – Fh
+Reserved
+Table 4.10.2-1 : APP_PERF_CLASS Field
+Application Notes:
+For any APP_PERF_CLASS indicated by the card, it is assumed that the lower classes are
+supported as well. Then Application Performance supported Hosts should assume that higher
+APP_PERF_CLASS levels may be set in the future. For example, A1 host should interpret
+APP_PERF_CLASS; not only 1h but also higher value indicates support of Application Class 1.
+
+4.10.2.14 PERFORMANCE_ENHANCE
+Table 4.10.2-2 defines an 8-bit field that indicates the performance enhancement functionalities supported
+by the card.
+PERFORMANCE_ENHANCE
+SD_STATUS b[335:331]
+SD_STATUS b[330]
+
+Description
+Command Queue Support. Refer to Table 4.10.2-3
+Support for Cache
+0 : Not Supported
+1: Supported
+SD_STATUS b[329]
+Support for Host-initiated maintenance
+0 : Not Supported
+1: Supported
+SD_STATUS b[328]
+Support for Card-initiated maintenance
+0 : Not Supported
+1: Supported
+Table 4.10.2-2 : PERFORMANCE_ENHANCE Field
+
+133
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+SD Status b[335:331], as in, Table 4.10.2-3 indicates the command queue support and the depth required
+to meet Application Performance Class 2.
+Command Queue Support Value Definition
+0h
+Command Queue is not supported
+1h
+Command Queue supported, with queue depth 2
+2h
+Command Queue supported, with queue depth 3
+….
+1Fh
+Command Queue supported, with queue depth 32
+Table 4.10.2-3 : Command Queue Support Field
+
+4.10.2.15 Notes for SD Status
+The following SD Status Identifiers are ignored for Boot Partitions (refer to Section 4.21.1) and User Area
+before pre-boot authentication (refer to Section 4.22.2),
+Identifier
+SPEED_CLASS
+PERFORMANCE_MOVE
+AU_SIZE
+ERASE_SIZE
+ERASE_TIMEOUT
+ERASE_OFFSET
+UHS_SPEED_GRADE
+UHS_AU_SIZE
+
+Note
+Speed Class is not supported for a User Area
+before pre-boot authentication, and Boot
+Partitions.
+Erase cannot be operated for a User Area before
+pre-boot authentication, and Boot Partitions.
+
+UHS Speed Grade is not supported for a User
+Area before pre-boot authentication, and Boot
+Partitions.
+VIDEO_SPEED_GRADE
+Video Speed Class is not supported for a User
+Area before pre-boot authentication, and Boot
+VIDEO_AU_SIZE
+Partitions.
+SUS_ADDR
+APP_PERF_CLASS
+Application Performance Class is not supported
+for a User Area before pre-boot authentication,
+PERFORMANCE_ENHANCE
+and Boot Partitions.
+DISCARD_SUPPORT
+Discard cannot be operated for a User Area before
+pre-boot authentication, and Boot Partitions.
+FULE_SUPPORT
+FULE cannot be operated for a User Area before
+pre-boot authentication, and Boot Partitions.
+Table 4.10.2-4 : SD Status for a User Area before Pre-Boot Authentication and Boot Partitions
+In addition, even card supports TCG security, the following identifiers can be set based on the
+performance when TCG is disabled (refer to Section 3.20):
+ SPEED_CLASS
+ UHS_SPEED_GRADE
+ VIDEO_SPEED_GRADE
+ APP_PERF_CLASS
+
+4.10.3 Task Status
+The response format R1 shall contain a 32-bit field named task status as a response to CMD13 with
+argument b[15]=’1’ . This field is intended to transmit the queued task’s status information (which may be
+stored in a local status register) to the host.
+Table 4.10.3-1 defines the different entries of the status. Unused reserved bits shall be set to 0. The type
+and clear condition fields in the table are abbreviated as follows:
+134
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Bits
+
+Identifier
+
+Type
+
+31 STATUS_TASK_31
+
+S
+
+30 STATUS_TASK_30
+
+S
+
+Value
+‘0’ – Not Ready
+‘1’ - Ready
+‘0’ – Not Ready
+‘1’ - Ready
+
+Description
+
+Clear
+Condition
+
+Ready status of queued task 31
+
+A
+
+Ready status of queued task 30
+
+A
+
+…
+0
+
+STATUS_TASK_0
+
+S
+
+‘0’ – Not Ready
+Ready status of queued task 0
+‘1’ - Ready
+Table 4.10.3-1 : Task Status
+
+135
+
+A
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.11 Memory Array Partitioning
+This section is a blank in the Simplified Specification .
+
+Figure 4-22 : Write Protection Hierarchy (Removed in the Simplified Specification)
+
+4.12 Timings
+This section is a blank in the Simplified Specification.
+Table 4-58 : Timing Diagram Symbols (Removed in the Simplified Specification)
+
+4.12.1 Command and Response (Removed in the Simplified Specification)
+Figure 4-23 : Identification Timing (Card Identification Mode) (Removed in the Simplified
+Specification)
+Figure 4-24 : SEND_RELATIVE_ADDR Timing (Removed in the Simplified Specification)
+Figure 4-25 : Command Response Timing (Data Transfer Mode) (Removed in the Simplified
+Specification)
+Figure 4-26 : Timing of Response End to Next CMD Start (Data Transfer Mode) (Removed in the
+Simplified Specification)
+Figure 4-27 : Timing of Command Sequences (All Modes) (Removed in the Simplified
+Specification)
+
+4.12.2 Data Read (Removed in the Simplified Specification)
+Figure 4-28 : Timing of Single Block Read Command (Removed in the Simplified Specification)
+Figure 4-29 : Timing of Multiple Block Read Command (Removed in the Simplified
+Specification)
+Figure 4-30 : Timing of Stop Command (CMD12, Data Transfer Mode) (Removed in the
+Simplified Specification)
+
+4.12.3 Data Write (Removed in the Simplified Specification)
+Figure 4-31 : Timing of Single Block Write Command (Removed in the Simplified Specification)
+Figure 4-32 : Timing of Multiple Block Write Command (Removed in the Simplified
+Specification)
+Figure 4-33 : Stop Transmission Received during Data Transfer from the Host (Removed in the
+Simplified Specification)
+Figure 4-34 : Stop Transmission Received during CRC Status (Removed in the Simplified
+Specification)
+Figure 4-35 : Stop Transmission Received during Busy of the Last Data Block (Removed in the
+Simplified Specification)
+Figure 4-36 : Stop Transmission Received while DAT is Tri-state (Removed in the Simplified
+Specification)
+
+4.12.4 Timing Values (Removed in the Simplified Specification)
+Table 4-59 : Timing Values (Except SDR50, DDR50 and SDR104) (Removed in the Simplified
+Specification)
+
+4.12.5 Timing Changes in SDR50, DDR50 and SDR104 Modes (Removed in the
+Simplified Specification)
+4.12.5.1 CRC Status Start Timing (Removed in the Simplified Specification)
+Figure 4-37 : Timing of Single Block Write Command (Removed in the Simplified Specification)
+4.12.5.2 Read Block Gap (Removed in the Simplified Specification)
+
+136
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Figure 4-38 : Clock Stop Timing at Block Gap in Read Operation (Removed in the Simplified
+Specification)
+4.12.5.3 CMD12 Timing Modification in Write Operation (Removed in the Simplified
+Specification)
+Figure 4-39 : Border Timing of CMD12 in Write Operation (Removed in the Simplified
+Specification)
+4.12.5.4 CMD12 Timing Modification in Read Operation (Removed in the Simplified
+Specification)
+Figure 4-40 : Border Timing of CMD12 in Read Operation (Removed in the Simplified
+Specification)
+4.12.5.5 Timing Values (Removed in the Simplified Specification)
+Table 4-60 : Timing Values for SDR50, DDR50 and SDR104 Modes (Removed in the Simplified
+Specification)
+
+4.12.6 Detailed Specifications for DDR50 Mode (Removed in the Simplified
+Specification)
+4.12.6.1 Definition of Odd / Even (Removed in the Simplified Specification)
+4.12.6.2 Protocol Principles (Removed in the Simplified Specification)
+Figure 4-41 : Data Packet Format in DDR50 mode – Usual Data (Removed in the Simplified
+Specification)
+Figure 4-42 : Data Packet Format in DDR50 mode – Wide Width Data (Removed in the Simplified
+Specification)
+4.12.6.3 CRC Status Token and Busy Timing of DDR50 (Removed in the Simplified
+Specification)
+Figure 4-43 : CRC Status Token in DDR50 Mode (Removed in the Simplified Specification)
+4.12.6.4 CRC16 of DDR50 (Removed in the Simplified Specification)
+Figure 4-44 : CRC16 in DDR50 Mode (Removed in the Simplified Specification)
+4.12.6.5 Data Access Timing example in DDR50 (Removed in the Simplified Specification)
+Figure 4-45 : Timing of Single Block Read Command in DDR50 Mode (Removed in the
+Simplified Specification)
+4.12.6.6 Clock Control (Removed in the Simplified Specification)
+4.12.6.7 Reset Command (Removed in the Simplified Specification)
+4.12.6.8 CMD12 Timing (Removed in the Simplified Specification)
+
+137
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13 Speed Class Specification
+This section provides descriptions of several speed class methods. Each classifies card performance by
+a speed class number and offers a method to calculate performance. These methods enable the host to
+support AV applications to perform real time recording to an SD memory card. The following sections
+describe the speed class methods for the card.
+Section 4.13.1 and 4.13.2 provides a description of the Speed Class specification. The Speed Class
+specification is supported by SDHC, SDXC and SDUC cards. Speed Class 2, Speed Class 4, Speed
+Class 6, and Speed Class 10 are defined in this method.
+Section 4.13.3 provides a description of the UHS Speed Grade specification. The UHS Speed Grade
+specification is supported by SDHC, SDXC and SDUC cards. UHS Speed Grade 1 and UHS Speed
+Grade 3 are defined in this method,
+Section 4.13.4 provides a description of the Video Speed Class specification. The Video Speed Class
+specification is supported by SDHC, SDXC and SDUC cards. Video Speed Class 6, Video Speed Class
+10, Video Speed Class 30, Video Speed Class 60 and Video Speed Class 90 are defined in this method.
+Section 4.13.5 and 8.4 provide a description of the SD Express Speed Class specification. The SD
+Express Speed Class specification is supported by SDXC and SDUC cards over PCIe bus. In other words,
+this specification is applied to SD Express card only. SD Express Speed Class 150, SD Express Speed
+Class 300, SD Express Speed Class 450, and SD Express Speed Class 600 are defined in this method.
+In version 4.20 or earlier, implementation of the Speed Class was mandatory for SDHC and SDXC cards
+and the UHS Speed Grade method was optional for all types of cards. From version 5.00, implementation
+of Speed Class was changed to optional for all types of cards.
+Figure 4-46 specifies the speed classes that are supported by each interface mode.
+SDSC
+Default Speed Mode
+
+SDHC
+
+SDXC/SDUC
+
+Speed Class 2, 4, 6
+
+Video Speed Class 6
+
+Speed Class 10
+
+High Speed Mode
+
+SDHC/SDXC/SDUC
+
+Video Speed Class 10
+Class 10
+Video Speed Class 6
+
+UHS-I and UHS-II Mode
+
+UHS Speed Grade 1
+
+Video Speed Class 10
+
+UHS Speed Grade 3
+
+Video Speed Class 30
+Video Speed Class 60
+
+UHS-II Mode
+
+Video Speed Class 90
+SDXC/SDUC
+SD Express Speed Class 150
+PCIe Mode
+
+SD Express Speed Class 300
+SD Express Speed Class 450
+SD Express Speed Class 600
+
+Figure 4-46 : Overview of Speed Class Specification
+
+138
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.1 Speed Class Specification for SDSC and SDHC
+4.13.1.1 Allocation Unit (AU)
+The User Area is divided into units called "Allocation Unit (AU)" (Refer to Figure 4-47). AU is physical
+boundary in User Area of a card and is not defined by the file system boundary. Each card has its own
+fixed AU Size (SAU) and the maximum AU Size is defined depending on the card's capacity. The host
+should manage data areas with the unit of AU. If the first AUs in the card contain file system information
+then they should not be used for real time recording. An AV application should start recording from the
+first complete AU, to which only user data can be recorded. Note that this specification does not apply to
+the Protected Area.
+AU1
+
+RU1
+
+AU2
+
+RU2
+
+AU3
+
+User Area
+Recordable Area
+
+m =NRU = SAU/SRU
+
+RU3
+
+AU4
+
+.......
+
+.......
+
+RUm
+
+AUn
+
+Figure 4-47 : Definition of Allocation Unit (AU)
+4.13.1.2 Recording Unit (RU)
+Each AU is divided into units called "Recording Unit (RU)" (Refer to Figure 4-47). The unit of RU Size
+(SRU) is 16KByte. The RU Size is a multiple of 16KByte and shall not span across an AU boundary.
+Larger RU size may improve performance. The condition and requirement of the minimum RU Size is
+defined by Section 4.13.1.8.1. The number of RUs in an AU (NRU) is calculated from SAU/SRU.
+4.13.1.3 Write Performance
+Figure 4-48 shows the typical data management of the card when the host writes RUs of an AU. When
+the host writes to a fragmented AU, the card prepares a new AU by copying the used RUs and writing the
+new RUs. The location A is at the start of the AU boundary and location B is at the end of the AU boundary.
+From A to B, the host shall write data to free RUs contiguously and skip used RUs (shall not skip any free
+RU). The card may indicate busy to the host, so the host can wait, during the time the card controller is
+writing and moving data. The total write time from A to B can be calculated by summing up the write time
+of free RUs and the moving time of the used RUs. The number of used RUs (Nu) is available by counting
+it over one AU and number of free RUs is expressed by (NRU – Nu).
+AU (Allocation Unit)
+A
+Existing AU
+
+Free
+
+B
+Free
+
+RU
+
+Free
+
+Free
+
+Move
+
+Write Write
+New AU
+
+Used
+
+Data1
+
+Data2
+
+Used
+
+Used
+
+Data3
+
+..........
+
+Free
+
+Move Move
+
+Write Write
+Used
+
+Free
+
+Data4
+
+Skip
+
+Write
+Used
+
+Used
+
+Data5
+
+Write
+..........
+
+DataN
+
+Skip
+
+Figure 4-48 : Example of Writing Fragmented AU
+The average Performance of a Fragmented AU can be calculated by dividing the number of free RUs by
+the total execution time. It is expressed by using Performance Wite (Pw) and Performance Move (Pm).
+
+139
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Performance of Fragmented AU: P( Nu ) 
+
+
+
+S RU ( N RU  Nu )
+S RU ( N RU  Nu ) S RU Nu
+
+Pw
+Pm
+
+( N RU  Nu ) PmPw
+..........................(1)
+( N RU  Nu ) Pm  NuPw
+
+The Performance Write (Pw) is defined as a minimum average write performance over an AU. It is
+calculated by taking the average of all sequential RU write operations to one complete AU, which is not
+fragmented. Pw is not influenced even if read operations are inserted between write operations.
+The Performance Move (Pm) is defined as a minimum average move performance. It is calculated by
+taking the average over sequential RU move operations to one complete AU. A move is an internal
+operation of the card, so SD clock frequency does not affect the time of the move operation. In case the
+card does not have to move RU, Pm should be considered as infinity (1/Pm = 0). Refer to Table 4-61 for
+the values defined for each Speed Class.
+Note that a Speed Class that supports Class10 shall not use the Pm value stored in the SD Status to
+calculate performance in any fragmented AU. Class 10 performance is defined only for entirely free AUs.
+Application Notes:
+Performance may increase when larger data is written by one multiple write command. Therefore, the
+host may use larger RU sizes and transfer multiple RUs with one multiple-write command.
+
+4.13.1.4 Read Performance
+Two kinds of read performances are defined. It is possible to insert either type of read operation during
+write operations. All read operations, regardless of read address shall meet this performance
+specification.
+(1) Read Performance of Stream Data
+This is simply called Read Performance (Pr). Pr is defined as minimum average random RU read
+performance. The average is measured over 256 random single RU read operations. Each RU is read
+by a multiple-read command. Pr shall be greater than or equal to Pw.
+(2) FAT and Directory Entry Read Time
+TFR(4KB) is defined as the maximum time to read a 4KB FAT and Directory Entry. The FAT and
+Directory Entry Read Time (SFR [KB]) is defined using the CEIL function:
+
+ S FR 
+ TFR (4 KB) ...............................................(2)
+ 4 KB 
+
+FAT Read Time of SFR [KB]: TFR ( S FR )  
+
+(CEIL function - Convert decimal fraction x to the smallest integer greater than or equal to x.)
+Refer to Table 4-61 for the values defined for each Speed Class.
+
+140
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.1.5 Performance Curve Definition
+Figure 4-49 shows the write performance bar chart of P(Nu) of equitation (1). An AU consists of 16 RUs
+in this example. Joining the points of each bar shows the performance curve, which can be determined
+from the two parameters, Pw and Pm.
+[MB/sec]
+Full Performance
+
+Performance Curve
+
+Better Performance
+
+Ratio of Used RU
+0
+16
+
+1
+16
+
+2
+16
+
+3
+16
+
+4
+16
+
+5
+16
+
+6
+16
+
+7
+16
+
+8
+16
+
+9
+16
+
+10
+16
+
+11
+16
+
+12
+16
+
+13
+16
+
+14
+16
+
+15 16
+16 16
+
+Figure 4-49 : Card Performances between 16 RUs
+The ratio of used RU (r) is defined as:
+
+r
+
+Nu
+,
+N RU
+
+Nu  rN RU
+
+The range of r is 0 to 1. (1 – r) means ratio of free RU, r=0 means all RUs are free. r=1 means all RUs
+are used and performance indicates zero at this point. By using r, Equation (1) is transformed into
+Equation (3).
+Performance Curve: P ( r ) 
+
+(1  r ) PwPm
+rPw  (1  r ) Pm
+
+0  r  1 ...........................................(3)
+
+P(Nu) in Equation (1) is a discrete function but P(r) is treated as a continuous function.
+
+4.13.1.6 Speed Class Definition
+Figure 4-50 shows three performance curves. Pw indicates the performance of r=0 and Pm determines
+the shape of the curve. All performance curves converge at the point (1, 0). Therefore, there is little
+difference in performance where r is near to 1. These three curves divide the performance into four speed
+classes: Class 0, Class 2, Class4 and Class 6. The Class 0 card provides no guarantee to be compliant
+to the Speed Class Specification. It does not report performance parameters even if the cards can achieve
+performance of higher speed classes. Class 0 also covers all legacy SD products prior to the introduction
+of this specification. The Classes are defined so that an AV application, such as MPEG2 recording, can
+support an SD card device. The performance of a Speed Class 2 card shall be higher than performance
+curve 2. It is defined for standard TV image quality; approximately 2MB/sec performance will be required.
+The performance of a Speed Class 4 card shall be higher than performance curve 4. Speed Class 4 is
+defined for HD video quality; approximately 4MB/sec performance will be required. Higher classes can
+be added in the future, if required. It is important that the host shall always accept cards which meet
+141
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+minimum speed class performance.
+Note that performance of Class 10 does not conform to the performance curve. Class 10 is supported
+only in the case r=0.
+Speed Class shall be defined as SD Bus interface level performance, though the performance curve is
+derived from only back-end performance analysis in Section 4.13.1.3. SD clock frequency and RU size
+are defined as measurement conditions for Speed Classes. Refer to Section 4.13.1.8.
+Performance
+
+6MB/sec
+
+Performance Curve 6
+
+4MB/sec
+
+Performance Curve 4
+
+Performance Curve 2
+
+2MB/sec
+
+Three performance curves
+intersect at (1,0)
+Class0
+
+0
+
+1
+
+r
+Ratio of Used RU
+
+Figure 4-50 : Three Performance Curves
+Application Note:
+For the convenience of legacy card users, the host should try to use the card that has lower
+performance than expected and attempt to record if necessary. When a mode provides operation only
+for specific Speed Class cards, one of the other modes should provide operation for lower Speed
+Class cards including Class 0.
+
+4.13.1.7 Consideration for Inserting FAT Update during Recording
+Figure 4-51 shows the typical sequence of the FAT update cycle for real time recording. FAT updates can
+be inserted between any RU accesses. The FAT update cycle consists of 3 write operations. The FAT1
+and FAT2 means two FAT-table writes using one multiple write command for each FAT-table. The FAT
+table write can start any 512-byte boundary address and any size up to 16 KBytes. Only modified parts
+of FAT should be written. The DIR stands for directory entry write. A directory entry should be created
+before recording starts and only the modified parts should be written in the directory entry (512 Bytes).
+The FAT Write Time (TFW) is defined as the total time of 3 write operations of FAT update cycle. The host
+shall take the sequence to be able to calculate degradation of performance by inserting a FAT update
+cycle. The card requires higher Card Performance (Pc) than Application Performance (Pa) to insert FAT
+update cycle. It is noted that any order of 3 write operations is allowed for FAT update. Figure 4-51 shows
+an example order.
+
+142
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+FAT Write Time: TFW
+TFW
+….SRU
+
+Number of RUs: NFD
+
+16KB
+
+16KB
+
+512B
+
+FAT1
+
+FAT2
+
+DIR
+
+SRU
+
+SRU
+
+…..
+
+SRU
+
+FAT1
+
+FAT2
+
+DIR
+
+SRU….
+
+FAT Update Period: TFU
+
+Figure 4-51 : Typical Sequence of FAT Update
+4.13.1.7.1 Measurement Condition to determine Average TFw
+The equation (4) defines Average FAT Write Time (TFW(ave.)), which is the maximum sliding average
+of 8 times FAT write cycles.
+8
+
+Average FAT Write Time: TFW ( ave.) 
+
+max(  TFW (i ))
+i 1
+
+8
+
+...............................................(4)
+
+4.13.1.7.2 Maximum FAT Write Time
+During a FAT update, the host cannot write data to the card. Therefore, the host should prepare enough
+buffers to save the data temporarily. The Maximum FAT Write Time (TFW (max.)) is one of the factors
+to determine host buffer size. During 8 times FAT write cycle, occurrence of TFW (max.) should not
+appear more than once. On the method of Host Buffer Size estimation, refer to Implementation
+Guideline of the Speed Class Specification.
+Maximum FAT Write Time:
+
+TFW (max .)  750ms
+
+...........................................................(5)
+
+4.13.1.8 Measurement Conditions and Requirements of the Speed Class
+4.13.1.8.1 Measurement Conditions
+Table 4-61 shows measurement conditions for each Speed Class. The Speed Class 10 card shall
+support high speed mode. The higher Speed Class may require higher frequency or larger RU size.
+These values provide margin for host applications running at maximum speed.
+Card Capacity
+
+SDSC
+SDHC
+~64MB
+~256MB ~512MB
+~1GB
+~2GB
+~32GB
+AU Size (max.)
+512KB
+1MB
+2MB
+4MB
+Class2, 4
+16KB
+32KB
+RU Size Class6
+64KB
+Class 10
+Not Supported
+512KB
+Notes: Class 2 to 6 are measured at 20MHz in Default Speed Mode
+Class 10 is measured at 40MHz in High Speed Mode
+Table 4-61 : Measurement Condition of Speed Class (SDSC and SDHC)
+Application Note:
+The minimum performance is measured at 100% usage rate of the SD Bus (No idle time is assumed
+in accesses). Therefore, writing to the card at intervals decreases performance.
+Host needs to use higher frequency clock than that of measurement condition.
+
+143
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.1.8.2 Requirements of the Performance Parameters for Each Speed Class
+Table 4-62 identifies the requirement of the parameters for each class under measurement conditions.
+All conditions of any Class should apply simultaneously. Any cards having a specific Speed Class shall
+also satisfy the requirements and conditions of lower Classes. For example, Class 6 card shall satisfy
+Class 4 performance under Class 4 condition. Class 10 card shall satisfy Class 6 performance under
+the Class 6 conditions and Class 4 performance under the Class 4 conditions (Class 4 always covers
+Class 2 because of using the same conditions).
+Regarding Class 10 Card, as Class 10 mode does not support Pm, the minimum requirement of Pm is
+more than or equal to 2MB/sec under the Class 4 conditions and 3MB/sec under the Class 6 conditions
+even if PERFORMANCE_MOVE in SD Status is set to 0.
+Pw min.
+Pm min.
+Pr min.
+TFW (ave.)
+TFW (max.)
+TFR (4KB)
+[MB/sec]
+[MB/sec]
+[MB/sec]
+[ms]
+[ms]
+max. [ms]
+Class 2
+2
+1
+2
+100
+750
+12*1
+Class 4
+4
+2
+4
+100
+750
+12*1
+Class 6
+6
+3
+6
+100
+750
+12*1
+*2
+Class 10
+10
+0
+10
+100
+750
+12*1
+Note 1: TFR(4KB) value is changed in Version 3.00
+Note 2: Even Class 10 card, Pm may be used for Class 2 to 6 operations by host. In this
+case, if Pm=0, host should consider that Pm is half of Pw for Class 2 to 6. If host uses
+Class 10 mode, Pm indicated in SD Status shall be ignored and treated as 0.
+Table 4-62 : Performance Requirements for Each Class (SDSC and SDHC)
+4.13.1.8.3 Requirements of SD File System
+This specification can be applied only to the SD file system formatted card defined by the File System
+Specification Version 3.00. This includes complying with the format parameter calculation specified in
+the Appendix C of the File System Specification Ver3.00.
+Furthermore, the Number of Hidden Sectors shall be adopted as minimum number that meets
+Boundary Unit Recommendation for Data Area.
+
+4.13.1.9 CMD20 Support
+SDHC Memory Card may support Speed Class Control Command (CMD20) as optional. Setting SCR bit
+32 to 1 indicates support of CMD20 but use of CMD20 is optional for host. Then even if a card supports
+CMD20, the card shall satisfy Speed Class specification without using CMD20. Refer to Section 4.13.2.8
+about CMD20 functions definition.
+
+144
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.13.2 Speed Class Specification for SDXC/SDUC
+Speed Class is defined for SDXC and SDUC. Though the basic concept is similar to Speed Class for
+SDSC and SDHC, there are several differences. Key features of SDXC/SDUC Speed Class are listed
+below.
+(1) The table of valid AU sizes (Table 4-47) is updated with six values larger than 4MB. When an
+AU size larger than 4MB is used, performance is measured in each of the 4MB sub-unit.
+(2) RU sizes are larger and common for each card capacity range.
+(3) Speed Class performance is defined only in the case of sequential writes to an entirely free AU.
+No move operation is supported.
+(4) The FAT Update sequence is based on the exFAT file system for SDXC/SDUC.
+(5) Sequence of updating CI (Continuous Information, defined in Part2 File System Specification
+Version 3.00) during stream recording is defined and supported.
+(6) Speed Class Control command (CMD20) is introduced to optimize card operation for Speed
+Class recording.
+
+4.13.2.1 Speed Class Parameters
+4.13.2.1.1 AU
+Capacities of up to 128TB and the UHS high speed interface require larger AU sizes.
+In the case of SDXC and SDUC the maximum AU size is increased to 64MB.
+To record the stream data, a Speed Class host shall manage the memory area in units of an AU and
+use only completely free AUs (zero fragmentation) to record the data.
+Note that all AU sizes larger than 4MB are integer multiples of 4MB and performance is measured
+over each 4MB sub-unit of an AU.
+4.13.2.1.2 RU
+The definition of an RU is the same as in SDSC and SDHC. A Speed Class host shall write data in
+units of an RU.
+The RU sizes are defined in Table 4-63. The same RU size is used for Class 2, 4 and 6. For Class 10,
+the RU size is larger to achieve higher performance. The same RU size is applied across the entire
+card capacity range (over 32GB~128TB) and varies only for each performance Class.
+
+4.13.2.2 Write Performance
+4.13.2.2.1 Measurement of Pw
+Pw is measured in the case when data is written in units of RUs, from top to the bottom of an entirely
+free AU. There are two cases of how to measure Pw.
+1. If the AU size is equal to or smaller than 4MB;
+Pw is defined as the minimum average write performance over an AU. This is the same definition
+as that for SDSC and SDHC.
+2. If the AU size is larger than 4MB (Always a multiple of 4MB);
+Pw is defined as the minimum of the average write performance of every 4MB sub-unit in an
+AU.
+Figure 4-52 shows the measurement of an AU's Pw. In the figure, performance of the measured AU is
+defined as the minimum of Pw1, Pw2,...PwN. The card's Pw is defined as the minimum performance
+of all AUs in the memory area.
+Regardless of its size, an AU is the size of the memory area to which Speed Class host shall write data
+sequentially from top to the bottom in units of RU.
+
+145
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+AU (Multiple of 4MB)
+
+...
+
+...
+
+Memory area
+in the card
+
+RU
+
+4MB
+
+4MB
+
+4MB
+
+Speed Class host writes sequentially in an AU in unit of RU
+
+...
+Pw1
+
+Pw3
+
+Pw2
+
+PwN
+
+Performance is measured over each 4MB boundary.
+Performance of the AU = min (Pw1, Pw2, … PwN)
+=> Pw is defined as minimum performance of all AUs in memory area
+
+Figure 4-52 : Measurement of Pw (AU size is larger than 4MB)
+4.13.2.2.2 Performance Move
+In contrast with Speed Class for SDSC and SDHC, Pm is not supported in SDXC and SDUC. This
+means that Speed Class host shall write data to the entire free AUs so that SDXC and SDUC card can
+provide Class performance. Pm shall be set to 0 in SD Status of SDXC and SDUC card.
+Application Note:
+The amount of unwritten memory and the amount of Speed Class recordable memory may be
+different. Speed Class hosts can maximize the amount of recordable memory by defragmenting
+and freeing AUs for use when Speed Class performance is required.
+
+4.13.2.3 Read Performance
+The read performance of an SDXC and SDUC card has the same definition as that for SDSC and SDHC.
+Pr is defined as the minimum average random RU read performance over 256 RUs. Pr shall be greater
+than or equal to Pw.
+TFR(4KB) is defined as the maximum time to read 4KB data.
+4.13.2.4 FAT Update
+The SDXC and SDUC FAT update cycle has almost the same definition as in SDSC and SDHC. The only
+difference is the data type and its location. In the case of SDXC and SDUC, the FAT update cycle consists
+of three write operations, FAT, Bitmap and directory entry. The FAT is written starting at any 512-byte
+boundary address and with any size up to 16Kbytes. Bitmap is written starting at any 512-byte boundary
+address and with any size from 512-byte to 16Kbytes.
+A directory entry should be created before starting recording and the same block should be written by
+512-byte single block write (either CMD24 or CMD25).
+Average and Maximum FAT Write Time ( TFW (ave.) and TFW(max.) ) are the same as defined for SDSC
+and SDHC. Average FAT Write time is defined as the maximum sliding average of 8 FAT update cycles.
+Note that a Speed Class host can insert FAT update at any RU boundary. Insertion of FAT update never
+affects Pw.
+4.13.2.5 CI (Continuous Information) Update
+CI (Continuous Information) is a new structure used to manage exFAT file fragments. It is newly defined
+in the Part2 File System Specification Version 3.00. CI may be updated during Speed Class recording.
+Creating CI is optional for the host. The specific feature of CI update is described below.
+146
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ CI can be inserted at any RU boundary. The frequency of CI update depends on the host
+implementation.
+If a host tries to protect recorded data from any error including power failure, it may update CI
+frequently.
+ A cluster is allocated to store CI and when it is filled, a new cluster is allocated. The first update of
+CI in a stream recording may be written from any point in an existing cluster. After the existing cluster
+is filled, a new cluster is allocated and all subsequent updates are written from the beginning to the
+end before a new cluster is allocated.
+ The address to which CI is written may change during a stream recording. The same address may
+be overwritten several times. When the address is changed, it is always increased sequentially
+within the cluster. When a CI cluster is filled and a new one is allocated, the CI cluster address is
+changed randomly. (Any free cluster can be allocated).
+The Speed Class specification for SDXC and SDUC defines the CI Update sequence and operation time.
+The sequence is similar to the directory entry update. CI is always written by a 512-byte single block write
+(either CMD24 or CMD25) and preceded by CMD20 Update CI command. The CI update operation time
+is maximum 250ms.
+Note that Insertion of CI update never affects Pw.
+Application Note:
+It is recommended that CI be updated after Speed Class recording is finished. In this case, the CI
+update is performed outside of Speed Class recording and the host does not need to consider it as
+overhead.
+
+4.13.2.6 Distinction of Data Type
+During Speed Class recording, several types of data (Stream data, FAT, Bitmap, directory entry and CI)
+are written by the host.
+To satisfy Class performance, an SDXC and SDUC card needs to distinguish between each type of data
+in order to treat them properly.
+For example, directory entry and CI can be distinguished by their data size (always written by 512B), so
+the card can store them in separate areas from the stream data.
+Locations of the FAT and bitmap are described in Section 4.13.2.7.3.
+Since directory entry and CI are written by 512-byte single block write (either CMD24 or CMD25), in user
+area, they should be distinguished by CMD20.
+4.13.2.7 Measurement Conditions and Requirements of the Speed Class for SDXC/SDUC
+4.13.2.7.1 Measurement Conditions
+The measurement conditions of Speed Class for SDXC and SDUC are defined in Table 4-63. Class 10
+card shall meet Class 6 performance under Class 6 condition.
+Card Capacity
+
+SDXC/SDUC
+Over 32GB ~ 128TB
+AU Size (max.)
+64MB
+Unit of Performance Measurement
+4MB
+RU Size
+Class2, 4, 6
+256KB
+Class 10
+512KB
+Notes: Class 2 to 6 are measured at 20MHz in Default Speed Mode
+Class 10 is measured at 40MHz in High Speed Mode
+Table 4-63 : Measurement Conditions of Speed Class (SDXC/SDUC)
+
+147
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Host needs to use higher frequency clock than that of measurement condition.
+4.13.2.7.2 Requirements of the Performance Parameters for Each Speed Class
+Table 4-64 identifies the requirement of the parameters for each class under measurement conditions.
+Pw min.
+Pm min.
+Pr min.
+TFW (ave.)
+TFW (max.)
+TFR (4KB)
+[MB/sec]
+[MB/sec]
+[MB/sec]
+[ms]
+[ms]
+max. [ms]
+Class 2
+2
+0
+2
+100
+750
+20
+Class 4

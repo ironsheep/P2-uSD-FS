@@ -1,0 +1,2000 @@
+
+.
+.
+.
+
+DAT0
+
+0
+
+1st Byte
+Data
+
+2nd Byte
+Data
+
+...
+
+3rd Byte
+Data
+
+b7 b6 b5 b4 b3 b2 b1 b0
+
+n th Byte
+Data
+
+b7 b6 b5 b4 b3 b2 b1 b0
+
+Data Packet Format for Standard Bus (only DAT0 used)
+
+n th Byte
+
+8bit width Data
+Ex
+.
+[SDIO]
+CMD53
+[SD memory]
+CMD17, CMD18,
+CMD24, CMD25,
+ACMD18, ACMD25,
+etc
+
+1st Byte
+Data
+
+Start bit
+
+2nd Byte
+Data
+
+3rd Byte
+Data
+
+n th Byte
+Data
+
+End
+bit
+
+DAT3
+
+0
+
+b7
+
+b3 b7 b3
+
+b7 b3
+
+...
+
+b7
+
+b3
+
+CRC
+
+1
+
+DAT2
+
+0
+
+b6
+
+b2 b6 b2
+
+b6 b2
+
+...
+
+b6
+
+b2
+
+CRC
+
+1
+
+DAT1
+
+0
+
+b5
+
+b1 b5 b1
+
+b5 b1
+
+...
+
+b5
+
+b1
+
+CRC
+
+1
+
+DAT0
+
+0
+
+b4
+
+b0 b4 b0
+
+b4 b0
+
+...
+
+b4
+
+b0
+
+CRC
+
+1
+
+Data Packet Format for Wide Bus (all four lines used)
+
+Figure 3-9 : Data Packet Format - Usual Data
+
+10
+
+CRC 1
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+2. Data Packet Format for Wide Width Data (Ex. ACMD13)
+b511
+
+b0
+Ex. SD Status
+
+End bit
+
+Start bit
+
+Wide Width
+Data
+DAT0
+
+Ex.
+[SD memory]
+ACMD13(SD Status),
+ACMD51(SCR),
+etc
+
+0
+
+b511 b510 b509 b508
+
+...
+
+b1
+
+b0
+
+CRC
+
+1
+
+Data Packet Format for Standard Bus (only DAT0 used)
+End bit
+
+Start bit
+
+DAT3
+
+0
+
+b511 b507 b503 b499
+
+DAT2
+
+0
+
+b510 b506 b502 b498
+
+DAT1
+
+0
+
+b509 b505 b501 b497
+
+DAT0
+
+0
+
+b508 b504 b500 b496
+
+...
+...
+...
+...
+
+b7
+
+b3
+
+CRC
+
+1
+
+b6
+
+b2
+
+CRC
+
+1
+
+b5
+
+b1
+
+CRC
+
+1
+
+b4
+
+b0
+
+CRC
+
+1
+
+Data Packet Format for Wide Bus (all four lines used)
+
+Figure 3-10 : Data Packet Format - Wide Width Data
+
+3.6.2 SPI Bus Protocol
+Details of the SPI Bus protocol are described in Chapter 7.
+
+3.6.3 UHS-II Bus Protocol
+UHS-II Bus protocol is defined in the UHS-II Addendum.
+
+3.6.4 PCIe/NVMe Bus Protocol
+The PCIe and NVMe protocols are defined by the PCIe and NVMe specifications listed in appendix A.2
+except for the details captured in this document.
+
+11
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.7 SD Memory Card–Pins and Registers
+3.7.1 SD Bus Pin Assignment
+The SD Memory Card has the form factor 24 mm x 32 mm x 2.1 mm or 24 mm x 32 mm x 1.4 mm.
+
+9
+
+1 2 3 45 678
+wp
+
+SD Memory
+Card
+
+Figure 3-11 : SD Memory Card Shape and Interface (Top View)
+Figure 3-11 shows the general shape of Standard Size and interface contacts of the SD Memory Card.
+The detailed physical dimensions and mechanical description are given in Part 1 Mechanical Addendum.
+MicroSD and miniSD form factors are available as well. Their physical dimensions, mechanical
+description as well as pin assignment are given in Part 1 microSD Card Addendum and Part 1 miniSD
+Card Addendum.
+Table 3-1 defines the card contacts:
+Pin #
+
+SD Mode
+Name
+
+SPI Mode
+
+Type1
+
+Type1
+
+Description
+
+Name
+CS
+
+I3
+
+Chip Select (neg true)
+
+DI
+
+I
+
+Data In
+
+VSS
+VDD
+SCLK
+VSS2
+DO
+RSV
+RSV
+
+S
+S
+I
+S
+O/PP
+
+Supply voltage ground
+Supply voltage
+Clock
+Supply voltage ground
+Data Out
+
+1
+
+CD/DAT32 I/O/PP3
+
+2
+
+CMD
+
+I/O/PP
+
+Card Detect/
+Data Line [Bit 3]
+Command/Response
+
+3
+4
+5
+6
+7
+8
+9
+
+VSS1
+VDD
+CLK
+VSS2
+DAT0
+DAT14
+DAT25
+
+S
+S
+I
+S
+I/O/PP
+I/O/PP
+I/O/PP
+
+Supply voltage ground
+Supply voltage
+Clock
+Supply voltage ground
+Data Line [Bit 0]
+Data Line [Bit 1]
+Data Line [Bit 2]
+
+Description
+
+1) S: power supply; I: input; O: output using push-pull drivers; PP: I/O using push-pull drivers;
+2) The extended DAT lines (DAT1-DAT3) are input on power up. They start to operate as DAT lines after SET_BUS_WIDTH
+command. The Host shall keep its own DAT1-DAT3 lines in input mode, as well, while they are not used.
+3) At power up this line has a 50KOhm pull up enabled in the card. This resistor serves two functions Card detection and
+Mode Selection. For Mode Selection, the host can drive the line high or let it be pulled high to select SD mode. If the host
+wants to select SPI mode it should drive the line low. For Card detection, the host detects that the line is pulled high. This
+pull-up should be disconnected by the user, during regular data transfer, with SET_CLR_CARD_DETECT (ACMD42)
+command
+4) DAT1 line may be used as Interrupt Output (from the Card) in SDIO mode during all the times that it is not in use for data
+transfer operations (refer to "SDIO Card Specification" for further details).
+5) DAT2 line may be used as Read Wait signal in SDIO mode (refer to "SDIO Card Specification" for further details).
+
+Table 3-1 : SD Memory Card Pad Assignment
+
+12
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Each card has a set of information registers (see also Chapter 5 in the Physical Layer Specification):
+Name
+
+Width
+
+CID
+
+128
+
+RCA1
+
+16
+
+DSR
+CSD
+
+16
+128
+
+SCR
+
+64
+
+OCR
+
+32
+
+SSR
+
+512
+
+CSR
+
+32
+
+Description
+Card identification number; card individual number for identification (See 5.2).
+Mandatory.
+Relative card address; local system address of a card, dynamically suggested by the
+card and approved by the host during initialization (See 5.4). Mandatory.
+Driver Stage Register; to configure the card's output drivers (See 5.5). Optional.
+Card Specific Data; information about the card operation conditions (See 5.3).
+Mandatory
+SD Configuration Register; information about the SD Memory Card's Special Features capabilities (See 5.6). Mandatory
+Operation conditions register (See 5.1). Mandatory.
+SD Status; information about the card proprietary features (See 4.10.2).
+Mandatory
+Card Status; information about the card status (See 4.10.1). Mandatory
+
+(1) RCA register is not used (available) in SPI mode
+
+Table 3-2 : SD Memory Card Registers
+The host may reset the cards by switching the power supply off and on again. Each card shall have its
+own power-on detection circuitry that puts the card into a defined state after the power-on. No explicit
+reset signal is necessary. The cards can also be reset by sending the GO_IDLE (CMD0) command.
+
+V DD
+CMD
+DAT2
+CD/DAT3
+
+CLK
+Interface driver
+
+DAT0
+DAT1
+
+OCR[31:0]
+
+RCA[15:0]
+DSR[15:0]
+
+Card
+interface
+controller
+
+CSD[127:0]
+
+reset
+
+SCR[63:0]
+SSR[511:0]
+CSR[31:0]
+Memory core interface
+
+Power on detection
+
+CID[127:0]
+
+reset
+
+Memory core
+
+Figure 3-12 : SD Memory Card Architecture
+
+13
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.7.2 UHS-II Pin Assignment
+UHS-II Card shape is the same as SD Cards and UHS-II Interface is assigned to pads on the second row
+as well as sharing a few of the pads in first row.
+
+1
+
+2
+
+3 4
+
+5
+
+6 7 8
+
+9
+10 1112 13
+
+14 1516 17
+
+SD Memory Card
+
+Figure 3-13 : UHS-II Card Shape and Interface (Top View)
+Figure 3-13 shows the shape of Standard Size and interface contacts of the UHS-II SD Memory Card.
+The detailed physical dimensions and mechanical description are given in Part 1 Mechanical Addendum.
+UHS-II in microSD card form factor is available as well. Its physical dimensions, mechanical description
+as well as pin assignment are given in Part 1 microSD Card Addendum..
+Table 3-3 defines the contacts for UHS-II. SD bus contact Pins 7 and 8 are used for RCLK. The first row
+contacts in non UHS-II mode are equivalent to Table 3-1. Regarding PHY I/O Type, refer to UHS-II
+Addendum for more details.
+Pin #
+4
+7
+8
+10
+11
+12
+13
+14
+15
+16
+17
+
+Name
+VDD1
+RCLK+
+RCLKVSS3
+D0+
+D0VSS4
+VDD2
+D1D1+
+VSS5
+
+Type
+Supply voltage
+Differential Signaling: Input
+Differential Signaling: Input
+Ground
+Differential Signaling: Input (FD) / Bidirectional (HD)
+Differential Signaling: Input (FD) / Bidirectional (HD)
+Ground
+Supply Voltage 2
+Differential Signaling: Output (FD) / Bidirectional (HD)
+Differential Signaling: Output (FD) / Bidirectional (HD)
+Ground
+Table 3-3 : UHS-II Interface Pad Assignment
+
+Description
+2.7V to 3.6V
+Clock Input
+Clock Input
+Input in default
+Input in default
+1.70V to 1.95V
+Output in default
+Output in default
+
+UHS-II Card shall not drive unused lines of SD I/F in UHS-II mode. (CLK, CMD and DAT[3:2]. DAT[2]
+may be used as interrupt line in case of UHS-II SDIO Card. In this case, card controls DAT[2] level.)
+Host shall not leave these unused lines floating, but keep them at a defined high or low level. How to keep
+line level is dependent on host implementation. For example, use pull-up resistor or host drives the lines
+to low level without providing pull-up voltage. As DAT[1:0] are used for providing RCLK, individual line
+control is required to use pull-up method for CMD and DAT[3:2]. CLK (without pull-up resistor) should be
+driven to low.
+In case of entering hibernate mode, unused lines shall be set to low before turning off VDD1.
+
+14
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.7.3 1-Lane SD Express Pin Assignment
+The SD Express Card shape is the same as SD Cards; the PCIe/NVMe Interface is assigned to pads on
+the second row as well as sharing some of the pads in the first row.
+
+1
+
+2
+
+3
+
+4
+
+5
+
+9
+10 1112 13
+
+6
+
+7 8
+
+14 1516 17 18
+
+19
+
+SD Memory Card
+
+Figure 3.7.3-14 : 1-Lane SD Express Card Shape and Interface (Top View)
+Figure 3.7.3-14 shows the shape of 1-Lane SD Express card and its interface contacts for standard size
+SD card form factor. The detailed physical dimensions and mechanical description are given in Part 1
+Mechanical Addendum.
+SD Express in microSD card form factor is available as well. Its physical dimensions, mechanical
+description as well as pin assignment are given in Part 1 microSD Card Addendum.
+Table 3.7.3-1 defines the contacts for PCIe interface in case of supporting PCIe 1 lane. SD Express card
+shall support the basic SD interface allowing operation of the card in non-PCIe mode. The first row
+contacts is used by the basic SD mode (non-PCIe mode) and are equivalent to Table 3-1. Note that SD
+bus contact Pins 7 and 8 are used for REFCLK of PCIe interface and contact Pins 9 and 1 are used for
+CLKREQ# and PERST# respectively.
+
+15
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Pin #
+1
+4
+7
+8
+9
+
+Name
+PERST#
+
+Type
+
+Description
+
+Input signal (active low)
+
+PE-Reset is a functional reset to the card as
+defined by the PCIe Mini CEM specification.
+
+VDD1
+REFCLK+
+REFCLKCLKREQ#
+
+Supply voltage
+Differential Signaling: Input
+Differential Signaling: Input
+I/O (active low, open drain)
+
+2.7V to 3.6V
+Clock Input
+Clock Input
+Reference clock request signal. Also used
+by L1 PM substates
+
+10
+VSS3
+Ground
+11
+PCIe TX+ Differential Signaling
+Card Input
+12
+PCIe TXDifferential Signaling
+Card Input
+13
+VSS4
+Ground
+14
+VDD2
+Supply Voltage 2
+1.70V to 1.95V
+15
+PCIe RX- Differential Signaling
+Card Output
+16
+PCIe RX+ Differential Signaling
+Card Output
+17
+VSS5
+Ground
+18(1)
+VDD3
+Supply Voltage 3
+1.14V to 1.30V (optional)
+19(2)
+VDD1a
+Supply Voltage 4
+2.7V to 3.6V
+Note: (1) Pin #18 can be implemented when card supports VDD3. VDD3 is reserved for
+Standard Size SD Express.
+(2) Pin #19 is available only when SD Express card is compliant to Part 1 Physical
+Layer Specification Version 8.00 with PCIe Gen4 (Pin #19 does not exist for SD
+Express Card compliant to Part 1 Physical Layer Specification Version 7.XX with PCIe
+Gen3).
+Table 3.7.3-1 : 1-Lane SD Express Interface Pad Assignment
+
+SD Express Card shall not drive unused lines of SD I/F in PCIe mode.
+Host shall not leave these unused lines floating, but keep them at a defined high or low level. How to keep
+line level is dependent on host implementation. CLK (without pull-up resistor) should be driven to low.
+Pin functionality of the out-of-band signalling of the PCIe interface - CLKREQ# and PERST# is defined in
+PCIe standard. The existing card detection switch mechanism described in the Mechanical Addendum
+may be used by hosts as the Card Presence Detect in a similar fashion as PRSNT2# and PRSNT1# lines
+used for HW hot plug-in/out detection defined in PCIe specifications.
+If such a card detection switch is used logic ‘1’ to ‘0’ shall be detected by host when card is inserted into
+SD PCIe host and transition from ‘0’ to ‘1’ when SD Express card is removed.
+
+16
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.7.4 2-Lane SD Express Pin Assignment
+
+Figure 3.7.4-1 : 2-Lane SD Express Card Shape and Interface (Top View)
+Figure 3.7.4-1 shows the shape of 2-Lane SD Express card and its interface contacts for standard size
+SD card form factor. The detailed physical dimensions and mechanical description are given in Part 1
+Mechanical Addendum.
+
+17
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 3.7.4-1 defines the contacts for PCIe interface in case of having PCIe 2 lanes. 2-Lane SD Express
+card also shall support the basic SD interface allowing operation of the card in non-PCIe mode.
+Pin #
+1
+4
+7
+8
+9
+
+Name
+PERST#
+
+Type
+
+Description
+
+Input signal (active low)
+
+PE-Reset is a functional reset to the card
+as defined by the PCIe Mini CEM
+specification.
+
+VDD1
+REFCLK+
+REFCLKCLKREQ#
+
+Supply voltage
+Differential Signaling: Input
+Differential Signaling: Input
+I/O (active low, open drain)
+
+2.7V to 3.6V
+Clock Input
+Clock Input
+Reference clock request signal. Also
+used by L1 PM substates
+
+10
+VSS3
+Ground
+11
+PCIe TX0+
+Differential Signaling
+Card Input; lane 0
+12
+PCIe TX0Differential Signaling
+Card Input; lane 0
+13
+VSS4
+Ground
+14
+VDD2
+Supply Voltage 2
+1.70V to 1.95V
+15
+PCIe RX0Differential Signaling
+Card Output; lane 0
+16
+PCIe RX0+
+Differential Signaling
+Card Output; lane 0
+17
+VSS5
+Ground
+18(1)
+VDD3
+Supply Voltage 3
+1.14V to 1.30V (optional)
+19(2)
+VDD1a
+Supply Voltage 4
+2.7V to 3.6V (mandatory)
+20
+VSS6
+Ground
+21
+PCIe TX1+
+Differential Signaling
+Card Input; lane 1
+22
+PCIe TX1Differential Signaling
+Card Input; lane 1
+23
+VSS7
+Ground
+24
+VDD2a
+Supply Voltage 5
+1.70V to 1.95V
+25
+PCIe RX1Differential Signaling
+Card Output; lane 1
+26
+PCIe RX1+
+Differential Signaling
+Card Output; lane 1
+27
+VSS8
+Ground
+Note: (1) Pin #18 can be implemented when card supports VDD3. VDD3 is reserved for
+Standard Size SD Express.
+(2) Pin #19 and #24 are mandatory in 2-Lane SD Express card.
+Table 3.7.4-1 : 2-Lane SD Express Interface Pad Assignment
+SD I/F treatment in PCIe mode, out-of-band signals functionality and card detection recommendation
+given in Section 3.7.3 are applicable for 2-Lane SD Express Card.
+
+18
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.8 ROM Card
+ROM Card is defined as read only memory which meets following requirements. A permanent or
+temporary write protected writable SD memory card does not belong to this category.
+
+3.8.1 Register Setting Requirements
+Table 3-4 shows register setting requirements for ROM Card.
+Register
+SD Status
+CSD
+
+SCR
+
+Field
+Value
+Comment
+SD_CARD_TYPE
+0001h
+SD ROM Card
+CCC bit 4
+0
+Class4 block write
+CCC bit 5
+0
+Class5 erase
+CCC bit 6
+0
+Class6 write protection
+CCC bit 7
+0 or 1
+Class7 lock card
+PERM_WRITE_PROT 1
+Permanent Write Protect
+SD_SECURITY
+0 or 2 or 3 or 4
+Security is optional.
+Table 3-4 : Register Setting Requirements for ROM Card
+
+3.8.2 Unsupported Commands
+The ROM Card shall treat following commands as unsupported and illegal command.
+CMD24, CMD25, CMD27, CMD28, CMD29, CMD30, CMD32, CMD33, CMD38
+
+3.8.3 Optional Commands
+The ROM Card can support following commands as optional command.
+CMD42, security commands
+ If CMD42 is not supported, bit 7 of CCC shall be set to 0. CMD42 is treated as illegal command.
+ When ROM card supports CMD42, "Unlocking the card" and "Locking the card" functions shall be
+supported by presetting the password. LOCK_UNLOCK_FAILED is indicated when receiving the
+other unsupported functions of CMD42.
+ If security is not supported, SD_SECURITY shall be set to 0. The security commands are treated as
+illegal command.
+ ROM card does not support write and erase to the protected area. Refer to Part 3 Security
+Specification about security command support of ROM card.
+
+3.8.4 WP Switch
+A full-size ROM card does not have WP Switch. Refer to Figure 3-8 in the Part 1 Standard Size SD Card
+Mechanical Addendum Ver1.00.
+
+19
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.9 Ultra High Speed Phase I (UHS-I) Card
+UHS-I provides up to 104MB/sec performance on 4-bit SD bus with the single end driver interface. Card
+form factor is the same and existing connector can be used.
+
+3.9.1 UHS-I Card Operation Modes
+
+ DS - Default Speed up to 25MHz 3.3V signaling
+ HS - High Speed up to 50MHz 3.3V signaling
+ SDR12 - SDR up to 25MHz 1.8V signaling
+ SDR25 - SDR up to 50MHz 1.8V signaling
+ SDR50 - SDR up to 100MHz 1.8V signaling
+ SDR104 - SDR up to 208MHz 1.8V signaling
+ DDR50 - DDR up to 50MHz 1.8V signaling
+Note: 1.8V signal timings are different from those of 3.3V.
+
+3.9.2 UHS-I Card Types
+UHS-I supports two card Types:
+ UHS50
+ UHS104
+UHS-I is not applied to SDSC card but can be applied to SDHC, SDXC and SDUC card.
+Figure 3-14 and Figure 3-15 show UHS-I supported modes.
+DDR50 is mandatory for microSD form factor and optional for Standard size SD form factor
+DS: Default Speed Mode
+HS: High Speed Mode
+
+DS
+
+UHS50 Card
+
+HS
+SDR12
+SDR25
+
+Signal Voltage
+3.3V
+1.8V
+
+SDR50
+DDR50
+DS
+
+UHS104 Card
+
+HS
+SDR12
+SDR25
+SDR50
+SDR104
+DDR50
+25MHz
+
+50MHz
+
+100MHz
+
+208MHz
+
+Frequency
+
+Figure 3-14 : UHS-I Card Type Modes of Operation versus Frequency Range
+
+20
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+DS: Default Speed Mode
+HS: High Speed Mode
+
+DS
+
+UHS50 Card
+
+HS
+SDR12
+SDR25
+
+Signal Voltage
+3.3V
+1.8V
+
+SDR50
+DDR50
+DS
+
+UHS104 Card
+
+HS
+SDR12
+SDR25
+SDR50
+SDR104
+DDR50
+12MB/s 25MB/s
+
+50MB/s
+
+104MB/s
+
+Throughput
+
+Figure 3-15 : UHS-I Card Type Modes of Operation versus Throughput
+
+3.9.3 UHS-I Host and Card Combination
+Host may use SDR50, DDR50 and SDR104 modes with either UHS50 Card or UHS104 Card.
+Table 3-5 shows usable UHS performance depends on the combination of host and card. UHS-I for
+removable card is presumed that one card is connected to a SD bus. Maximum performance of up to
+104MB/s is possible only if host supports SDR104 mode and card is UHS104 Card (supports SDR104
+mode). If card is a UHS50 Card or if host doesn't support SDR104 mode, performance is limited to 50MB/s
+(SDR104 mode cannot be used).
+Host may use DDR50 mode with UHS50 Card and UHS104 Card in microSD form factors.
+Host types:
+SDR-FD – SDR signaling, fixed-delay (can't use tuning)
+SDR-VD – SDR signaling, variable-delay (can use tuning)
+DDR – DDR signaling
+Host type
+Card type
+UHS50 card
+microSD
+UHS104 card
+microSD
+UHS50 card
+Full-size SD
+UHS104 card
+Full-size SD
+
+HOST-SDR-FD
+(SDR, fixed-delay)
+
+HOST-SDR-VD
+(SDR, variable-delay)
+
+HOST-DDR
+(DDR)
+
+SDR50 ≤ 100MHz
+
+SDR50 ≤ 100MHz + tuning
+
+DDR50 ≤ 50MHz
+
+SDR50 ≤ 100MHz
+
+SDR104 ≤ 208MHz +
+tuning
+
+DDR50 ≤ 50MHz
+
+SDR50 ≤ 100MHz
+
+SDR50 ≤ 100MHz + tuning
+
+Optional
+
+SDR104 ≤ 208MHz +
+Optional
+tuning
+Table 3-5 : UHS-I Host and Card Combinations
+
+SDR50 ≤ 100MHz
+
+21
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.9.4 UHS-I Bus Speed Modes Selection Sequence
+Power on
+
+CMD0
+CMD8
+
+Once signal voltage is switched to 1.8V, the card continues 1.8V signaling
+regardless of CMD0. Power cycle resets the signal voltage to 3.3V.
+After Switching 1.8V singling, the card cannot be changed to SPI mode.
+
+Host requests card to change 1.8V signal voltage by ACMD41.
+A status is indicated in the response whether voltage switch is accepted.
+
+ACMD41
+CMD11
+
+If voltage switch is accepted by ACMD41, CMD11 invokes voltage switching
+sequence. If it is completed, the card enters SDR12 (default).
+
+CMD2
+CMD3
+CMD7
+
+If the CARD_IS_LOCKED status is set to 1 in the response of CMD7,
+CMD42 is required before ACMD6 to unlock the card.
+
+CMD42
+UHS-I supports only 4-bit mode. Host shall select 4-bit mode by ACMD6.
+
+ACMD6
+CMD6
+CMD19
+
+Driver Strength is selected by CMD6 Function Group 3.
+Bus Speed Mode is selected by CMD6 Function Group 1.
+Current Limit is selected by CMD6 Function Group 4.
+
+CMD19 sends a tuning block to the host to determine sampling point.
+UHS50 and UHS104 cards support CMD19 in 1.8V signaling. Sampling clock
+tuning is required for UHS104 host and optional for UHS50 host.
+
+Figure 3-16 : Command Sequence to Use UHS-I
+Figure 3-16 shows command sequence to use a UHS-I. After power cycle, card is in 3.3V signaling mode.
+The first CMD0 selects the bus mode; SD mode or SPI mode. 1.8V signaling mode can be entered only
+in SD mode. Once the card enters 1.8V signaling mode, the card cannot be switched to SPI mode or 3.3V
+signaling without power cycle. If the card receives CMD0, card returns to Idle state but still work with
+SDR12 timing. UHS-I is provided in SD mode but not in SPI mode.
+As higher bus speed requires low level signaling, UHS-I adopts 1.8V signaling level for SDR50, DDR50
+and SDR104 modes. Still card is supplied with 3.3V by the host and 1.8V signaling level for SDCLK, CMD
+and DAT[3:0] lines is converted from 3.3V power line. To avoid voltage mismatch between host and card,
+signaling level is changed by voltage switch sequence at the initialization. The host and card communicate
+using ACMD41 whether host and card support 1.8V signaling mode. Support of 1.8V signaling both host
+and card means UHS-I can be used. CMD11 invokes the voltage switch sequence. The card enters UHSI mode and card input and output timings are changed (SDR12 in default) when the voltage switch
+sequence is completed successfully. (Refer to Section 4.2.4 for more detail.)
+Only 4-bit bus mode is supported in UHS-I except CMD42. If the card is locked, host needs to unlock the
+card by CMD42 in 1-bit mode and then needs to issue ACMD6 to change 4-bit bus mode. Operating in
+1-bit mode is not assured.
+Host can choose suitable output driver strength by CMD6 Function Group 3.
+Host can choose one of UHS-I modes by CMD6 Function Group 1. Each UHS-I mode is specified by the
+maximum frequency, sampling edges (rising-only or both) and maximum Power consumption for
+compatibility with existing cards. Host can choose one of UHS-I mode depending on capability of
+generating SDCLK frequency and capacity of power supply host supported.
+22
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD19 can be executed in transfer state of 1.8V signaling mode while the card is unlocked. The other
+case, CMD19 is treated as illegal command.
+
+3.9.5 UHS-I System Block Diagram
+Figure 3-17 shows a typical UHS-I host system that supports removable cards. Host has clock generator
+which supplies SDCLK to the card. In case of write operation, as clock direction and data direction is the
+same, write data can be transferred synchronized with SDCLK regardless of transmission line delay. In
+case of read operation, as clock direction and data direction is opposite, read data host received is
+delayed by round-trip delay, output delay and latency of host and card. So receiving data is the most
+critical for the host. Therefore, host needs to have sampling clock generator to receive response, CRC
+status and read data block.
+
+Simplified UHS-I Card Diagram
+
+Simplified UHS-I Host Diagram
+CLK
+Clock Generator
+
+Outgoing block
+
+Incoming block
+DAT[3:0]
+CMD
+
+Sampling Clock
+Generator
+
+Incoming block
+
+Flash
+Memory
+Outgoing block
+
+Figure 3-17 : Host and Card Block Diagram
+3.9.5.1 Variable Sampling Host
+The host use variable sampling clock generator to determine correct sampling point. The host can use
+predefine tuning block stored in card as an aid for finding sampling operating point. The host can use
+CMD19 tuning command to read tuning block.
+This method is applied to the whole frequency range. In lower frequency less than 25MHz, host needs to
+access the card without tuning.
+3.9.5.2 Fixed Sampling Host
+The host uses pre-determined sampling point. This method is available in up to 100MHz. HOST-SDR-FD
+can make sampling clock by using clock loopback method (Implementation examples of HOST-SDR-FD
+are shown in 0). UHS50 and UHS104 card shall be compliant to tODLY (max.) output delay constraint for
+less than 100MHz frequency range.
+
+23
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.9.6 Summary of Bus Speed Mode for UHS-I Card
+Table 3-6 shows the card requirements regarding Bus Speed modes selected by CMD6 function group 1.
+The maximum frequency and the maximum power are determined by CMD6.
+Bus Speed
+Mode*1
+
+Max. Bus
+Speed
+
+Max. Clock
+Frequency
+
+Signal
+Voltage
+
+[MB/s]
+
+[MHz]
+
+[V]
+
+Max. Power*2
+[W]
+SDSC*3
+
+SDHC*4
+
+SDXC*5 /
+SDUC*8
+
+SDR104
+
+104
+
+208
+
+1.8
+
+-
+
+2.88*6
+
+2.88*6
+
+SDR50
+
+50
+
+100
+
+1.8
+
+-
+
+1.44
+
+1.44
+
+DDR50
+
+50
+
+50
+
+1.8
+
+-
+
+1.44
+
+1.44
+
+SDR25
+
+25
+
+50
+
+1.8
+
+-
+
+0.72
+
+0.72
+
+SDR12
+
+12.5
+
+25
+
+1.8
+
+-
+
+0.36
+
+0.36/0.54*7
+
+High Speed
+
+25
+
+50
+
+3.3
+
+0.72
+
+0.72
+
+0.72
+
+Default Speed
+
+12.5
+
+25
+
+3.3
+
+0.36
+
+0.36
+
+0.36/0.54*7
+
+*1:
+*2:
+*3:
+*4:
+*5:
+*6:
+
+The card supports a UHS-I mode shall support all lower UHS-I modes.
+Host may control power by the Power Limit function in CMD6 (Refer to Section 4.3.10.3).
+SDSC stands for SD Standard Capacity Memory Card and
+SDHC stands for SD High Capacity Memory Card.
+SDXC stands for SD Extended Capacity Memory Card.
+The actual maximum current may vary from the limit described in this table. It is limited by the Mechanical
+Addenda in the sections that define the thermal profile of the device and the connector profile.
+*7: Host may select either maximum power by XPC in ACMD41 (Refer to Section 4.2.3.1).
+In SPI mode, XPC is not supported and the power shall be up to 0.36W (100mA at 3.6V on VDD1).
+*8: SDUC stands for SD Ultra Capacity Memory Card.
+
+Table 3-6 : Bus Speed Modes of UHS-I Card
+DS
+HS
+SDR12
+SDR25
+SDR50
+SDR104
+DDR50
+
+- Default Speed up to 25MHz 3.3V signaling
+- High Speed up to 50MHz 3.3V signaling
+- SDR up to 25MHz 1.8V signaling
+- SDR up to 50MHz 1.8V signaling
+- SDR up to 100MHz 1.8V signaling
+- SDR up to 208MHz 1.8V signaling
+- DDR up to 50MHz 1.8V signaling
+
+Table 3-7 clarifies option / mandatory of bus speed mode for each card capacity type.
+Card Classification
+DS
+HS
+SDR50
+SDR104
+DDR50
+SDSC
+M
+O
+N/A
+N/A
+N/A
+Non UHS-I
+M
+O
+N/A
+N/A
+N/A
+UHS50
+M
+M
+M
+N/A
+O (Standard SD)
+SDHC
+M (microSD)
+UHS104
+M
+M
+M
+M
+O (Standard SD)
+M (microSD)
+Non UHS-I
+M
+O
+N/A
+N/A
+N/A
+UHS50
+M
+M
+M
+N/A
+O (Standard SD)
+SDXC/SDUC
+M (microSD)
+UHS104
+M
+M
+M
+M
+O (Standard SD)
+M (microSD)
+M: Mandatory,
+
+O: Optional,
+
+N/A: Not Available
+
+Table 3-7 : Bus Speed Mode Option / Mandatory
+
+24
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.10 Ultra High Speed Phase II (UHS-II) Card
+3.10.1 UHS-II Card Operation Modes
+SD Bus Interface Modes
+ DS - Default Speed up to 25MHz 3.3V signaling
+ HS - High Speed up to 50MHz 3.3V signaling
+ SDR12 - SDR up to 25MHz 1.8V signaling
+ SDR25 - SDR up to 50MHz 1.8V signaling
+ SDR50 - SDR up to 100MHz 1.8V signaling
+ SDR104 - SDR up to 208MHz 1.8V signaling (Optional)
+ DDR50 - DDR up to 50MHz 1.8V signaling (Optional for Standard Size Card)
+UHS-II Interface Modes
+ FD156 - Full Duplex mode up to 156MB/s at 52MHz in Range B
+ HD312 - Half Duplex with 2 Lanes mode up to 312MB/s at 52MHz in Range B (Optional)
+ FD312 - Full Duplex mode up to 312MB/s at 52MHz in Range C
+ FD624 - Full Duplex mode up to 624MB/s at 52MHz in Range D
+
+3.10.2 UHS-II Card Type
+UHS-II supports two card Type
+The performance of UHS-II card is indicated based on in Full Duplex mode because HD312 is optional.
+ UHS156: UHS-II Card with data rate up to 1.56Gbps in FD156 mode and up to 312Gbps in HD312
+mode (Optional).
+ UHS624: UHS-II Card with data rate up to 6.24Gbps in FD624 mode
+
+Figure 3-18 : Interface Speed of UHS-II Card (UHS156 and UHS624)
+
+25
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.10.3 UHS-II Host and Card Combination
+Host type
+Card type
+UHS156
+(HD312 not supported)
+UHS156
+(HD312 supported)
+UHS624
+(HD312 not supported)
+UHS624
+(HD312 supported)
+
+UHS-II
+FD156 only
+
+UHS-II
+HD312 supported
+
+UHS-II
+FD624 only
+
+UHS-II
+HD312 and FD624
+supported
+
+up to 1.56Gbps
+
+up to 1.56Gbps
+
+up to 1.56Gbps
+
+up to 1.56Gbps
+
+up to 1.56Gbps
+
+up to 3.12Gbps
+
+up to 1.56Gbps
+
+up to 3.12Gbps
+
+up to 1.56Gbps
+
+up to 1.56Gbps
+
+up to 6.24Gbps
+
+up to 6.24Gbps
+
+up to 1.56Gbps
+
+up to 3.12Gbps
+
+up to 6.24Gbps
+
+up to 6.24Gbps
+
+Note: HD312 cannot be used in Ring Topology
+Table 3-8 : UHS-II Host and Card Combinations
+
+3.10.4 UHS-II Interface Selection Sequence
+UHS-II supported host shall support Legacy SD Bus Interface (I/F) and UHS-II I/F. Removable UHS-II
+card slot shall be connected to both I/Fs. Then UHS-II card may be initialized not only in UHS-II mode but
+also in SD Bus I/F mode.
+Figure 3-19 shows how to select UHS-II mode. After power up, SD bus I/F and UHS-II I/F of UHS-II card
+are enabled. UHS-II supported host provides RCLK and STB.L to D0 lane. Host waits D1 lane to change
+EIDL to STB.L. If STB.L is detected on D1 lane, host starts UHS-II initialization. If D1 lane is not changed
+to STB.L by 200us timeout, host should initialize the card in SD Bus I/F mode. As 200us for STB.L
+detection is defined as per card, host needs to determine total timeout value that depends on UHS-II bus
+topology of a system.
+VDD1
+
+UHS-II
+Host
+
+VDD2
+
+UHS-II
+Card
+(Device)
+
+Power Up
+Supply VDD1, VDD2
+
+RCLK
+D0 = STB.L
+
+Host supplies RCLK and
+set STB.L on D0
+
+D1
+
+200us Timeout
+
+EIDL to STB.L
+
+Host waits D1=STB.L
+D1=STB.L
+
+SD I/F Initialization
+Legacy SD Card
+
+SD
+I/F
+
+UHS-II Initialization
+
+SD I/F is selected
+
+UHS-II I/F is selected
+
+UHS-II SD
+I/F
+I/F
+
+UHS-II SD
+I/F
+I/F
+
+SEL
+
+SEL
+
+BE
+
+BE
+
+BE
+
+Card Controller
+
+Card Controller
+
+Card Controller
+
+Figure 3-19 : UHS-II Interface Detection
+Figure 3-20 shows abstract of UHS-II Initialization sequence. The first step is PHY initialization. PLL is
+activated and synchronized. Before completing PHY Initialization period, SD Bus I/F is disabled. The second
+26
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+step is Device Initialization. Backend functions of devices are initialized. The third step is Enumeration. 4-bit
+unique Device ID is assigned to each device to be able to select one of devices by a Device ID. The fourth
+step is Configuration. UHS-II register is set to be able to use UHS-II devices in optimized bus sequence. The
+fifth step is SD-TRAN Initialization. UHS-II emulates SD Commands by the SD-TRAN. SD-TRAN Initialization
+is equivalent to SD Bus Initialization but host issues SD Commands in UHS-II packets. UHS-II card accepts
+most SD commands except some specific commands. Refer to Section 4.7.5 about the difference of SD
+command definition in UHS-II. If CMD0 is received, the UHS-II card re-starts from SD-TRAN initialization.
+Figure 3-21 shows SD Bus I/F Initialization sequence for UHS-II Card. UHS-II card shall disable UHS-II
+Interface before execution of ACMD41 is completed. If VDD2 is provided during SD Interface initialization of
+UHS-II Card, host shall continue to provide VDD2. VDD2 may be off by power cycle with VDD1 before starting
+SD Interface initialization. On detecting non UHS-II card, host may turn off VDD2 anytime.
+
+UHS-II Initialization
+UHS-II I/F is selected
+
+PHY Initialization
+
+CM-TRAN
+Initialization
+
+• PLL Activation
+• PLL Synchronization
+• Disabling SD I/F
+
+UHS-II SD
+I/F
+I/F
+SEL
+BE
+
+Device Initialization
+
+Card Controller
+
+Enumeration
+• Set Device ID
+
+Configuration
+• Set Parameters
+CMD0
+(SD-TRAN)
+Initialization for SD-TRAN
+CMD8
+ACMD41
+CMD2
+CMD3
+
+SD-TRAN
+card identification mode
+
+SD-TRAN data transfer mode
+
+Figure 3-20 : UHS-II Interface Initialization
+
+27
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+SD I/F Initialization
+Stop supplying RCLK
+Start supplying SDCLK
+
+SD I/F is selected
+
+UHS-II SD
+I/F
+I/F
+SEL
+
+UHS-II is disabled
+before ACMD41 is
+completed.
+
+CMD0
+CMD0
+CMD8
+
+BE
+
+Card Controller
+
+ACMD41
+UHS-II I/F Deactivation
+Disabling UHS-II I/F
+
+CMD2
+CMD3
+
+Figure 3-21 : UHS-II Interface Deactivation
+
+3.10.5 Summary of Bus Speed Mode for UHS-II Card
+Bus Speed
+Mode*1
+
+Max. Bus
+Speed
+
+Max. Clock
+Frequency
+
+Signal
+Voltage
+
+[MB/s]
+
+[MHz]
+
+[V]
+
+FD156*8
+
+156
+
+52
+
+HD312*8
+
+312
+
+52
+
+Max. Power*2
+[W]
+SDSC*3
+
+SDHC*4
+
+SDXC*5 / SDUC*9
+
+0.4
+
+1.80*6
+
+1.80*6
+
+0.4
+
+1.80*6
+
+1.80*6
+
+1.80*6
+
+1.80*6
+
+FD624*8
+
+624
+
+52
+
+0.4
+
+SDR104
+
+104
+
+208
+
+1.8
+
+-
+
+1.80*6
+
+1.80*6
+
+SDR50
+
+50
+
+100
+
+1.8
+
+-
+
+1.44
+
+1.44
+
+DDR50
+
+50
+
+50
+
+1.8
+
+-
+
+1.44
+
+1.44
+
+SDR25
+
+25
+
+50
+
+1.8
+
+-
+
+0.72
+
+0.72
+
+SDR12
+
+12.5
+
+25
+
+1.8
+
+-
+
+0.36
+
+0.36/0.54*7
+
+High Speed
+
+25
+
+50
+
+3.3
+
+0.72
+
+0.72
+
+0.72
+
+Default Speed
+
+12.5
+
+25
+
+3.3
+
+0.36
+
+0.36
+
+0.36/0.54*7
+
+*1:
+*2:
+*3:
+*4:
+*5:
+*6:
+*7:
+
+UHS-II I/F
+
+SD I/F
+
+The card supports a UHS-I mode shall support all lower UHS-I modes.
+Host may control card power by the Power Limit Function of CMD6
+SDSC stands for SD Standard Capacity Memory Card.
+SDHC stands for SD High Capacity Memory Card.
+SDXC stands for SD Extended Capacity Memory Card.
+The max. power of removable card is 1.80W and that of embedded device is 2.88W
+Host may select either card power by XPC in ACMD41.
+In SPI mode, XPC is not supported and the power shall be up to 0.36W (3.6V 100mA).
+*8: Minimum power requirement of host in UHS-II mode is 0.72W and it is applied from PHY
+
+28
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Initialization.
+*9: SDUC stands for SD Ultra Capacity Memory Card.
+
+Table 3-9 : Bus Speed Modes of UHS-II Card
+Table 3-10 shows Card Types and Supported Bus Speed Modes.
+It is recommended that UHS-II hosts implement the UHS-I mode (at least SDR50) to provide backward
+compatibility with UHS-I cards.
+Bus Modes
+Non UHS
+Card Types
+HS
+
+M
+
+O
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+M
+
+O
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+UHS50
+
+M
+
+M
+
+M
+
+N/A
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+UHS-II
+
+UHS104
+UHS156
+
+M
+M
+
+M
+M
+
+M
+M
+
+M
+O
+
+(1)
+(1)
+
+N/A
+M
+
+N/A
+O
+
+N/A
+N/A
+
+N/A
+N/A
+
+UHS-III
+
+UHS624
+
+M
+
+M
+
+M
+
+O
+
+(1)
+
+M
+
+O
+
+M
+
+M
+
+M
+
+O
+
+N/A
+
+N/A
+

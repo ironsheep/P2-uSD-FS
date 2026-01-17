@@ -1,0 +1,789 @@
+'' =================================================================================================
+''   SD Card Driver Test Suite
+''   Read-only validation tests for OB4269 FAT32 driver
+''
+''   Tests performed against known test card contents (see TEST-CARD-SPECIFICATION.md)
+'' =================================================================================================
+
+CON
+  _clkfreq  = 300_000_000                       ' 300 MHz
+
+  ' Pin assignments for EC32MB Edge Module
+  SD_MISO   = 58                                ' P58 - Data In (MISO / DAT0)
+  SD_MOSI   = 59                                ' P59 - Data Out (MOSI / CMD)
+  SD_CS     = 60                                ' P60 - Chip Select (CS / DAT3 / CD)
+  SD_SCK    = 61                                ' P61 - SPI Clock
+
+  ' Debug serial - 2 Mbaud
+  DEBUG_BAUD = 2_000_000
+
+  ' Test buffer size
+  BUF_SIZE  = 512
+
+OBJ
+  sd : "SD_card_driver"
+
+VAR
+  byte  buffer[BUF_SIZE]
+  byte  buffer2[65536]                          ' Large buffer for 64KB file test
+  long  tests_passed
+  long  tests_failed
+  long  test_number
+
+PUB main() | result
+
+  debug("==============================================")
+  debug("  SD CARD DRIVER TEST SUITE")
+  debug("  OB4269 FAT32 Driver Validation")
+  debug("==============================================")
+  debug(" ")
+  debug("Pin Configuration:")
+  debug("  MISO (DAT0): P", udec_(SD_MISO))
+  debug("  MOSI (CMD):  P", udec_(SD_MOSI))
+  debug("  CS   (DAT3): P", udec_(SD_CS))
+  debug("  CLK:         P", udec_(SD_SCK))
+  debug(" ")
+
+  tests_passed := 0
+  tests_failed := 0
+  test_number := 0
+
+  ' Test 0: Raw SPI diagnostic - send CMD0 manually with bit-level debug
+  test_raw_cmd0()
+
+  ' Test 1: Mount
+  result := test_mount()
+
+  if result
+    ' Only continue if mount succeeded
+    test_volume_label()
+    test_root_directory()
+    test_tiny_file()
+    test_exact_512()
+    test_twosec_file()
+    test_four_k()
+    test_large_file()
+    test_seek()
+    test_checksum()
+    test_subdirectory()
+    test_deep_path()
+    test_multi_directory()
+    benchmark_sector_read()
+
+  debug(" ")
+  debug("==============================================")
+  debug("  TEST SUMMARY")
+  debug("==============================================")
+  debug("  Passed: ", udec(tests_passed))
+  debug("  Failed: ", udec(tests_failed))
+  debug("  Total:  ", udec(tests_passed + tests_failed))
+  debug("==============================================")
+  debug("END_SESSION")
+
+  repeat                                        ' Halt
+
+
+PRI test_card_detect() | i, response, miso_bits
+'' Test 0: Basic SPI communication check
+'' Send clock pulses and check if card responds
+  debug(" ")
+  debug("------ PRE-TEST: CARD DETECTION ------")
+  debug("  Checking SPI lines...")
+
+  ' Set up pins manually for raw SPI test
+  pinh(SD_CS)                                     ' CS high initially
+  pinh(SD_MOSI)                                   ' MOSI high
+  pinl(SD_SCK)                                    ' CLK low
+
+  ' Send 80+ clock pulses with CS high (card init requirement)
+  debug("  Sending 80 init clocks (CS high)...")
+  repeat 80
+    pint(SD_SCK)                                  ' Toggle clock
+    waitus(10)
+    pint(SD_SCK)
+    waitus(10)
+
+  ' Now try to read MISO line state
+  response := pinr(SD_MISO)
+  debug("  MISO idle state (CS high): ", udec(response))
+
+  ' Pull CS low and send more clocks, watch MISO
+  debug("  Asserting CS low, clocking 8 bits...")
+  pinl(SD_CS)
+  waitus(10)
+
+  ' Send 8 clocks and sample MISO each time, collect as bits
+  miso_bits := 0
+  repeat i from 0 to 7
+    pinh(SD_SCK)
+    waitus(5)
+    response := pinr(SD_MISO)
+    miso_bits := (miso_bits << 1) | response
+    pinl(SD_SCK)
+    waitus(5)
+
+  debug("  MISO 8-bit sample: ", uhex_(miso_bits), " (0xFF=card present, pulling high)")
+
+  pinh(SD_CS)                                     ' Release CS
+
+  debug("  Card detect complete - proceeding to mount")
+  debug(" ")
+
+
+PRI test_raw_cmd0() | i, bit, response, miso_state
+'' Raw CMD0 diagnostic - manually clock CMD0 and show each bit
+  debug(" ")
+  debug("------ RAW CMD0 DIAGNOSTIC ------")
+
+  ' Initialize pins
+  pinh(SD_CS)                                     ' CS high (deselected)
+  pinh(SD_MOSI)                                   ' MOSI high
+  pinl(SD_SCK)                                    ' CLK low (SPI mode 0)
+
+  debug("  Initial pin states: CS=", udec_(pinr(SD_CS)), " MOSI=", udec_(pinr(SD_MOSI)), " MISO=", udec_(pinr(SD_MISO)), " SCK=", udec_(pinr(SD_SCK)))
+
+  ' Send 80+ init clocks with CS high
+  debug("  Sending 80 init clocks (CS high)...")
+  repeat 80
+    pinh(SD_SCK)
+    waitus(20)
+    pinl(SD_SCK)
+    waitus(20)
+
+  debug("  After init clocks, MISO=", udec_(pinr(SD_MISO)))
+
+  ' Assert CS (select card)
+  pinl(SD_CS)
+  waitus(10)
+  debug("  CS asserted LOW, MISO=", udec_(pinr(SD_MISO)))
+
+  ' Send 8 dummy clocks (0xFF)
+  debug("  Sending 8 dummy clocks (0xFF)...")
+  pinh(SD_MOSI)
+  repeat 8
+    pinh(SD_SCK)
+    waitus(20)
+    pinl(SD_SCK)
+    waitus(20)
+
+  ' Send CMD0: 0x40, 0x00, 0x00, 0x00, 0x00, 0x95
+  debug("  Sending CMD0 ($40 $00 $00 $00 $00 $95)...")
+
+  ' Send $40 (01000000) - CMD0 command byte
+  send_byte($40)
+  ' Send 4 bytes of 0x00 (argument)
+  send_byte($00)
+  send_byte($00)
+  send_byte($00)
+  send_byte($00)
+  ' Send $95 (CRC)
+  send_byte($95)
+
+  debug("  CMD0 sent, now reading response...")
+
+  ' Read response bytes (wait for non-$FF)
+  repeat 10
+    response := recv_byte()
+    debug("    Response byte: ", uhex_(response))
+    if response <> $FF
+      quit
+
+  ' Deselect card
+  pinh(SD_CS)
+  waitus(100)
+
+  ' Try CMD0 again to see if card needs multiple attempts
+  debug("  === Second CMD0 attempt ===")
+  pinl(SD_CS)
+  waitus(10)
+  send_byte($FF)                                  ' dummy byte
+  send_byte($40)                                  ' CMD0
+  send_byte($00)
+  send_byte($00)
+  send_byte($00)
+  send_byte($00)
+  send_byte($95)                                  ' CRC
+
+  repeat 10
+    response := recv_byte()
+    debug("    Response byte: ", uhex_(response))
+    if response <> $FF
+      quit
+
+  pinh(SD_CS)
+  debug("  CS released, raw CMD0 test complete")
+  debug(" ")
+
+
+PRI send_byte(data) | i, bit
+'' Send a byte MSB first, slow clocking with debug
+  repeat i from 7 to 0
+    bit := (data >> i) & 1
+    if bit
+      pinh(SD_MOSI)
+    else
+      pinl(SD_MOSI)
+    pinh(SD_SCK)
+    waitus(20)
+    pinl(SD_SCK)
+    waitus(20)
+
+
+PRI recv_byte() : data | i, bit
+'' Receive a byte MSB first, slow clocking
+  pinh(SD_MOSI)                                   ' Keep MOSI high during receive
+  data := 0
+  repeat i from 7 to 0
+    pinh(SD_SCK)
+    waitus(10)
+    bit := pinr(SD_MISO)
+    data := (data << 1) | bit
+    pinl(SD_SCK)
+    waitus(20)
+
+
+PRI test_mount() : pass
+'' Test 1: Mount SD card
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": MOUNT ------")
+
+  pass := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+
+  if pass
+    debug("  Mount: PASS")
+    debug("  Card mounted successfully")
+    tests_passed++
+  else
+    debug("  Mount: FAIL")
+    debug("  ERROR: Could not mount SD card")
+    debug("  Check wiring and card format (must be FAT32)")
+    tests_failed++
+
+  return pass
+
+
+PRI test_volume_label() | p_label, pass
+'' Test 2: Volume label verification
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": VOLUME LABEL ------")
+
+  p_label := sd.volumeLabel()
+  debug("  Volume label: [", zstr(p_label), "]")
+  debug("  Expected:     [P2-TEST    ]")
+
+  ' Check if it matches "P2-TEST" (padded with spaces to 11 chars)
+  pass := (byte[p_label + 0] == "P")
+  pass &= (byte[p_label + 1] == "2")
+  pass &= (byte[p_label + 2] == "-")
+  pass &= (byte[p_label + 3] == "T")
+  pass &= (byte[p_label + 4] == "E")
+  pass &= (byte[p_label + 5] == "S")
+  pass &= (byte[p_label + 6] == "T")
+
+  if pass
+    debug("  Volume label: PASS")
+    tests_passed++
+  else
+    debug("  Volume label: FAIL")
+    tests_failed++
+
+
+PRI test_root_directory() | count, i, p_entry
+'' Test 3: Root directory enumeration
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": ROOT DIRECTORY ------")
+
+  count := 0
+  i := 0
+  repeat
+    p_entry := sd.readDirectory(i++)
+    if p_entry
+      count++
+      debug("  Entry ", udec(i-1), ": ", zstr(sd.fileName()), " size=", udec(sd.fileSize()), " attr=", uhex_(sd.attributes()))
+  until p_entry == 0
+
+  debug("  Total entries: ", udec(count))
+
+  if count >= 7                                 ' At least our test files + directories
+    debug("  Root directory: PASS")
+    tests_passed++
+  else
+    debug("  Root directory: FAIL (expected >= 7 entries)")
+    tests_failed++
+
+
+PRI test_tiny_file() | size, pass
+'' Test 3: Small file read - TINY.TXT (29 bytes)
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": TINY FILE ------")
+
+  pass := sd.openFile(string("TINY.TXT"))
+  if pass == 0
+    debug("  ERROR: Could not open TINY.TXT")
+    tests_failed++
+    return
+
+  size := sd.fileSize()
+  debug("  File size: ", udec(size), " (expected: 29)")
+
+  bytefill(@buffer, 0, BUF_SIZE)
+  sd.read(@buffer, size)
+  sd.closeFile()
+
+  debug("  Content: ", zstr(@buffer))
+
+  ' Verify content
+  pass := (size == 29)
+  pass &= (buffer[0] == "T")                    ' First byte
+  pass &= (buffer[28] == "!")                   ' Last byte (29-1=28)
+
+  if pass
+    debug("  TINY.TXT: PASS")
+    tests_passed++
+  else
+    debug("  TINY.TXT: FAIL")
+    debug("    First byte: ", uhex_(buffer[0]), " (expected: 0x54 'T')")
+    debug("    Last byte:  ", uhex_(buffer[28]), " (expected: 0x21 '!')")
+    tests_failed++
+
+
+PRI test_exact_512() | i, pass, bad_count
+'' Test 4: Exact sector boundary - EXACT512.BIN (512 bytes of 0x58)
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": EXACT 512 BYTES ------")
+
+  pass := sd.openFile(string("EXACT512.BIN"))
+  if pass == 0
+    debug("  ERROR: Could not open EXACT512.BIN")
+    tests_failed++
+    return
+
+  debug("  File size: ", udec(sd.fileSize()), " (expected: 512)")
+
+  bytefill(@buffer, 0, BUF_SIZE)
+  sd.read(@buffer, 512)
+  sd.closeFile()
+
+  ' Verify all bytes are 0x58 ('X')
+  pass := true
+  bad_count := 0
+  repeat i from 0 to 511
+    if buffer[i] <> $58
+      pass := false
+      bad_count++
+      if bad_count <= 5
+        debug("    Byte ", udec(i), ": ", uhex_(buffer[i]), " (expected: 0x58)")
+
+  if pass
+    debug("  EXACT512.BIN: PASS (all 512 bytes = 0x58)")
+    tests_passed++
+  else
+    debug("  EXACT512.BIN: FAIL (", udec(bad_count), " incorrect bytes)")
+    tests_failed++
+
+
+PRI test_twosec_file() | size, pass
+'' Test 5: Multi-sector text file - TWOSEC.TXT (2550 bytes)
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": MULTI-SECTOR TEXT ------")
+
+  pass := sd.openFile(string("TWOSEC.TXT"))
+  if pass == 0
+    debug("  ERROR: Could not open TWOSEC.TXT")
+    tests_failed++
+    return
+
+  size := sd.fileSize()
+  debug("  File size: ", udec(size), " (expected: 2550)")
+
+  ' Read first 100 bytes to verify pattern
+  bytefill(@buffer, 0, BUF_SIZE)
+  sd.read(@buffer, 100)
+  sd.closeFile()
+
+  debug("  First 50 chars: ", lstr_(@buffer, 50))
+
+  ' Check for expected pattern start
+  pass := (size == 2550)
+  pass &= (buffer[0] == "L")
+  pass &= (buffer[1] == "I")
+  pass &= (buffer[2] == "N")
+  pass &= (buffer[3] == "E")
+
+  if pass
+    debug("  TWOSEC.TXT: PASS")
+    tests_passed++
+  else
+    debug("  TWOSEC.TXT: FAIL")
+    tests_failed++
+
+
+PRI test_four_k() | i, pass, expected, bad_count
+'' Test 6: 4KB binary pattern - FOUR_K.BIN
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": 4KB PATTERN ------")
+
+  pass := sd.openFile(string("FOUR_K.BIN"))
+  if pass == 0
+    debug("  ERROR: Could not open FOUR_K.BIN")
+    tests_failed++
+    return
+
+  debug("  File size: ", udec(sd.fileSize()), " (expected: 4096)")
+
+  ' Read entire file (need larger buffer, read in chunks)
+  bytefill(@buffer, 0, BUF_SIZE)
+
+  ' Read first 512 bytes
+  sd.read(@buffer, 512)
+
+  ' Verify pattern: byte[i] = i & 0xFF
+  pass := true
+  bad_count := 0
+  repeat i from 0 to 511
+    expected := i & $FF
+    if buffer[i] <> expected
+      pass := false
+      bad_count++
+      if bad_count <= 3
+        debug("    Byte ", udec(i), ": ", uhex_(buffer[i]), " (expected: ", uhex_(expected), ")")
+
+  ' Read bytes at position 256-260 (should be 0,1,2,3,4)
+  sd.seek(256)
+  sd.read(@buffer, 5)
+  debug("  Bytes 256-260: ", uhex_(buffer[0]), " ", uhex_(buffer[1]), " ", uhex_(buffer[2]), " ", uhex_(buffer[3]), " ", uhex_(buffer[4]))
+  pass &= (buffer[0] == 0 and buffer[1] == 1 and buffer[2] == 2)
+
+  sd.closeFile()
+
+  if pass
+    debug("  FOUR_K.BIN: PASS")
+    tests_passed++
+  else
+    debug("  FOUR_K.BIN: FAIL")
+    tests_failed++
+
+
+PRI test_large_file() | size, pass, pos, expected, actual
+'' Test 7: 64KB multi-cluster file - SIXTYFK.BIN
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": 64KB MULTI-CLUSTER ------")
+
+  pass := sd.openFile(string("SIXTYFK.BIN"))
+  if pass == 0
+    debug("  ERROR: Could not open SIXTYFK.BIN")
+    tests_failed++
+    return
+
+  size := sd.fileSize()
+  debug("  File size: ", udec(size), " (expected: 65536)")
+  pass := (size == 65536)
+
+  ' Test pattern at various positions
+  ' Pattern: byte[i] = ((i / 512) << 1) XOR (i & 0xFF)
+
+  ' Position 0: block 0, offset 0 -> (0<<1) XOR 0 = 0
+  sd.seek(0)
+  sd.read(@buffer, 1)
+  expected := 0
+  actual := buffer[0]
+  debug("  Pos 0: ", uhex_(actual), " (expected: ", uhex_(expected), ")")
+  pass &= (actual == expected)
+
+  ' Position 512: block 1, offset 0 -> (1<<1) XOR 0 = 2
+  sd.seek(512)
+  sd.read(@buffer, 1)
+  expected := 2
+  actual := buffer[0]
+  debug("  Pos 512: ", uhex_(actual), " (expected: ", uhex_(expected), ")")
+  pass &= (actual == expected)
+
+  ' Position 1024: block 2, offset 0 -> (2<<1) XOR 0 = 4
+  sd.seek(1024)
+  sd.read(@buffer, 1)
+  expected := 4
+  actual := buffer[0]
+  debug("  Pos 1024: ", uhex_(actual), " (expected: ", uhex_(expected), ")")
+  pass &= (actual == expected)
+
+  ' Position 32768 (middle): block 64, offset 0 -> (64<<1) XOR 0 = 128
+  sd.seek(32768)
+  sd.read(@buffer, 1)
+  expected := 128
+  actual := buffer[0]
+  debug("  Pos 32768: ", uhex_(actual), " (expected: ", uhex_(expected), ")")
+  pass &= (actual == expected)
+
+  ' Position 65535 (last byte): block 127, offset 511 -> (127<<1) XOR 255 = 254 XOR 255 = 1
+  sd.seek(65535)
+  sd.read(@buffer, 1)
+  expected := (127 << 1) ^ 255                  ' = 254 ^ 255 = 1
+  actual := buffer[0]
+  debug("  Pos 65535: ", uhex_(actual), " (expected: ", uhex_(expected), ")")
+  pass &= (actual == expected)
+
+  sd.closeFile()
+
+  if pass
+    debug("  SIXTYFK.BIN: PASS (multi-cluster chain verified)")
+    tests_passed++
+  else
+    debug("  SIXTYFK.BIN: FAIL")
+    tests_failed++
+
+
+PRI test_seek() | pass
+'' Test 8: Seek/random access - SEEKTEST.BIN
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": SEEK TEST ------")
+
+  pass := sd.openFile(string("SEEKTEST.BIN"))
+  if pass == 0
+    debug("  ERROR: Could not open SEEKTEST.BIN")
+    tests_failed++
+    return
+
+  debug("  File size: ", udec(sd.fileSize()), " (expected: 2016)")
+
+  ' Block 0 at offset 0: "BLK00---"
+  sd.seek(0)
+  bytefill(@buffer, 0, 16)
+  sd.read(@buffer, 8)
+  debug("  Seek 0: ", zstr(@buffer), " (expected: BLK00---)")
+  pass := (buffer[0] == "B" and buffer[3] == "0" and buffer[4] == "0")
+
+  ' Block 5 at offset 315 (5 * 63): "BLK05---"
+  sd.seek(315)
+  bytefill(@buffer, 0, 16)
+  sd.read(@buffer, 8)
+  debug("  Seek 315: ", zstr(@buffer), " (expected: BLK05---)")
+  pass &= (buffer[0] == "B" and buffer[3] == "0" and buffer[4] == "5")
+
+  ' Block 10 at offset 630 (10 * 63): "BLK10---"
+  sd.seek(630)
+  bytefill(@buffer, 0, 16)
+  sd.read(@buffer, 8)
+  debug("  Seek 630: ", zstr(@buffer), " (expected: BLK10---)")
+  pass &= (buffer[0] == "B" and buffer[3] == "1" and buffer[4] == "0")
+
+  ' Block 31 at offset 1953 (31 * 63): "BLK31---"
+  sd.seek(1953)
+  bytefill(@buffer, 0, 16)
+  sd.read(@buffer, 8)
+  debug("  Seek 1953: ", zstr(@buffer), " (expected: BLK31---)")
+  pass &= (buffer[0] == "B" and buffer[3] == "3" and buffer[4] == "1")
+
+  sd.closeFile()
+
+  if pass
+    debug("  SEEKTEST.BIN: PASS")
+    tests_passed++
+  else
+    debug("  SEEKTEST.BIN: FAIL")
+    tests_failed++
+
+
+PRI test_checksum() | i, sum, pass
+'' Test 9: Checksum verification - CHECKSUM.BIN
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": CHECKSUM ------")
+
+  pass := sd.openFile(string("CHECKSUM.BIN"))
+  if pass == 0
+    debug("  ERROR: Could not open CHECKSUM.BIN")
+    tests_failed++
+    return
+
+  debug("  File size: ", udec(sd.fileSize()), " (expected: 1024)")
+
+  ' Read entire file in two chunks
+  sd.read(@buffer, 512)
+  sum := 0
+  repeat i from 0 to 511
+    sum += buffer[i]
+
+  sd.read(@buffer, 512)
+  repeat i from 0 to 511
+    sum += buffer[i]
+
+  sd.closeFile()
+
+  debug("  Checksum: ", udec(sum), " (expected: 130560)")
+
+  pass := (sum == 130560)
+
+  if pass
+    debug("  CHECKSUM.BIN: PASS")
+    tests_passed++
+  else
+    debug("  CHECKSUM.BIN: FAIL")
+    tests_failed++
+
+
+PRI test_subdirectory() | pass, size
+'' Test 10: Subdirectory access - LEVEL1/INLEVEL1.TXT
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": SUBDIRECTORY ------")
+
+  ' Method 1: Change directory then open
+  pass := sd.changeDirectory(string("LEVEL1"))
+  if pass == 0
+    debug("  ERROR: Could not change to LEVEL1")
+    tests_failed++
+    return
+
+  debug("  Changed to LEVEL1: OK")
+
+  pass := sd.openFile(string("INLEVEL1.TXT"))
+  if pass == 0
+    debug("  ERROR: Could not open INLEVEL1.TXT")
+    sd.changeDirectory(string(".."))
+    tests_failed++
+    return
+
+  size := sd.fileSize()
+  debug("  File size: ", udec(size), " (expected: 54)")
+
+  bytefill(@buffer, 0, BUF_SIZE)
+  sd.read(@buffer, size)
+  sd.closeFile()
+
+  debug("  Content: ", lstr_(@buffer, 40), "...")
+
+  ' Return to root
+  sd.changeDirectory(string(".."))
+
+  pass := (size == 54)
+  pass &= (buffer[0] == "T")                    ' "This file..."
+
+  if pass
+    debug("  Subdirectory: PASS")
+    tests_passed++
+  else
+    debug("  Subdirectory: FAIL")
+    tests_failed++
+
+
+PRI test_deep_path() | pass, size
+'' Test 11: Deep path resolution - /LEVEL1/LEVEL2/DEEP.TXT
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": DEEP PATH ------")
+
+  ' Use absolute path from root
+  pass := sd.openFile(string("/LEVEL1/LEVEL2/DEEP.TXT"))
+  if pass == 0
+    debug("  ERROR: Could not open /LEVEL1/LEVEL2/DEEP.TXT")
+    tests_failed++
+    return
+
+  size := sd.fileSize()
+  debug("  File size: ", udec(size), " (expected: 71)")
+
+  bytefill(@buffer, 0, BUF_SIZE)
+  sd.read(@buffer, size)
+  sd.closeFile()
+
+  debug("  Content: ", lstr_(@buffer, 50), "...")
+
+  pass := (size == 71)
+  pass &= (buffer[0] == "D")                    ' "Deepest level..."
+
+  if pass
+    debug("  Deep path: PASS")
+    tests_passed++
+  else
+    debug("  Deep path: FAIL")
+    tests_failed++
+
+
+PRI test_multi_directory() | pass, count, i, p_entry
+'' Test 12: Multiple files in directory - MULTI/FILE1-5.TXT
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": MULTI DIRECTORY ------")
+
+  pass := sd.changeDirectory(string("MULTI"))
+  if pass == 0
+    debug("  ERROR: Could not change to MULTI")
+    tests_failed++
+    return
+
+  debug("  Changed to MULTI: OK")
+
+  ' Enumerate files
+  count := 0
+  i := 0
+  repeat
+    p_entry := sd.readDirectory(i++)
+    if p_entry
+      count++
+      debug("  Entry: ", zstr(sd.fileName()))
+  until p_entry == 0
+
+  debug("  File count: ", udec(count), " (expected: 5)")
+
+  ' Return to root
+  sd.changeDirectory(string(".."))
+
+  pass := (count == 5)
+
+  if pass
+    debug("  Multi directory: PASS")
+    tests_passed++
+  else
+    debug("  Multi directory: FAIL")
+    tests_failed++
+
+
+PRI benchmark_sector_read() | start_time, end_time, elapsed_us, bytes_per_sec
+'' Performance benchmark: Read 64KB sequentially
+  test_number++
+  debug(" ")
+  debug("------ TEST ", udec(test_number), ": PERFORMANCE BENCHMARK ------")
+
+  if sd.openFile(string("SIXTYFK.BIN")) == 0
+    debug("  ERROR: Could not open SIXTYFK.BIN for benchmark")
+    tests_failed++
+    return
+
+  debug("  Reading 65536 bytes sequentially...")
+
+  ' Time the read
+  start_time := getct()
+
+  ' Read in 512-byte chunks (128 sectors)
+  repeat 128
+    sd.read(@buffer, 512)
+
+  end_time := getct()
+  sd.closeFile()
+
+  ' Calculate elapsed time in microseconds
+  elapsed_us := (end_time - start_time) / (clkfreq / 1_000_000)
+
+  debug("  Elapsed time: ", udec(elapsed_us), " microseconds")
+
+  ' Calculate bytes per second
+  if elapsed_us > 0
+    bytes_per_sec := (65536 * 1_000_000) / elapsed_us
+    debug("  Throughput: ", udec(bytes_per_sec), " bytes/second")
+    debug("  Throughput: ", udec(bytes_per_sec / 1024), " KB/second")
+  else
+    debug("  Throughput: (too fast to measure)")
+
+  debug("  Benchmark: COMPLETE")
+  tests_passed++                                ' Benchmark always "passes" if it runs
+
+'' End of test suite

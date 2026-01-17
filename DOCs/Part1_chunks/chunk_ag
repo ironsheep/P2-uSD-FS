@@ -1,0 +1,2000 @@
+[8:0] LEN/MASK
+
+R1
+
+WRITE_EXTR_SINGLE Single block write type.
+Refer to Section 5.7.2.2.
+
+CMD58
+
+adtc
+
+[31]MIO
+0:Memory, 1:I/O
+[30:27] FNO
+[26] BUS
+0:512B, 1:32KB
+[25:9] ADDR
+[8:0] BUC
+
+R1
+
+READ_EXTR_MULTI
+
+110
+
+Select an active partition.
+Refer to Section 4.21.1.
+
+Multi-block read type.
+Refer to Section 5.7.2.4.
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+CMD59
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+adtc
+
+[31]MIO
+R1
+WRITE_EXTR_MULTI Multi-block write type.
+0:Memory, 1:I/O
+Refer to Section 5.7.2.5.
+[30:27] FNO
+[26] BUS
+0:512B, 1:32KB
+[25:9] ADDR
+[8:0] BUC
+Note: CCC bit 11 is set to 1 when any command of class 11 is supported. Supporting of these commands
+is indicated in SCR register.
+
+Table 4-33 : Function Extension Commands (class 11)
+
+111
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+
+type
+
+argument
+
+CMD43
+
+ac
+
+[31:21]
+Reserved
+[20:16]: Task
+ID
+[3:0]:
+Operation
+Code
+(Abort tasks
+etc.)
+
+CMD44
+
+ac
+
+CMD45
+
+ac
+
+CMD46
+
+adtc [31:21]
+Reserved
+[20:16] Task
+ID
+[15:0]
+Reserved
+
+CMD47
+
+adtc [31:21]
+Reserved
+[20:16] Task
+ID
+[15:0]
+Reserved
+
+resp
+R1b
+
+abbreviation
+
+command description
+
+Q_MANAGEMENT
+
+Queue Management command
+[3:0] Operation Code:
+0000b – Reserved
+0001b – Abort Entire Queue
+0010b – Abort Task ID
+0011b to 1111b - Reserved
+
+[31] Reserved R1
+[30] Direction
+[29:24]
+Extended
+Address
+[23] Priority
+[22:21]
+Reserved
+[20:16] Task
+ID
+[15:0] Number
+of Blocks
+
+Q_TASK_INFO_A
+
+Task Parameters for Command Queuing
+[30] Direction:
+‘1’ – Read
+‘0’ – Write
+[23] Priority :
+‘1’ – Priority request
+‘0’ – No priority
+[29:24] upper 6bits ADDR of 38-bit 512B
+unit address, for SDUC cards
+
+[31:0] Start
+R1
+block address
+
+Q_TASK_INFO_B
+
+Task Parameters for Command Queuing
+
+R1
+
+Q_RD_TASK
+
+Executing Task Read operation
+
+R1
+
+Q_WR_TASK
+
+Executing Task Write operation
+
+Table 4.7.4-1 : Command Queue Function Commands (class 1)
+
+112
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.7.5 Difference of SD Commands Definition in UHS-II
+Table 4-34 shows the difference of SD commands definition when the card is in UHS-II mode.
+SD-TRAN driver of host should manage the difference of SD commands functions. Not supported
+commands should not issue to UHS-II card. CMD13 shall not be issued during data transfer. Normally,
+data transfer should be stopped by setting TLEN instead of using CMD12. CMD23 and CMD55 functions
+are included in UHS-II packet functions.
+Command
+CMD0
+CMD3
+CMD4
+CMD6
+CMD7
+CMD13
+CMD11
+CMD12
+CMD15
+CMD19
+CMD23
+CMD39
+CMD55
+ACMD6
+ACMD42
+ACMD53
+ACMD54
+
+Description
+Terminate SD transaction and reset SD-TRAN state.
+Returns Device ID in the response instead of RCA
+Illegal
+Function Group 1 and 3 are not used.
+Device ID is set to the argument instead of RCA
+Device operation is up to implementation during data transfer (e.g. CTS).
+Illegal
+Normally, TLEN (data length) in UHS-II packet is used to stop data transfer.
+CMD12 should be used to abort an operation when illegal situation occurs.
+Illegal
+Illegal
+Not Affected. TLEN in UHS-II packet is used to specify data length.
+Illegal
+Not Affected. ACMD is set by APP field in UHS-II packet.
+Illegal
+Illegal
+Illegal
+Illegal
+
+(1) Not Affected means that the command is not executed in any card state, and response is returned
+(response type is up to implementation).
+(2) Illegal means that card returns response with NACK=1.
+(3) As SDHC/SDXC/SDUC Cards do not support CMD28, 29 and 30, these commands are also illegal in
+UHS-II mode.
+
+Table 4-34 : Difference of SD Commands Definition in UHS-II
+
+113
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.8 Card State Transition Table
+Table 4-35 defines the card state transitions depend on the received command. State name in the table
+is the next state after the command is executed. "-" indicated that the command is treated as illegal
+command. In addition, whether a command is executable depends on command class (CCC).
+Commands
+"Operation Complete"
+
+Current State
+tran
+data
+
+idle
+
+ready
+
+ident
+
+stby
+
+rcv
+
+prg
+
+dis
+
+ina
+
+-
+
+-
+
+-
+
+-
+
+-
+
+tran
+
+-
+
+tran
+
+stby
+
+-
+
+idle/
+boot4
+idle
+-
+
+idle
+
+idle
+
+idle
+
+idle
+
+idle
+
+idle
+
+idle
+
+idle
+
+-
+
+ident
+ready
+-
+
+stby
+-
+
+stby
+stby
+tran
+stby
+stby
+stby
+stby
+ina
+
+stby
+tran3
+tran
+ina
+
+stby
+tran
+data
+ina
+
+prg
+rcv
+ina
+
+dis
+prg
+ina
+
+prg
+dis
+ina
+
+-
+
+-
+
+-
+
+-
+
+-
+
+tran
+data
+data
+data
+prg
+tran3
+tran
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+tran
+prg
+tran3
+tran
+rcv
+rcv
+rcv
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+prg
+prg
+data
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+tran
+tran
+prg
+
+-
+
+-
+
+-
+
+-
+
+-
+
+class 0
+CMD0
+CMD2
+CMD3
+CMD4
+CMD7, card is addressed
+CMD7, card is not addressed
+CMD8
+CMD9
+CMD10
+CMD11
+CMD12
+CMD13
+CMD15
+class 2
+CMD16
+CMD17
+CMD18
+CMD19
+CMD20
+CMD223
+CMD23
+class 4
+CMD16
+CMD20
+CMD223
+CMD23
+CMD24
+CMD25
+CMD27
+class 6
+CMD28
+CMD29
+CMD30
+class 5
+CMD32
+CMD33
+CMD38
+
+114
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Commands
+
+idle
+
+ready
+
+ident
+
+stby
+
+-
+
+-
+
+-
+
+-
+
+Current State
+tran
+data
+
+rcv
+
+prg
+
+dis
+
+ina
+
+-
+
+-
+
+-
+
+-
+
+class 7
+CMD40
+CMD42
+
+data
+rcv
+
+-
+
+class 8
+CMD55
+CMD56; RD/WR = 0
+CMD56; RD/WR = 1
+ACMD6
+ACMD13
+ACMD14-16
+ACMD22
+ACMD23
+ACMD28
+ACMD18,25,26,38,
+43,44,45,46,47,48,49
+ACMD41, OCR check is OK and
+card is not busy
+ACMD41, OCR check is OK and
+card is busy2
+ACMD41, OCR check fails
+ACMD41, query mode
+ACMD42
+ACMD51
+ACMD53
+ACMD54
+class 9
+
+idle
+stby
+tran
+data
+rcv
+prg
+dis
+rcv
+data
+tran
+data
+Refer to DPS Specification
+data
+tran
+Refer to DPS Specification
+Refer to "Part3 Security Specification" for information about the SD Security
+Features
+ready
+-
+
+CMD52-CMD54
+class 101
+
+Refer to "SDIO Card Specification"
+
+CMD6
+CMD34-37,50,57
+class 11
+
+data
+Refer to each command system specification
+
+CMD21
+CMD39
+CMD48
+CMD49
+CMD58
+CMD59
+CMD41
+CMD60...CMD63
+class 1
+
+Refer to DPS Specification
+reserved
+reserved for manufacturer
+
+idle
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+ina
+idle
+-
+
+-
+
+-
+
+-
+
+tran
+data
+data
+rcv
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+prg
+data
+rcv
+data
+rcv
+
+-
+
+Illegal command in Non CQ mode. Refer to Table 4-75 for Card state transition
+in CQ mode
+Note (1): Class 10 commands were defined in Version 1.10.
+Note (2): Card returns busy in case of following.
+- Card executes internal initialization process
+- When HCS in the argument is set to 0 to SDHC or SDXC Card.
+Note(3): For SDUC only
+Note(4): Transition to boot state takes place when valid argument for CA-mode Fast Boot is set in it. During boot
+
+CMD43-CMD47
+
+115
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+state, state transition (to idle state) occurs only when CMD0 is issued. Refer to Section 4.21.3.3 for more details.
+
+Table 4-35 : Card State Transition Table
+The state transitions of the SD Memory Card application-specific commands are given under Class 8,
+above.
+
+116
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.9 Responses
+All responses are sent via the command line CMD. The response transmission always starts with the left
+bit of the bit string corresponding to the response codeword. The code length depends on the response
+type.
+A response always starts with a start bit (always 0), followed by the bit indicating the direction of
+transmission (card = 0). A value denoted by 'x' in the tables below indicates a variable entry. All responses
+except the type R3 (see below) are protected by a CRC (see Section 4.5 for the definition of CRC7).
+Every command codeword is terminated by the end bit (always 1).
+There are five types of responses for the SD Memory Card. The SDIO Card supports additional response
+types named R4 and R5. Refer to SDIO Card Spec for detailed information on the SDIO commands and
+responses. Their formats are defined as follows:
+
+4.9.1 R1 (normal response command):
+Code length is 48 bits. The bits 45:40 indicate the index of the command to be responded to, this value
+being interpreted as a binary coded number (between 0 and 63). The status of the card is coded in 32
+bits. Note that if a data transfer to the card is involved, then a busy signal may appear on the data line
+after the transmission of each block of data. The host shall check for busy after data block transmission.
+The card status is described in Section 4.10.
+Bit position
+Width (bits)
+Value
+
+47
+1
+'0'
+
+Description
+
+start bit
+
+46
+[45:40]
+[39:8]
+1
+6
+32
+'0'
+x
+x
+transmission
+command index
+card status
+bit
+Table 4-36 : Response R1
+
+[7:1]
+7
+x
+
+0
+1
+'1'
+
+CRC7
+
+end bit
+
+4.9.2 R1b
+R1b is identical to R1 with an optional busy signal transmitted on the data line. The card may become
+busy after receiving these commands based on its state prior to the command reception. The Host shall
+check for busy at the response. Refer to Section 4.12.3 for a detailed description and timing diagrams.
+
+4.9.3 R2 (CID, CSD register)
+Code length is 136 bits. The contents of the CID register are sent as a response to the commands CMD2
+and CMD10. The contents of the CSD register are sent as a response to CMD9. Only the bits [127...1] of
+the CID and CSD are transferred, the reserved bit [0] of these registers is replaced by the end bit of the
+response.
+Bit position
+Width (bits)
+Value
+
+135
+1
+'0'
+
+Description
+
+start bit
+
+134
+[133:128]
+[127:1]
+1
+6
+127
+'0'
+'111111'
+x
+transmission
+CID or CSD register incl.
+reserved
+bit
+internal CRC7
+Table 4-37 : Response R2
+
+117
+
+0
+1
+'1'
+end bit
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.9.4 R3 (OCR register)
+Code length is 48 bits. The contents of the OCR register are sent as a response to ACMD41.
+Bit position
+Width (bits)
+Value
+
+47
+1
+'0'
+
+Description
+
+start bit
+
+46
+[45:40]
+[39:8]
+1
+6
+32
+'0'
+'111111'
+x
+transmission
+reserved
+OCR register
+bit
+Table 4-38 : Response R3
+
+[7:1]
+7
+'1111111'
+
+0
+1
+'1'
+
+reserved
+
+end bit
+
+4.9.5 R6 (Published RCA response)
+Code length is 48 bit. The bits 45:40 indicate the index of the command to be responded to - in that case,
+it will be '000011' (together with bit 5 in the status bits it means = CMD3). The 16 MSB bits of the argument
+field are used for the Published RCA number.
+Bit position
+
+47
+
+Width (bits)
+Value
+Description
+
+1
+'0'
+start bit
+
+[39:8]
+Argument field
+1
+6
+16
+16
+'0'
+x
+x
+x
+transmission command New
+[15:0] card
+bit
+index
+published
+status bits:
+('000011') RCA [31:16] 23,22,19,12:0
+of the card
+(see Table 4-42)
+Table 4-39 : Response R6
+46
+
+[45:40]
+
+118
+
+[7:1]
+
+0
+
+7
+1
+x
+'1'
+CRC7 end bit
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.9.6 R7 (Card interface condition)
+Code length is 48 bits. The card supported voltage information of 3.3V range power pin is sent by the
+response of CMD8. Bits 19-16 indicate the voltage range that the card supports. The card that accepted
+the supplied voltage returns R7 response. In the response, the card echoes back both the voltage range
+and check pattern set in the argument.
+Bit position
+
+47
+
+46
+
+[45:40]
+
+[39:22]
+
+21
+
+20
+
+[19:16]
+
+[15:8]
+
+[7:1]
+
+0
+
+Width (bits)
+
+1
+
+1
+
+6
+
+18
+
+1
+
+1
+
+4
+
+8
+
+7
+
+1
+
+Value
+
+'0'
+
+'0'
+
+'001000'
+
+'00000h'
+
+x
+
+x
+
+x
+
+x
+
+x
+
+'1'
+
+PCIe
+PCIe
+Echo-back of
+Voltage
+CRC End
+1.2V
+Response 2)
+check
+accepted
+7
+bit
+1)
+Support
+pattern
+1) Card responds whether it supports VDD3 (1.2V power rail)
+0b: Not supporting 1.2V
+1b: Supporting 1.2V
+2) Card responds PCIe acceptance
+0b: Not accepted
+1b: Accepted
+
+Description
+
+Start Transmission Command Reserved
+bit
+bit
+index
+bits
+
+Table 4-40 : Response R7
+Table 4-41 shows the format of 'voltage accepted' in R7.
+Voltage accepted
+Value Definition
+0000b
+Not Defined
+0001b
+2.7-3.6V
+0010b
+Reserved for Low Voltage Range
+0100b
+Reserved
+1000b
+Reserved
+Others
+Not Defined
+Table 4-41 : Voltage Accepted in R7
+As described in Low Voltage Interface Addendum, ‘voltage accepted’ in R7 is set to 0010b after LVS
+Identification, including CA-mode Fast Boot.
+
+119
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.10 Three Status Information of SD Memory Card
+The SD Memory Card supports three status fields as follows:
+- 'Card Status': Error and state information of a executed command, indicated in the response
+- 'SD Status': Extended status field of 512 bits that supports special features of the SD Memory Card and
+future Application-Specific features.
+-’Task Status’. Status information of queued tasks in CQ mode (Refer to Section 0), indicated in the
+response. CMD13 R1 indicates either Card Status or Task Status by selecting b[15] of CMD13 argument.
+R1 of the other commands indicates only Card Status.
+
+4.10.1 Card Status
+The response format R1 shall contain a 32-bit field named card status as a response to CMD13 with
+argument b[15]=’0’. This field is intended to transmit the card's status information (which may be stored
+in a local status register) to the host. If not specified otherwise, the status entries are always related to
+the previous issued command.
+Table 4-42 defines the different entries of the status. Unused reserved bits shall be set to 0. The type and
+clear condition fields in the table are abbreviated as follows:
+ Type:
+•E: Error bit.
+•S: Status bit.
+•R: Detected and set for the actual command response.
+•X: Detected and set during command execution. The host can get the status by issuing a command
+with R1 response.
+ Clear Condition:
+•A: According to the card current status.
+•B: Always related to the previous command. Reception of a valid command will clear it (with a delay
+of one command).
+•C: Clear by read.
+
+120
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bits
+
+Identifier
+
+Type
+
+Value
+
+Description
+
+Clear
+Condition
+
+31
+
+OUT_OF_RANGE
+
+E R X '0'= no error
+'1'= error
+
+The command's argument was out C
+of the allowed range for this card.
+
+30
+
+ADDRESS_ERROR
+
+E R X '0'= no error
+'1'= error
+
+A misaligned address which did not C
+match the block length was used in
+the command.
+
+29
+
+BLOCK_LEN_ERROR
+
+E R X '0'= no error
+'1'= error
+
+28
+
+ERASE_SEQ_ERROR
+
+ER
+
+27
+
+ERASE_PARAM
+
+The transferred block length is not C
+allowed for this card, or the number
+of transferred bytes does not match
+the block length.
+An error in the sequence of erase C
+commands occurred.
+An invalid selection of write-blocks C
+for erase occurred.
+
+26
+
+WP_VIOLATION
+
+E R X '0'= not protected
+'1'= protected
+
+25
+
+CARD_IS_LOCKED
+
+SX
+
+24
+
+LOCK_UNLOCK_FAILED E R X '0' = no error
+'1' = error
+
+Set when a sequence or password C
+error has been detected in
+lock/unlock card command.
+
+23
+
+COM_CRC_ERROR
+
+ER
+
+22
+
+ILLEGAL_COMMAND
+
+ER
+
+'0'= no error
+'1'= error
+'0'= no error
+'1'= error
+
+The CRC check of the previous
+B
+command failed.
+Command not legal for the card B
+state
+
+21
+
+CARD_ECC_FAILED
+
+E R X '0'= success
+'1'= failure
+
+Card internal ECC was applied but C
+failed to correct the data.
+
+20
+
+CC_ERROR
+
+Internal card controller error
+
+C
+
+19
+
+ERROR
+
+E R X '0'= no error
+'1'= error
+E R X '0'= no error
+'1'= error
+
+A general or an unknown error
+occurred during the operation.
+
+C
+
+18
+
+reserved
+
+17
+16
+
+reserved for DEFERRED_RESPONSE (Refer to eSD Addendum)
+CSD_OVERWRITE
+E R X '0'= no error
+Can be either one of the following
+'1'= error
+errors:
+- The read only section of the CSD
+does not match the card content.
+- An attempt to reverse the copy
+(set as original) or permanent WP
+(unprotected) bits was made.
+
+'0'= no error
+'1'= error
+E R X '0'= no error
+'1'= error
+
+Set when the host attempts to write C
+to a protected block or to the
+temporary write protected card or
+write protected until power cycle
+card or permanent write protected
+card.
+
+'0' = card unlocked When set, signals that the card is
+'1' = card locked
+locked by the host
+
+121
+
+A
+
+C
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bits
+
+Identifier
+
+Type
+
+Value
+
+Description
+
+15
+
+WP_ERASE_SKIP
+
+E R X '0'= not protected
+'1'= protected
+
+14
+
+CARD_ECC_DISABLED
+
+SX
+
+'0'= enabled
+'1'= disabled
+
+13
+
+ERASE_RESET
+
+SR
+
+'0'= cleared
+'1'= set
+
+12:9 CURRENT_STATE (1)
+
+SX
+
+0 = idle
+1 = ready
+2 = ident
+3 = stby
+4 = tran
+5 = data
+6 = rcv
+7 = prg
+8 = dis
+9-14 = reserved
+15 = reserved for
+I/O mode
+
+8
+
+READY_FOR_DATA
+
+SX
+
+'0'= not ready
+'1'= ready
+
+Corresponds to buffer empty
+signaling on the bus
+
+A
+
+7
+
+reserved
+
+6
+
+FX_EVENT
+
+SX
+
+APP_CMD
+
+SR
+
+Extension Functions may set this
+bit to get host to deal with events.
+The card will expect ACMD, or an
+indication that the command has
+been interpreted as ACMD
+
+A
+
+5
+
+'0'= No event
+'1'= Event invoked
+'0' = Disabled
+'1' = Enabled
+
+4
+
+reserved for SD I/O Card
+
+3
+
+AKE_SEQ_ERROR
+(SD Memory Card app.
+spec.)
+
+'0' = no error
+'1' = error
+
+Error in the sequence of the
+authentication process
+
+C
+
+2
+
+reserved for application specific commands
+
+ER
+
+"Set when only partial address
+space was erased due to existing
+write protected blocks or the
+temporary write protected or write
+protected until power cycle or
+permanent write protected card
+was erased.
+The command has been executed
+without using the internal ECC.
+
+Clear
+Condition
+C
+
+A
+
+An erase sequence was cleared
+C
+before executing because an out of
+erase sequence command was
+received
+The state of the card when receiv- B
+ing the command. If the command
+execution causes a state change, it
+will be visible to the host in the
+response to the next command.
+The four bits are interpreted as a
+binary coded number between 0
+and 15.
+
+C
+
+1, 0 reserved for manufacturer test mode
+Note (1): Both p-init and boot states are not reported in CURRENT_STATE hence these states cannot be detected by
+issuing this command.
+
+Table 4-42 : Card Status
+Refer to Section 4.19.3 for ‘CURRENT_STATE’ value definition in CQ mode
+
+122
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+For each command responded by R1 response, following table defines the affected bits in the status field.
+An 'x' means the error/status bit may be set in the response to the respective command.
+CMD
+Number
+
+31
+62
+7
+11
+12
+13
+16
+17
+18
+19
+20
+22
+23
+24
+25
+26
+27
+28
+29
+30
+32
+33
+38
+39
+40
+42
+43
+44
+45
+46
+47
+48
+49
+55
+56
+58
+59
+ACMD6
+ACMD13
+ACMD22
+ACMD23
+ACMD42
+ACMD51
+ACMD53
+ACMD54
+
+31
+
+30
+
+29
+
+28
+
+27
+
+26
+
+x
+
+x
+x
+
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+
+x
+x
+x
+
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+
+x
+x
+
+x
+x
+
+x
+
+x
+x
+
+x
+x
+
+x
+
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+25
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+Response Format Card Status Bit Number
+24 23 22 21 20 19 18 17 16 15
+
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+123
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+x
+
+x

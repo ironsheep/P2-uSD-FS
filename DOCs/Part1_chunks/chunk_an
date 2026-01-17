@@ -1,0 +1,2000 @@
+0: Not supported, 1: Supported
+
+Reserved
+R
+
+268
+
+00h: CQ is not supported
+01h: CQ is supported with queue depth = 2 (ID
+0,1)
+02h: CQ is supported with queue depth = 3 (ID
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Byte Offset
+
+7
+
+Name
+
+Reserved
+
+R/W
+
+Description
+0,1,2)
+.......
+1Fh: CQ is supported with queue depth = 32 (ID
+0~31)
+20h - FFh: Reserved
+
+Reserved
+
+Task Error Status
+
+8-15
+
+16-256
+257
+
+258
+
+259
+
+260
+
+Byte15 bit[7:6] Error status for
+Queued Task ID 31
+Byte15 bit[5:4] Error status for
+Queued Task ID 30
+..
+Byte8 bit[1:0] Error status for
+Queued Task ID 0
+Reserved
+Bit[0]: FX_EVENT Enable
+Bit[7:1]: Reserved
+Bit[0]: Card Initiated
+Maintenance Enable
+Bit[1]: Host Initiated
+Maintenance Enable
+Bit[7:2]: Reserved
+Bit[0]: Start Host-Initiated
+Maintenance
+Bit[7:1]: Reserved
+Bit[0]: Cache Enable
+Bit[7:1]: Reserved
+Bit[0]: Flush Cache
+
+261
+
+262
+263-511
+
+Error Status
+R
+
+00
+
+No Error
+
+01
+
+Error
+
+10
+
+Reserved
+
+11
+
+Reserved
+
+Reserved
+R/W
+
+0: Disable(d), 1: Enable(d)
+0: Disable(d), 1: Enable(d)
+
+R/W
+0: Disable(d), 1: Enable(d)
+
+R/W
+
+R/W
+
+R/W
+
+Setting bit[0]=1 starts host-initiated maintenance.
+Setting bit[0]=0 by card indicates the break of
+maintenance.
+Card shall break maintenance within 1 second.
+0: Disable(d), 1: Enable(d)
+Setting bit[0]=1 starts Cache flush.
+Setting bit[0]=0 by card indicates the end of Cache
+flush.
+Card shall complete Cache flush within 1 second.
+
+Bit[7:1]: Reserved
+Bit[0]: Enable CQ
+0: Disable(d), 1: Enable(d)
+Bit[1]: CQ Mode
+R/W 0: Voluntary mode, 1: Sequential Mode
+Bit[7:2]: Reserved
+Reserved
+Reserved
+Table 5-30 : Performance Enhancement Register Set
+
+5.8.2.3 General Information of Performance Enhancement Function
+Table 5-31 shows an example of General Information for Performance Enhancement Function assigned
+to Extension 2 ("Number of Extended Functions" is set to 2 and "Pointer to Next Extension" is set to
+0040h). Standard Code 0002h for Performance Enhancement Function (Defined by Table 5-30) is set to
+SFC. FCC is not used (set to 0000h). FMC, FMN and PFC shall be set to 0 because this function is
+manufacturer unrelated. FN is set to "PEF" (ASCII code) and filled with 0 for the rest of this field.
+All performance enhancement shall be disabled after receiving ‘Power Off Notification’, including CQ,
+269
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Cache and Self Maintenance.
+
+Table 5-31 : General Information of Performance Enhancement Function
+
+5.8.3 Security and Boot Function
+5.8.3.1 Abstract of Security and Boot Function
+This section defines the security (RPMB) and boot functions on extension register. This register will be
+utilized by host to understand the feature supported, enable / disable the features, etc.
+5.8.3.2 Extension Register Set for Security and Boot Function
+Table 5-32 shows the register set for security and boot function.
+Byte Offset
+0
+1-7
+
+Name
+Security and Boot Function
+Revision
+Reserved
+
+R/W
+R
+
+9
+
+Bit[5:3]: RPMB Authentication
+Method
+Bit[7:6]: Reserved
+Reserved
+
+00h: Revision 1
+
+Reserved
+
+Bit[2:0]: Number of RPMB
+Units (1)
+8
+
+Description
+
+R
+
+Reserved
+
+270
+
+000b: RPMB is not supported
+001b: Card has one RPMB Unit
+Others: Reserved
+000b: HMAC SHA-256 (refer to RFC 6234)
+Others: Reserved
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Byte Offset
+
+Name
+
+R/W
+
+10
+
+RPMB Total Size
+
+R
+
+11
+
+RPMB Access Size
+
+R
+
+12-15
+
+Reserved
+Bit[0]: Boot Partition Protection
+Enable
+
+16
+
+Description
+One RPMB unit size indicated in 128KB units and
+0’s base (00h means 128KB, FFh means
+32,768KB).
+If Number of RPMB Units = 000b, this field is
+ignored.
+Max number of data that may be read or written
+per RPMB access by ACMD53 or 54, in 512B
+units and 0’s base (00h means 512B, FFh means
+131,072B). If Number of RPMB Units = 000b, this
+field is ignored.
+
+Reserved
+R
+
+Indicating value of Bit 0 of Boot partition Protection
+Enable in RPMB Device Configuration Block Data
+Structure (see Table 4-83).
+
+Bit[7:1]: Reserved
+Bit[0]: Partition Lock for Boot
+Partition 0 (2)
+17
+
+Bit[1] Partition Lock for Boot
+Partition 1 (2)
+
+R
+
+Indicating value of Bit 0 of Boot Partition Lock in
+RPMB Device Configuration Block Data Structure
+(see Table 4-83).
+Indicating value of Bit 1 of Boot Partition Lock in
+RPMB Device Configuration Block Data Structure
+(see Table 4-83).
+
+Bit[7:2]: Reserved
+Bit[0]: WP_UPC Authentication
+Control
+18
+
+R
+Bit[1] PWP Authentication
+Control
+
+19-23
+
+Bit[7:2]: Reserved
+Reserved
+Boot Partition Size (3), (4)
+
+24
+25-255
+
+Reserved
+Bit[0] Active Boot Partition (4), (5)
+
+256
+257-259
+
+Bit[7:1]: Reserved
+Reserved
+Bit[3:0]: Preprogrammed bus
+mode for Fast Boot (4), (5)
+
+260
+
+261-511
+
+Bit[7:4]: Reserved
+Reserved
+
+Indicating value of Bit 0 of User Area Write
+Protection Authentication Control in RPMB Device
+Configuration Block Data Structure (see Table
+4-83).
+Indicating value of Bit 1 of User Area Write
+Protection Authentication Control in RPMB Device
+Configuration Block Data Structure (see Table
+4-83).
+
+Reserved
+R
+
+Boot partition size indicated in 128KB units and 0’s
+base (00h means 128KB, FFh means 32,768KB).
+
+Reserved
+R/W
+
+0b: Boot Partition 0 is active
+1b: Boot Partition 1 is active.
+
+Reserved
+
+R/W
+
+1h: DS mode,
+2h: HS mode
+9h: SDR12 mode, Ah: SDR25 mode,
+Bh: SDR50 mode, Ch: SDR104 mode,
+Dh: DDR50 mode
+Others: Reserved
+
+Reserved
+
+Note (1) The number of RPMB Unit is up to 1 in SD Specification, including SD Express.
+(2) RPMB authentication is required for unlocking Boot Partitions.
+(3) Size of Boot Partition 0 and 1 shall be the same.
+(4) If BOOT_PARTITION_SUPPORT in SD Status is 0b (not supported), this field is ignored.
+(5) When boot partition protection is enabled and Host tries to update this field by CMD49 or 59, RPMB
+authentication is required beforehand.
+
+271
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Table 5-32 : Security and Boot Register Set
+5.8.3.3 General Information of Security and Boot Function
+Table 5-33 shows an example of General Information for Security and Boot Function assigned to
+Extension 3. Standard Code 0003h for Security and Boot Function (defined by Table 5-27) is set to SFC.
+FCC is not used (set to 0000h). FMC, FMN and PFC shall be set to 0 because this function is
+manufacturer unrelated. FN is set to "SBF" (ASCII code) and filled with 0 for the rest of this field.
+000h
+002h
+004h
+
+Structure Revision
+General Information Length
+Number of Extensions
+
+2 bytes
+2 bytes
+1 byte
+
+0000h
+00A0h
+03h
+
+The first revision of General Information
+Data Length of this information
+PMF, PEF and SBF are implemented (example)
+
+005h-0Fh
+
+Reserved
+
+11 byte
+
+all 0
+
+Set to all 0 (16 bytes header area)
+
+010h-037h
+038h-039h
+03Ah-03Fh
+040h-067h
+068h-069h
+06Ah-06Fh
+070h
+
+40 bytes
+2 bytes
+6 bytes
+40 bytes
+2 bytes
+6 bytes
+2 bytes
+
+0040h
+
+Used by Power Management Function
+Pointer to Performance Enhancement Function
+
+0070h
+
+Used by Performance Enhancement Function
+Pointer to Security and Boot Function
+
+0003h
+
+Code of Security and Boot Function
+
+2 bytes
+
+0000h
+
+FCC is not used
+
+2 bytes
+
+0000h
+
+Manufacturer unrelated
+
+16 bytes
+
+all 0
+
+Manufacturer unrelated
+
+2 bytes
+
+0000h
+
+Manufacturer unrelated
+
+16 bytes
+
+“SBF"
+
+098h
+09Ah
+09Bh
+09Ch
+
+PMF Header
+PMF Pointer to Next Extension
+PMF Register Sets
+PEF Header
+PEF Pointer to Next Extension
+PEF Register Sets
+Extension 3
+Standard Function Code (SFC)
+Extension 3
+Function Capability Code (FCC)
+Extension 3
+Function Manufacturer Code (FMC)
+Extension 3
+Function Manufacturer Name (FMN)
+Extension 3
+Particular Function Code (PFC)
+Extension 3
+Function Name (FN)
+Pointer to Next Extension
+Number of Register Sets
+Reserved
+Register Set Address
+
+2 bytes
+1 byte
+1 byte
+4 bytes
+
+0A0h-1FFh
+
+Unused Area
+
+0000h
+01h
+00h
+000C_
+0000h
+all 0
+
+ASCII + all 0
+“SBF" = 00000000_00000000_00000000_00464253h
+End of General Information
+One Register Set
+
+072h
+074h
+076h
+086h
+088h
+
+FNO=3, Start Address = 0h
+
+Table 5-33 : General Information of Security and Boot Function
+
+272
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6. SD Memory Card Hardware Interface
+This section is a blank in the Simplified Specification.
+Figure 6-1 : Bus Circuitry Diagram (Removed in the Simplified Specification)
+
+6.1 Hot Insertion and Removal
+This section is a blank in the Simplified Specification.
+
+6.2 Card Detection (Insertion/Removal)
+This section is a blank in the Simplified Specification.
+
+6.3 Power Protection (Insertion/Removal)
+This section is a blank in the Simplified Specification.
+Figure 6-2 : Improper Power Supply (Removed in the Simplified Specification)
+
+Figure 6-3 : Short Circuit Protection (Removed in the Simplified Specification)
+
+273
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.4 Power Scheme
+The power scheme of the SD Memory Card bus is handled locally in each SD Memory Card and in the
+host.
+
+6.4.1 Power Up Sequence for SD Bus Interface
+6.4.1.1 Power Up Time of Card
+A device shall be ready to accept the first command within 1ms from detecting VDD min.
+Device may use up to 74 clocks for preparation before receiving the first command.
+Supply voltage
+V DD max
+
+Host Supply Voltage
+
+Valid voltage range for
+all commands
+
+V DD min
+
+Power up time
+
+Time out value for
+initialization process = 1Sec
+
+Supply ramp up time
+
+Initialization sequence
+
+time
+
+End of first ACMD41 to card ready
+
+CMD0
+
+CMD8
+
+ACMD
+ACMD
+4141
+
+N
+NCC
+CC
+
+ACMD
+ACMD
+41
+41
+
+NCC
+
+ACMD
+ACMD
+41
+
+N
+NCC CMD2
+
+Optional repetitions of ACMD41
+until no cards are responding
+with
+busy
+set
+with
+busy
+bitbit
+set
+
+Initialization delay:
+The maximum of
+1 msec, 74 clock cycles
+and supply ramp up time
+
+Figure 6-4 : Power-up Diagram of Card
+'Power up time' is defined as voltage rising time from 0 volt to VDD min (refer to Section 6.6) and depends
+on application parameters such as the maximum number of SD Cards, the bus length and the
+characteristic of the power supply unit.
+'Supply ramp up time' provides the time that the power is built up to the operating level (Host Supply
+Voltage) and the time to wait until the SD card can accept the first command,
+The host shall supply power to the card so that the voltage is reached to Vdd_min within 250ms and start
+to supply at least 74 SD clocks to the SD card with keeping CMD line to high. In case of SPI mode, CS
+shall be held to high during 74 clock cycles.
+After power up (including hot insertion, i.e. inserting a card when the bus is operating) the SD Card enters
+the idle state. In case of SD host, CMD0 is not necessary. In case of SPI host, CMD0 shall be the first
+command to send the card to SPI mode.
+CMD8 is newly added in the Physical Layer Specification Version 2.00 to support multiple voltage ranges
+and used to check whether the card supports supplied voltage. The version 2.00 or later host shall issue
+CMD8 and verify voltage before card initialization. The host that does not support CMD8 shall supply high
+voltage range.
+ACMD41 is a synchronization command used to negotiate the operation voltage range and to poll the
+cards until they are out of their power-up sequence. In case the host system connects multiple cards, the
+host shall check that all cards satisfy the supplied voltage. Otherwise, the host should select one of the
+cards and initialize.
+
+274
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.4.1.2 Power Up Time of Host
+Reset level is not described in Figure 6-4 of the Physical Layer Specification Version 2.00. Change of
+Figure 6-5 is applied to Figure 6-4 of the Physical Layer Specification.
+Host needs to keep power line level less than 0.5V and more than 1ms before power ramp up.
+VDD Supply
+Voltage
+
+3.6V
+
+VDD max
+
+Stable supply
+voltage
+
+Operating supply range
+2.7V
+
+0.5V
+
+VDD min
+
+Power on/Cycle
+/level/duration
+
+Min.
+1msec
+
+Time ( not scaled)
+
+Min. 0.1msec
+~ Max. 35msec
+
+Min.
+1msec
+
+Power ramp up
+Voltage should be as monotonic as possible
+
+CMD0
+
+Host provides at least 74
+Clocks before issuing first
+command
+
+Figure 6-5 : Power Up Diagram of Host
+6.4.1.3 Power On or Power Cycle
+Followings are requirements for Power on and Power cycle to assure a reliable SD Card hard reset.
+(1) Voltage level shall be below 0.5V
+(2) Duration shall be at least 1ms.
+6.4.1.4 Power Supply Ramp Up
+The power ramp up time is defined from 0.5V threshold level up to the operating supply voltage which is
+stable between VDD(min.) and VDD(max.) and host can supply SDCLK.
+Followings are recommendation of Power ramp up:
+(1) Voltage of power ramp up should be monotonic as much as possible.
+(2) The minimum ramp up time should be 0.1ms.
+(3) The maximum ramp up time should be 35ms for 2.7-3.6V power supply.
+(4) Host shall wait until VDD is stable.
+(5) After 1ms VDD stable time, host provides at least 74 clocks before issuing the first command.
+
+6.4.1.5 Power Down and Power Cycle
+When the host shuts down the power, the card VDD shall be lowered to less than 0.5Volt for a minimum
+period of 1ms. During power down, DAT, CMD, and CLK should be disconnected or driven to logical 0 by
+the host to avoid a situation that the operating current is drawn through the signal lines.
+If the host needs to change the operating voltage, a power cycle is required. Power cycle means the
+power is turned off and supplied again. Power cycle is also needed for accessing cards that are already
+in Inactive State. To create a power cycle the host shall follow the power down description before power
+up the card (i.e. the card VDD shall be once lowered to less than 0.5Volt for a minimum period of 1ms).
+
+275
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.4.2 Power Up Sequence for UHS-II Interface
+6.4.2.1 Power Up Sequence of UHS-II Card
+Figure 6-6 shows power up sequence for UHS-II Card. Either power up order of VDD1 and VDD2 should be
+expected and card power up is dependent on later one. UHS-II Card shall be ready to start PHY
+Initialization within 1ms from detecting later of VDD1 min or VDD2 min.
+Supply voltage
+VDD1 max
+Valid voltage for VDD1
+VDD1 min
+VDD2 max
+Valid voltage for VDD2
+
+VDD2 min
+
+VDD2 Supply ramp up time
+VDD2 Power up time
+
+time
+
+VDD1 Supply ramp up time
+
+VDD1 Power up time
+
+Figure 6-6 : Power Up Sequence of UHS-II Device
+6.4.2.2 Power Up Sequence of UHS-II Host
+Figure 6-7 shows power up sequence for UHS-II Host. Followings are host requirements.
+ Power up and ramp up of VDD1 and VDD2 should be monotonic.
+ Either power up order is allowed for VDD1 and VDD2.
+ Trise shall be 0.1-35ms.
+ Host shall wait until both VDD1 and VDD2 are stable.
+ After additional 1ms stable time from both VDD1 and VDD2 are stable, host starts to provide RCLK and
+then starts PHY Initialization.
+ Once VDD2 is supplied, host needs to supply VDD2 until power cycle.
+ When power cycle is executed, keep VDD1 less than 0.5V and VDD2 less than 0.2V at least 1ms before
+starting power up.
+Supply voltage
+VDD1 max
+Valid voltage for VDD1
+VDD1 min
+VDD2 max
+Valid voltage for VDD2
+
+VDD2 min
+0.5V
+
+time
+
+0.2V
+VDD2 Power ramp up time
+VDD1 Power ramp up time
+
+Trise = 0.1-35msec
+
+1ms (min.)
+
+1ms (min.)
+Host provides RCLK before
+starting PHY initialization
+
+Figure 6-7 : Power Up Sequence of UHS-II Host
+
+276
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.4.3 Power Up Sequence for PCIe Interface
+6.4.3.1 Power Up Sequence of SD Express Card
+SD Express card shall support VDD2 (1.8V).
+In addition, card and host may support VDD3 (1.2V). VDD3 if supported will be used instead of VDD2
+(Supply of VDD2 and VDD3 at the same time is not supported by the card). Following section provides
+description of VDD3 however all the information is the same for either VDD2 or VDD3.
+Figure 6.4.3-1 shows one possible power up sequence for SD Express Card. VDD1 shall be supplied
+first, followed by VDD2 or VDD3 in case that SD Express card presence was detected.
+Supply voltage
+VDD1 max
+
+Valid voltage for
+VDD1
+
+VDD1a
+
+Valid voltage for
+VDD2/VDD3
+
+VDD2a
+
+VDD1 min
+
+VDD2/3 max
+
+VDD2/3 min
+
+time
+LinkUp
+complete
+
+VDD1a/
+VDD2a On
+
+VDD1 Pow er up time
+VDD1 Supply
+ramp up time
+
+VDD2/3 Pow er
+up time
+
+VDD2/3 Supply
+ramp up time
+
+Figure 6.4.3-1: Power Up Sequence of SD Express Card
+VDD1a is expected to be active when PCIe bus mode is either Gen3x2, Gen4x1, or Gen4x2. Moreover,
+VDD2a is expected to be active when PCIe bus mode is Gen3x2, or Gen4x2.
+VDD1a and VDD2a can be supplied after PCIe LinkUp at any time before switching to power mode with
+max power consumption above 1.8W. Either power up order of VDD1a and VDD2a should be expected.
+Figure 6.4.3-2 shows another power up sequence for SD Express Card. VDD1 shall be supplied first,
+followed by VDD2 or VDD3 in case that SD Express card presence was detected.
+
+277
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Supply voltage
+VDD1 max
+
+(VDD1a)
+
+Valid voltage for
+VDD1
+
+VDD1a
+
+Valid voltage for
+VDD2/VDD3
+
+VDD2a
+
+VDD1 min
+
+VDD2/3 max
+
+VDD2/3 min
+
+(VDD2a)
+time
+LinkUp
+complete
+
+VDD1 Pow er up time
+VDD1 Supply
+ramp up time
+
+VDD2/3 Pow er
+up time
+
+VDD2/3 Supply
+ramp up time
+
+Figure 6.4.3-2 : Power Up Sequence of SD Express Card (Another Case)
+VDD1 and VDD1a may be supplied at the same time if host detects the existence of VDD1a pad. Refer
+to Appendix J for VDD1a pad detection.
+VDD2 and VDD2a may be supplied simultaneously.
+
+6.4.3.2 Power Up Sequence of SD Express Host
+Figure 6.4.3-3 and Figure 6.4.3-4 show different example if power up sequence allowed for SD Express
+Host. Followings are host requirements.
+ Power up and ramp up of VDD1 and VDD2/VDD3 should be monotonic.
+ VDD1 shall be supplied first, followed by VDD2/VDD3 in case that SD Express card presence was
+detected.
+ Host is recommended to turn VDD3 on only if SD Express type card presence is detected.
+ VDD1 and VDD2 may be turned on regardless of SD Express card presence detection. Host supporting
+multiple rows connector shall ensure VDD1a and VDD2a are not supplied until the card is fully inserted.
+ Trise shall be 0.1-35ms.
+ Host shall wait until both VDD1 and VDD2/VDD3 are stable before initiating the PCIe training process.
+ After completing PCIe LinkUp, host may supply VDD1a and VDD2a any time before switching to power
+mode with max power consumption above 1.8W. VDD1a shall be provided before setting PCIe bus mode
+to either Gen3x2, Gen4x1, or Gen4x2. Moreover, VDD2a shall be provided before setting PCIe bus
+mode to Gen3x2, or Gen4x2. Power up order of VDD1a and VDD2a is arbitrary.
+ Refer to Section 3.17.2 for further details on the PCIe training during the initialization process.
+ When power cycle is executed, keep VDD1/VDD1a below 0.5V and VDD2/VDD2a/VDD3 less than 0.2V
+for at least 1ms before starting power up.
+ It is recommended to turn off powers upon card removal detection.
+
+278
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Supply voltage
+VDD1 max
+
+Valid voltage for
+VDD1
+
+VDD1a
+
+Valid voltage for
+VDD2/VDD3
+
+VDD2a
+
+VDD1 min
+
+VDD2/3 max
+
+VDD2/3 min
+
+0.5V
+0.2V
+
+time
+
+VDD1 Pow er Ramp up time
+Trise = 0.1 – 35ms
+
+LinkUp
+complete
+
+VDD2/3 Pow er up
+Card asserts
+time
+CLKREQ#
+
+VDD1a/
+VDD2a On
+
+Host provides
+Reference clock, Shall
+be stable w ithin 100us
+
+Figure 6.4.3-3 : Power Up Sequence of SD Express Host
+Figure 6.4.3-4 shows another option of power up sequence for SD Express Host. In this option, host
+supplies VDD1 and VDD1a at the same time if host detects the existence of VDD1a pad. Moreover, host
+may supply VDD2 and VDD2a simultaneously.
+Refer to Appendix J for VDD1a pad detection.
+Supply voltage
+VDD1 max
+
+(VDD1a)
+
+Valid voltage for
+VDD1
+
+VDD1a
+
+Valid voltage for
+VDD2/VDD3
+
+VDD2a
+
+VDD1 min
+
+VDD2/3 max
+
+VDD2/3 min
+
+(VDD2a)
+
+0.5V
+0.2V
+
+time
+
+VDD1 Pow er Ramp up time
+Trise = 0.1 – 35ms
+
+VDD2/3 Pow er up
+Card asserts
+time
+CLKREQ#
+
+LinkUp
+complete
+Host provides
+Reference clock, Shall
+be stable w ithin 100us
+
+Figure 6.4.3-4 : Power Up Sequence of SD Express Host (Another Option)
+
+6.5 Programmable Card Output Driver (3.3V Single End) (Optional)
+This section is a blank in the Simplified Specification.
+
+Table 6-1 : DSR Register Contents (Removed in the Simplified Specification)
+
+Figure 6-8 : SD Memory Card Bus Driver (Removed in the Simplified Specification)
+
+279
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.6 Bus Operating Conditions for 3.3V Signaling
+6.6.1 Threshold Level for High Voltage Range
+This section is a blank in the Simplified Specification.
+Table 6-2 : Threshold Level for High Voltage (Removed in the Simplified Specification)
+
+6.6.2 Peak Voltage and Leakage Current
+This section is a blank in the Simplified Specification.
+Table 6-3 : Peak Voltage and Leakage Current (Removed in the Simplified Specification)
+
+6.6.3 Power Consumption
+This section is a blank in the Simplified Specification.
+
+6.6.4 Bus signal line load
+This section is a blank in the Simplified Specification.
+Table 6-4 : Bus Operating Conditions - Signal Line's Load (Removed in the Simplified
+Specification)
+
+6.6.5 Bus Signal Levels
+This section is a blank in the Simplified Specification.
+Figure 6-9 : Bus Signal Levels (Removed in the Simplified Specification)
+
+280
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.6.6 Bus Timing (Default)
+Description here is a blank in the Simplified Specification.
+tWL
+
+tWH
+
+VDD
+VIH
+SD Clock Input
+VSS
+
+VIH
+VIL
+
+VIH
+
+VIL
+
+tTHL
+
+tTLH
+tISU
+
+tIH
+
+VDD
+VIH
+Card Input
+
+Not Valid
+
+VIH
+Not Valid
+
+Valid
+VIL
+
+VIL
+
+VSS
+
+Figure 6-10 : Card Input Timing (Default Speed Card)
+
+Figure 6-11 : Card Output Timing (Default Speed Mode)
+
+281
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.6.7 Bus Timing (High-Speed Mode)
+Description here is a blank in the Simplified Specification.
+tWL
+
+tWH
+
+VDD
+VIH
+SD Clock Input
+VSS
+
+VIH
+
+VIH
+
+50% VDD
+
+VIL
+
+VIL
+
+tTHL
+
+tTLH
+tISU
+
+tIH
+
+VDD
+VIH
+Card Input
+
+VIH
+Valid
+
+Not Valid
+VIL
+
+Not Valid
+VIL
+
+VSS
+
+Figure 6-12 : Card Input Timing (High Speed Card)
+
+Figure 6-13 : Card Output Timing (High Speed Mode)
+
+282
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.7 Driver Strength and Bus Timing for 1.8V Signaling
+This section is a blank in the Simplified Specification.
+
+6.7.1 Output Driver Strength (Removed in the Simplified Specification)
+6.7.1.1 4-Level Driver Strength (Removed in the Simplified Specification)
+6.7.1.2 I/O Drive Strength Types (Removed in the Simplified Specification)
+Table 6-5 : I/O Driver Strength Types (Removed in the Simplified Specification)
+6.7.1.3 I/O Driver Target AC Characteristics (Removed in the Simplified Specification)
+6.7.1.3.1 Requirement for Rise / Fall Time (Removed in the Simplified Specification)
+Table 6-6 : I/O Driver Design Target (Removed in the Simplified Specification)
+6.7.1.3.2 Design Target for Ratio of Rise / Fall Time (Removed in the Simplified Specification)
+Table 6-7 : Design Target for Ratio of Rise / Fall Time (Removed in the Simplified Specification)
+6.7.1.3.3 Output Driver Test Circuit (Removed in the Simplified Specification)
+Figure 6-14 : Outputs Test Circuit for Rise/Fall Time Measurement (Removed in the Simplified
+Specification)
+Table 6-8 : Card Capacitance Range (Removed in the Simplified Specification)
+
+6.7.1.4 Driver Strength Selection (Removed in the Simplified Specification)
+Table 6-9 : Output Driver Type Support Bits (Removed in the Simplified Specification)
+6.7.1.5 How to Select Optimal Drive Strength (Removed in the Simplified Specification)
+Table 6-10 : Approximation of Total Capacitance for Each of Drive Strength (Removed in the
+Simplified Specification)
+
+6.7.2 Bus Operating Conditions for 1.8V Signaling (Removed in the Simplified
+Specification)
+6.7.2.1 Threshold Level for 1.8V Signaling (Removed in the Simplified Specification)
+Table 6-11 : Threshold Level for 1.8V Signaling (Removed in the Simplified Specification)
+6.7.2.2 Leakage Current (Removed in the Simplified Specification)
+Table 6-12 : Input Leakage Current (Removed in the Simplified Specification)
+
+6.7.3 Bus Timing Specification in SDR12, SDR25, SDR50 and SDR104 Modes
+(Removed in the Simplified Specification)
+6.7.3.1 Clock Timing (Removed in the Simplified Specification)
+Figure 6-15 : Clock Signal Timing (Removed in the Simplified Specification)
+Table 6-13 : Clock Signal Timing (Removed in the Simplified Specification)
+6.7.3.2 Card Input Timing (Removed in the Simplified Specification)
+Figure 6-16 : Card Input Timing (Removed in the Simplified Specification)
+Table 6-14 : SDR50 and SDR104 Input Timing (Removed in the Simplified Specification)
+6.7.3.3 Card Output Timing (Removed in the Simplified Specification)
+6.7.3.3.1 Frequency Range Consideration (Removed in the Simplified Specification)
+Figure 6-17 : Fixed Output Data Window (Removed in the Simplified Specification)
+6.7.3.3.2 Output Timing of Fixed Data Window (SDR12, SDR25 and SDR50) (Removed in the
+
+283
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Simplified Specification)
+Figure 6-18 : Output Timing of Fixed Data Window (Removed in the Simplified Specification)
+Table 6-15 : Output Timing of Fixed Data Window (Removed in the Simplified Specification)
+6.7.3.3.3 Output Timing of Variable Window (SDR104) (Removed in the Simplified Specification)
+Figure 6-19 : Output Timing of Variable Data Window (Removed in the Simplified Specification)
+Table 6-16 : Output Timing of Variable Data Window (Removed in the Simplified Specification)
+Figure 6-20 : ∆tOP Consideration for Variable Data Window Mode (Removed in the Simplified
+Specification)
+
+6.7.4 Bus Timing Specification in DDR50 Mode (Removed in the Simplified
+Specification)
+6.7.4.1 Clock Timing (Removed in the Simplified Specification)
+Figure 6-21 : Clock Signal Timing (Removed in the Simplified Specification)
+Table 6-17 : Clock Signal Timing (Removed in the Simplified Specification)
+6.7.4.2 Bus Timing for DDR50 (Removed in the Simplified Specification)
+Figure 6-22 : Timing Diagram DAT Inputs/Outputs Referenced to CLK in DDR50 Mode
+(Removed in the Simplified Specification)
+Table 6-18 : Bus Timings – Parameters Values (DDR50 mode) (Removed in the Simplified
+Specification)
+
+6.7.5 Bus Operating Conditions for UHS-II (Removed in the Simplified Specification)
+6.7.5.1 Conditions of VDD2 (Removed in the Simplified Specification)
+Table 6-19 : Bus Operating Conditions of VDD2 (Removed in the Simplified Specification)
+
+6.7.6 Bus Operating Conditions for PCIe (Removed in the Simplified Specification)
+6.7.6.1 Conditions of VDD2 (Removed in the Simplified Specification)
+6.7.6.2 Conditions of VDD3 (Removed in the Simplified Specification)
+Table 6-20 : Bus Operating Conditions of VDD3 (Removed in the Simplified Specification)
+6.7.6.3 Interface pins characteristics in PCIe mode (Removed in the Simplified Specification)
+Table 6-21 : I/O special characteristics of the PCIe interface in SD Express card (Removed in
+the Simplified Specification)
+
+284
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+6.8 Electrical Static Discharge (ESD) Requirement
+This section is a blank in the Simplified Specification.
+
+6.8.1 Discharge Models: (Removed in the Simplified Specification)
+6.8.2 Test Items (Removed in the Simplified Specification)
+6.8.3 Test Result Requirements: (Removed in the Simplified Specification)
+
+285
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7. SPI Mode
+7.1 Introduction
+The SPI mode consists of a secondary communication protocol that is offered by Flash-based SD Memory
+Cards. This mode is a subset of the SD Memory Card protocol, designed to communicate with a SPI
+channel, found in some microcontrollers. The interface is selected during the first reset command after
+power up (CMD0) and cannot be changed once the part is powered on.
+The SPI standard defines the physical link only, and not the complete data transfer protocol. The SD
+Memory Card SPI implementation uses a subset of the SD Memory Card protocol and command set. The
+advantage of the SPI mode is the capability of using an off-the-shelf host, hence reducing the design-in
+effort to minimum. The disadvantage is the loss of performance of the SPI mode versus SD mode (e.g.
+Single data line and hardware CS signal per card).
+The commands and functions in SD mode defined after the Version 2.00 are not supported in SPI
+mode. The card may respond to the commands and functions even if the card is in SPI mode but
+host should not use them in SPI mode.
+SPI Mode is not supported by SDUC cards.
+
+7.2 SPI Bus Protocol
+While the SD Memory Card channel is based on command and data bit streams that are initiated by a
+start bit and terminated by a stop bit, the SPI channel is byte oriented. Every command or data block is
+built of 8-bit bytes and is byte aligned with the CS signal (i.e. the length is a multiple of 8 clock cycles).
+The card starts to count SPI bus clock cycle at the assertion of the CS signal. Every command or data
+token shall be aligned with 8-clock cycle boundary.
+Similar to the SD Memory Card protocol, the SPI messages consist of command, response and datablock tokens. All communication between host and cards is controlled by the host (master). The host
+starts every bus transaction by asserting the CS signal low.
+The selected card always responds to the command as opposed to the SD mode.
+When the card encounters a data retrieval problem in a read operation, it will respond with an error
+response (which replaces the expected data block) rather than by a timeout as in the SD mode.
+Additionally, every data block sent to the card during write operations will be responded with a data
+response token.
+In the case of a Standard Capacity Memory Card, a data block can be as big as one card write block and
+as small as a single byte. Partial block read/write operations are enabled by card options specified in the
+CSD register.
+In case of SDHC and SDXC Cards, block length is fixed to 512 bytes. The block length set by CMD16 is
+only used for CMD42 and not used for memory data transfer. So, partial block read/write operations are
+also disabled. Furthermore, Write Protected commands (CMD28, CMD29 and CMD30) are not supported.
+
+286
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Power on
+
+If SDUC card receives CMD0+ CS Asserted( 0 ),
+the card never responds for it.
+SPI Operation
+Mode
+
+from any state except Inactive
+CMD0+
+CS Asserted("0")
+
+In SPI mode from any state
+CMD0
+
+It is mandatory for the host compliant to
+Physical Spec Version 2.00 to send CMD8
+
+In SD Bus mode
+
+Idle State
+(idle)
+
+CMD8
+ACMD41
+
+CMD0
+
+SD Bus
+Operation Modes
+
+card is busy
+
+CMD8
+Non
+supported
+voltage range
+
+Host shall refrain from
+accessing this card
+
+Not Mandatory to send CMD58:
+Though it is recommended
+to be done in order to get the
+supported voltage range of the card.
+
+CMD58
+(READ OCR)
+
+card returns busy(1)
+(*2, *3)
+
+ACMD41
+
+Not valid command
+
+Host shall issue CMD58 to get
+card capacity information(CCS).
+
+CMD58
+
+Not SD Memory Card
+
+(Get CCS)
+
+card-identification mode
+
+data-transfer mode
+(*1) Note: Card returns busy when
+- Card executes internal initialization process.
+- If the card is High capacity SD Memory Card, there are 2 cases
+1. CMD8 was not issued before ACMD41
+2. ACMD41 is issued with HCS=0
+
+(*2) Note: 2.1mm SD Memory Card can be initialized using CMD1 and Thin (1.4mm) SD Memory Card can be initialized using CMD1 only after
+firstly initialized by using CMD0 and ACMD41. In any of the cases CMD1 is not recommended because it may be difficult for the host
+to distinguish between MultiMediaCard and SD Memory Card.
+If the SD card is initialized by CMD1 and the host treat it as MMC card, not SD card, the Data of the card may be damaged because of
+wrong interpretation of CSD and CID registers.
+(*3) Note: SDUC card, card can stay at busy status and does not reply ready to host during ACMD41 to let host know SDUC card cannot use SPI
+mode.
+
+Figure 7-1 : SD Memory Card State Diagram (SPI mode)
+
+7.2.1 Mode Selection and Initialization
+The SD Card is powered up in the SD mode. It will enter SPI mode if the CS signal is asserted (negative)
+during the reception of the reset command (CMD0). If the card recognizes that the SD mode is required
+it will not respond to the command and remain in the SD mode. If SPI mode is required, the card will
+switch to SPI and respond with the SPI mode R1 response.
+The only way to return to the SD mode is by entering the power cycle. In SPI mode, the SD Card protocol
+state machine in SD mode is not observed. All the SD Card commands supported in SPI mode are always
+available.
+Figure 7-2 shows the initialization sequence of SPI mode.
+SEND_IF_COND (CMD8) is used to verify SD Memory Card interface operating condition. The argument
+format of CMD8 is the same as defined in SD mode and the response format of CMD8 is defined in
+Section 7.3.2.6. The card checks the validity of operating condition by analyzing the argument of CMD8
+and the host checks the validity by analyzing the response of CMD8. The supplied voltage is indicated by
+VHS field in the argument. The card assumes the voltage specified in VHS as the current supplied voltage.
+Only 1-bit of VHS shall be set to 1 at any given time. Check pattern is used for the host to check validity
+of communication between the host and the card.
+If the card indicates an illegal command, the card is legacy and does not support CMD8. If the card
+supports CMD8 and can operate on the supplied voltage, the response echoes back the supply voltage
+and the check pattern that were set in the command argument.
+If VCA in the response is set to 0, the card cannot operate on the supplied voltage. If check pattern is not
+287
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+matched, CMD8 communication is not valid. In this case, it is recommended to retry CMD8 sequence.
+
+Power-on
+CMD0+
+CS Asserted("0")
+
+Not Mandatory to send CMD58:
+Though it is recommended
+to be done in order to get
+the supported voltage range
+of the card.
+
+Cards with non
+compatible voltage
+range Unusable
+Card
+
+Illegal Command
+Ver1.X SD Memory Card
+or Not SD Memory Card
+
+CMD8
+
+Card returns response
+without illegal command
+
+Ver2.00 or later
+SD Memory Card
+
+Non-compatible voltage range
+or check pattern error
+
+Valid
+Response?
+
+Unusable
+Card
+
+CMD58
+(READ OCR)
+Card with compatible
+Voltage range
+
+Illegal Command
+
+Compatible voltage range
+and check pattern is correct
+
+ACMD41
+(argument=0x0)
+
+Unusable
+Card
+
+CMD58
+(READ OCR)
+Card is
+ready?
+
+Cards with non compatible voltage range
+
+Card returns
+'in_idle_state'=1
+ACMD41
+with HCS=0or1
+
+Not SD Memory Card
+
+Card returns
+'in_idle_state=0'
+
+If host supports
+SDHC or SDXC,
+HCS is set to 1
+
+Card returns
+'in_idle_state'=1
+Card is
+ready?
+
+CMD58
+(Get CCS)
+CCS in
+Response?
+CCS=0
+Ver1.X
+Standard Capacity
+SD Memory Card
+
+Card returns
+'in_idle_state '=0
+
+CCS=1
+
+Ver2.00 or later
+Standard Capacity
+SD Memory Card
+
+Ver2.00
+Ver2.00ororlater
+later
+High Capacity or
+Extended Capacity
+SD Memory Card
+
+Figure 7-2 : SPI Mode Initialization Flow
+READ_OCR (CMD58) is designed to provide SD Memory Card hosts with a mechanism to identify cards
+that do not match the VDD range desired by the host. If the host does not accept voltage range, it shall not
+proceed with further initialization sequence. The levels in the OCR register shall be defined accordingly
+(See Section 5.1).
+SD_SEND_OP_COND (ACMD41) is used to start initialization and to check if the card has completed
+initialization. It is mandatory to issue CMD8 prior to the first ACMD41. Receiving of CMD8 expands the
+CMD58 and ACMD41 function; HCS (High Capacity Support) in the argument of ACMD41 and CCS (Card
+Capacity Status) in the response of CMD58. HCS is ignored by the card, which didn't accept CMD8.
+Standard Capacity SD Memory Card ignores HCS. The "in idle state" bit in the R1 response of ACMD41
+is used by the card to inform the host if initialization of ACMD41 is completed. Setting this bit to "1"
+indicates that the card is still initializing. Setting this bit to "0" indicates completion of initialization. The
+host repeatedly issues ACMD41 until this bit is set to "0". The card checks the HCS bit in the OCR only
+at the first ACMD41. While repeating ACMD41, the host shall not issue another command except CMD0.
+For SDUC card, card may indicate that the card is still initializing in the R3 response of ACMD41
+continuously to let host know SDUC card cannot use SPI mode.
+After initialization is completed, the host should get CCS information in the response of CMD58. CCS is
+288
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+valid when the card accepted CMD8 and after the completion of initialization. CCS=0 means that the card
+is SDSC. CCS=1 means that the card is SDHC or SDXC.
+
+7.2.2 Bus Transfer Protection
+Every SD Card command transferred on the bus is protected by CRC bits. In SPI mode, the SD Memory
+Card offers a CRC ON mode which enables systems built with reliable data links to exclude the hardware
+or firmware required for implementing the CRC generation and verification functions.
+In the CRC OFF mode, the CRC bits of the command are defined as 'don't care' for the transmitter and
+ignored by the receiver.
+The SPI interface is initialized in the CRC OFF mode in default. However, the RESET command (CMD0)
+that is used to switch the card to SPI mode, is received by the card while in SD mode and, therefore, shall
+have a valid CRC field.
+Since CMD0 has no arguments, the content of all the fields, including the CRC field, are constants and
+need not be calculated in run time. A valid reset command is:
+0x40, 0x0, 0x0, 0x0, 0x0, 0x95
+After the card is put into SPI mode, CRC check for all commands including CMD0 will be done according
+to CMD59 setting.
+The host can turn the CRC option on and off using the CRC_ON_OFF command (CMD59). Host should
+enable CRC verification before issuing ACMD41.
+The CMD8 CRC verification is always enabled. The Host shall set correct CRC in the argument of CMD8.
+If CRC error is detected, card returns CRC error in R1 response regardless of command index.
+
+7.2.3 Data Read
+The SPI mode supports single block read and Multiple Block read operations (CMD17 or CMD18 in the
+SD Memory Card protocol). Upon reception of a valid read command the card will respond with a
+response token followed by a data token (Refer to Figure 7-3). In case of Standard Capacity Card, the
+size in the data token is determined by the block length set by SET_BLOCKLEN (CMD16). In case of
+SDHC and SDXC Cards, block length is fixed to 512 Bytes regardless of the block length set by CMD16.
+from
+card
+to host
+
+from
+host
+to card
+
+DataIn
+DataOut
+
+data from card
+to host
+
+Next
+Command
+
+command
+
+command
+data block CRC
+
+response
+
+Figure 7-3 : Single Block Read Operation
+A valid data block is suffixed with a 16-bit CRC generated by the standard CCITT polynomial x16+x12+x5+1.
+The maximum block length is given by 512 Bytes regardless of READ_BL_LEN, defined in the CSD. If
+partial block access is enabled in Standard Capacity Card (i.e. the CSD parameter READ_BL_PARTIAL
+equals 1), the block length can be any number between 1 and 512 Bytes. The start address can be any
+byte address in the valid address range of the card. Every block, however, shall be contained in a single
+physical card sector.
+If partial block access is disabled, only 512-Byte data length is supported.
+SDHC and SDXC Cards only support 512-byte block length. The start address shall be aligned with the
+block boundary.
+In the case of a data retrieval error, the card will not transmit any data. Instead, a special data error token
+will be sent to the host. Figure 7-4 shows a data read operation that terminated with an error token rather
+than a data block.
+
+289
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+from
+card
+to host
+
+from
+host
+to card
+
+DataIn
+
+data error token
+from card to host
+
+Next
+Command
+
+command
+
+command
+
+DataOut
+
+response
+
+data error
+
+Figure 7-4 : Read Operation - Data Error
+In the case of a multiple block read operation every transferred block has its suffix of 16-bit CRC.
+Stop transmission command (CMD12) will actually stop the data transfer operation (the same as in SD
+Memory Card operation mode).
+from
+host
+to card
+
+from
+card
+to host
+
+data from card
+to host
+
+command
+
+DataIn
+
+command
+response
+
+DataOut
+
+from
+card
+to host
+
+Stop Transmission
+Command
+
+data block CRC
+
+data blockCRC
+
+response
+
+Figure 7-5 : Multiple Block Read Operation
+
+7.2.4 Data Write
+The SPI mode supports single block and multiple block write commands. Upon reception of a valid write
+command (CMD24 or CMD25 in the SD Memory Card protocol), the card will respond with a response
+token and will wait for a data block to be sent from the host. CRC suffix, block length and start address
+restrictions are (with the exception of the CSD parameter WRITE_BL_PARTIAL controlling the partial
+block write option and WRITE_BL_LEN) identical to the read operation (Refer to Figure 7-6).
+from
+card
+to host
+
+from
+host
+to card
+
+DataIn
+DataOut
+
+Start
+Block
+Token
+
+data from
+host
+to card
+
+data block
+
+command
+
+Data
+response and
+busy from
+card
+
+new command
+from host
+
+command
+
+data_response busy
+
+response
+
+Figure 7-6 : Single Block Write Operation
+Every data block has a prefix of 'Start Block' token (one byte).
+After a data block has been received, the card will respond with a data-response token. If the data block
+has been received without errors, it will be programmed. As long as the card is busy programming, a
+continuous stream of busy tokens will be sent to the host (effectively holding the DataOut line low).
+Once the programming operation is completed, the host should check the results of the programming
+using the SEND_STATUS command (CMD13). Some errors (e.g. address out of range, write protect
+violation etc.) are detected during programming only. The only validation check performed on the data
+block, and communicated to the host via the data-response token, is the CRC and general Write Error
+indication.
+In a Multiple Block write operation, the stop transmission will be done by sending 'Stop Tran' token instead
+of 'Start Block' token at the beginning of the next block. In case of Write Error indication (on the data
+
+290
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+response) the host shall use SEND_NUM_WR_BLOCKS (ACMD22) in order to get the number of well
+written write blocks. The data tokens description is given in Section 7.3.3.2.
+
+from
+host
+to card
+
+DataIn
+
+Start
+Block
+Token
+
+from
+card
+to host
+
+data block
+
+command
+
+DataOut
+
+data from
+host
+to card
+
+Stop
+Tran
+Token
+
+Data
+response and
+busy from
+card
+
+command
+
+data_response busy
+
+response
+
+new command
+from host
+
+busy
+
+Figure 7-7 : Multiple Block Write Operation
+While the card is busy, resetting the CS signal will not terminate the programming process. The card will
+release the DataOut line (tri-state) and continue with programming. If the card is reselected before the
+programming is finished, the DataOut line will be forced back to low and all commands will be rejected.
+Resetting a card (using CMD0 for SD memory card) will terminate any pending or active programming
+operation. This may destroy the data formats on the card. It is in the responsibility of the host to prevent
+this for occurring.
+
+7.2.5 Erase & Write Protect Management
+The erase and write protect management procedures in the SPI mode are identical to those of the SD
+mode. While the card is erasing or changing the write protection bits of the predefined sector list, it will
+be in a busy state and hold the DataOut line low. Figure 7-8 illustrates a 'no data' bus transaction with
+and without busy signaling.
+from
+host
+to card
+
+DataIn
+DataOut
+
+from
+card
+to host
+
+from
+card
+to host
+
+from
+host
+to card
+
+command
+
+command
+
+response
+
+response
+
+Figure 7-8 : 'No data' Operations
+
+291
+
+busy
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.2.6 Read CID/CSD Registers
+Unlike the SD Memory Card protocol (where the register contents is sent as a command response),
+reading the contents of the CSD and CID registers in SPI mode is a simple read-block transaction. The
+card will respond with a standard response token (Refer to Figure 7-3) followed by a data block of 16
+bytes suffixed with a 16-bit CRC.
+The data timeout for the CSD command cannot be set to the cards TAAC since this value is stored in the
+card's CSD. Therefore, the standard response timeout value (NCR) is used for read latency of the CSD
+register.
+
+7.2.7 Reset Sequence
+The SD Memory Card requires a defined reset sequence. The card enters an idle state after power on
+reset or reset command (CMD0 for SD memory card). In this state, the only valid host commands are
+CMD8 (SEND_IF_COND), ACMD41 (SD_SEND_OP_COND), CMD58 (READ_OCR) and CMD59
+(CRC_ON_OFF).
+For the Thick (2.1 mm) SD Memory Card - CMD1 (SEND_OP_COND) is also valid - this means that in
+SPI mode, CMD1 and ACMD41 have the same behaviors, but the usage of ACMD41 is preferable since
+it allows easy distinction between an SD Memory Card and a MultiMediaCard. For the Thin (1.4 mm)
+Standard Size SD Memory Card, CMD1 (SEND_OP_COND) is an illegal command during the
+initialization that is done after power on. After Power On, once the card has accepted valid
+ACMD41, it will be able to also accept CMD1 even if used after re-initializing (CMD0) the card. It
+was defined in such way in order to be able to distinguish between a Thin SD Memory Card and a
+MultiMediaCard (that supports CMD1 as well).
+
+7.2.8 Error Conditions
+Unlike the SD Memory Card protocol, in the SPI mode, the card will always respond to a command. The
+response indicates acceptance or rejection of the command. A command may be rejected in any one of
+the following cases:
+- It is sent while the card is in read operation (except CMD12 which is legal).
+- It is sent while the card is in Busy.
+- Card is locked and it is other than Class 0 or 7 commands.
+- It is not supported (illegal opcode).
+- CRC check failed.
+- It contains an illegal operand.
+- It was out of sequence during an erase sequence.
+Note that in case the host sends command while the card sends data in read operation then the response
+with an illegal command indication may disturb the data transfer.
+
+7.2.9 Memory Array Partitioning
+Same as SD mode.
+
+7.2.10 Card Lock/Unlock
+Usage of card lock and unlock commands in SPI mode is identical to SD mode. In both cases, the
+command is responded to with an R1b response type. After the busy signal clears, the host should obtain
+the result of the operation by issuing a SEND_STATUS command (CMD13). Refer to Section 4.3.7 for
+details.
+
+7.2.11 Application Specific Commands
+Identical to SD mode with the exception of the APP_CMD status bit (Refer to Table 4-42), which is not
+available in SPI.
+
+292
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.2.12 Content Protection Command
+All the special Content Protection ACMDs and security functionality related to the CPRM is the same as
+SD mode.
+
+7.2.13 Switch Function Command
+Same as for SD mode with two exceptions:
+ The command is valid under the "not idle state".
+ The switching period is within 8 clocks after the end bit of the R1 response of CMD0.
+
+7.2.14 High Speed Mode
+Same as SD mode.
+
+7.2.15 Speed Class Specification
+As opposed to SD mode, the card cannot guarantee its Speed Class. In SPI mode, host shall treat the
+card as Class 0 no matter what Class is indicated in SD Status.
+
+7.2.16 Boot Functionalities
+Boot functionalities including Fast Boot are not supported in SPI mode.
+
+7.2.17 TCG Security
+When TCG is enabled, host can read data from TCG MBR Table by SPI mode before pre-boot
+authentication. However, since host cannot execute pre-boot authentication over SPI-mode, host cannot
+access the User Area properly in this mode.
+
+7.2.18 RPMB
+Host cannot access to RPMB Unit and execute RPMB authentication in SPI mode.
+
+293
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+7.3 SPI Mode Transaction Packets
+7.3.1 Command Tokens
+7.3.1.1 Command Format
+All the SD Memory Card commands are 6 bytes long. The command transmission always starts with the
+left most bit of the bit string corresponding to the command codeword. All commands are protected by a
+CRC (see Section 4.5). The commands and arguments are listed in Table 7-3.
+Bit position
+Width (bits)
+Value
+Description
+
+47
+1
+'0'
+start bit
+
+46
+[45:40]
+[39:8]
+1
+6
+32
+'1'
+x
+x
+transmission bit command index argument
+Table 7-1 : Command Format
+
+[7:1]
+7
+x
+CRC7
+
+0
+1
+'1'
+end bit
+
+7.3.1.2 Command Classes
+As in SD mode, the SPI commands are divided into several classes (See Table 7-2). Each class supports
+a set of card functions. A SD Memory Card will support the same set of optional command classes in both
+communication modes (there is only one command class table in the CSD register). The available
+command classes, and the supported command for a specific class, however, are different in the SD
+Memory Card and the SPI communication mode.
+Note that except for the classes that are not supported in SPI mode (class 1, 3 and 9), the mandatory
+required classes for the SD mode are the same for the SPI mode.
+CMD58/59 in SD mode are different from those in SPI mode.
+Card Command Class
+(CCC)
+Supported class
+commands description
+
+0
+
+1
+
+2
+
+3
+
+4
+
+5
+
+6
+
+write
+reser block reser block erase probasic
+ved read ved
+write
+tection
+
+CMD0
+
+Mandatory
+
++
+
+CMD1
+
+Mandatory
+
++
+
+CMD5
+
+Optional
+
+CMD62
+
+Mandatory
+
+CMD83
+
+Mandatory
+
++
+
+CMD9
+
+Mandatory
+
++
+
+CMD10
+
+Mandatory
+
++
+
+CMD12
+
+Mandatory
+
++
+
+CMD13
+
+Mandatory
+
++
+
+CMD16
+
+Mandatory
+
++
+
+CMD17
+
+Mandatory
+
++
+
+CMD18
+
+Mandatory
+
++
+
+CMD24
+
+Mandatory1
+
+7
+
+8
+
+9

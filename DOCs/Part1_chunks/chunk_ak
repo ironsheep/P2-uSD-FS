@@ -1,0 +1,2000 @@
+Programming State
+Disconnect State
+Table 4-81 : Overview of Card States vs. Operation Modes Considering LVS and Fast Boot
+Figure 4-96 illustrates a state diagram of pre-init mode.
+Power ON
+Pseudo Init State
+(p-init)
+
+Condition-I
+CMD line held High for
+at least 1ms, then SDCLK supplied at least
+74 clocks with keeping CMD line High
+
+For CV-mode Fast Boot (from p-init or idle):
+Condition-II
+After >= 1ms from reaching VDD min,
+CMD High to Low transition & CMD = Low for >=74 clocks (if
+CMD = Low is less than 74 clocks, the state transits to or
+remains in idle state)
+
+Condition-III
+
+LVS Identification :
+Refer to Low Voltage Addendum for
+more details
+
+For CA-mode Fast Boot by DS or HS mode (from idle /wo LVS):
+CMD0 with special arguments for boot operation
+For CA-mode Fast Boot by UHS-I mode (from idle /w LVS):
+CMD0 with special arguments for boot operation
+(LVS Identification needs to be completed before transiting to
+boot state)
+
+This path is valid as long as no commands
+were sent to the card after power cycle
+except CMD0 with special argument for
+boot mode (including LVS identification)
+
+Boot state
+(boot)
+
+Card send (tuning blocks
+and) boot data out
+
+For CV-mode Fast Boot:
+CMD line High
+For CA-mode Fast Boot:
+CMD0 with argument=00000000h
+
+Pre-init mode
+Card Identification Mode
+
+Idle State
+(idle)
+
+ACMD41
+
+CMD0 with argument
+=00000000h
+
+From all states
+except (ina)
+
+CMD8
+
+Figure 4-96 : State Diagram (Pre-init Mode)
+
+199
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+The state ‘p-init’ is introduced for indicating state just after power up and branching to either one of
+Condition-I, Condition-II or Condition-III. Host cannot issue any commands in p-init state.
+Condition-I indicates the conventional transition to idle that card can receive commands. This condition
+is based on the power-up diagram described in Figure 6-4.
+Condition-II indicates ones for starting Fast Boot by either CV-mode or CA-mode and transiting to boot
+state.
+Condition-III indicates LVS Identification to utilize Low Voltage Interface (without Fast Boot) or to perform
+CA-mode Fast Boot over UHS-I mode.
+When host intends to initiate CV-mode Fast Boot, the host shall drive CMD line low for more than
+or equal to 74 clocks to satisfy Condition-II.
+Depending on the timing of host operation, the state may transit from ‘p-init’ to ‘idle’ because
+Condition-I is satisfied first, as described in Figure 4-88.
+When host intends to execute CA-mode Fast Boot over UHS-I mode, it needs performing LVS
+Identification described in Condition-III and issuing CMD0 with a special argument. To keep consistency
+with the existing specification, state transits to the idle state after completing LVS Identification. So
+transition from ‘idle’ to ‘boot’ is also applied to CA-mode Fast Boot. In addition, CV-mode Fast Boot is not
+allowed after executing LVS Identification.
+When transiting to boot state, partition is automatically switched to the boot partition indicated by “Active
+Boot Partition” in Extension Register. Additionally, User Area Partition is automatically selected after
+completing card identification mode as described in Section 4.21.1.
+In boot state, card transmits tuning blocks (limited when the bus mode is either SDR50 or SDR104) and
+boot code data. After finishing boot code data transmission, host drives CMD line high (CV-mode) or
+issues CMD0 with argument=00000000h (CA-mode) to transit to idle state. These operations can be
+executed before or on the way of tuning blocks or boot code data transmission. In this case, Fast Boot is
+suspended and state transits to ‘idle’.
+In addition, when card receives a command except CMD0 in boot state, card treats it as an illegal
+command.
+
+4.22 TCG Security
+4.22.1 Protocols over SD interface for TCG Security
+To realize TCG security protocols over SD interface including commands or payload transfer, ACMD53
+and ACMD54 are introduced. ACMD53 and ACMD54 correspond to IF-RECV and IF-SEND respectively,
+which are defined in TCG Storage Architecture Core Specification.
+Also refer to Part 1 Extended Security Addendum and TCG Storage Interface Interactions Specification
+(SIIS) for details of TCG security protocols over SD interface.
+Note that when host accesses TCG supported SD Express card over PCIe mode, refer to NVM Express
+Specification. Once TCG is enabled in SD Express card, card access requires TCG security protocol for
+both SD interface and PCIe interface.
+
+4.22.2 MBR Shadowing for SD Card
+As described in Part 1 Extended Security Addendum, SD card with TCG security shall support MBR
+Shadowing. Basic specifications of MBR shadowing are referred to TCG Storage Architecture Core
+Specification.
+Here are specific rules of MBR Shadowing for SD card.
+
+4.22.2.1 TCG MBR Table
+TCG MBR Table is introduced to store code to be processed after power cycle, including pre-boot
+authentication program. It is identical to “MBR Table” defined in the TCG Storage Architecture Core
+Specification. The size of TCG MBR Table is fixed to 128MB in SD card. TCG MBR Table content is
+returned by the card when User Area LBAs from 00000000h to 0003FFFFh are read and is accessible
+
+200
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+only when MBR Shadowing is enabled and pre-boot authentication is not completed. TCG MBR Table
+content is not affected by Force Erase operations of Section 4.3.7.3.
+
+4.22.2.2 MBRControl Table
+MBR Shadowing is controlled by MBRControl Table (see Table 4-82). This table can be accessed by IFRECV command (ACMD53) or IF-SEND command (ACMD54).
+SD Cards supporting MBR Shadowing shall reset successful pre-boot authentication after power cycle
+only. Thus, MBRDoneOnReset shall always include a set of single value 0 for SD card, and cannot be
+over-written by host. Refer to Table 4-82 and TCG Storage Architecture Core Specification for more
+details.
+Column
+Column Name
+Number
+00h
+UID
+01h
+02h
+
+03h
+
+Column
+Type
+uid
+
+Description
+
+Unique identifier of this table defined in “TCG
+Storage Architecture Core Specification”.
+Enable
+boolean
+When MBR shadowing is enabled, this column is
+set to 1 (True).
+Otherwise, set to 0 (False).
+Done
+boolean
+When pre-boot authentication is not succeeded,
+this column is set to 0 (False).
+Otherwise, it is set to 1 (True).
+Note that this column is automatically set to 0
+(False) when power cycle occurs.
+MBRDoneOnReset reset_type It is preset to {0} (a set including value 0 only as
+an element, and indicating power cycle only) for
+SD card. This means “Done” is set to 0 (False)
+automatically only when power cycle occurs.
+Table 4-82 : MBRControl Table
+
+4.22.2.3 Pre-boot Authentication Sequence over SD Interface
+Figure 4-97 shows a sequence diagram of pre-boot authentication over SD interface. In this sequence,
+“MBRControl Enable” is supposed to be 1b and host recognizes that.
+
+201
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Start (Power Cycle)
+
+CMD0
+
+Host detects
+“MBRControl Enable”=1
+AND
+“MBRControl Done”=0?
+
+A
+CMD8
+
+No
+
+Yes
+
+ACMD41
+CMD18
+(Read pre-boot authentication program from
+TCG MBR Table)
+
+CMD11
+
+CMD2
+
+Pre-boot
+Authentication
+
+CMD3
+
+Authentication
+Success?
+Yes
+
+No
+
+[A]
+
+CMD7
+Host sets “MBRControl Done”=1
+(Whole User Area gets accessible)
+
+ACMD6
+CMD6
+CMD0?
+
+Yes
+
+A
+
+No
+
+CMD18/25
+
+[B]
+[A] TCG MBR Table is read from the LBA range between 0h
+and 0003FFFFh (sector unit).
+[B] User data is read from the LBA range between 0h and
+0003FFFFh (sector unit).
+Figure 4-97 : Pre-boot Authentication Sequence over SD interface
+At power cycle, “MBRControl Done” is reset to 0b since “MBRControl MBRDoneOnReset” is set to {0}.
+This means status of pre-boot authentication is reset by the power cycle.
+When host issues ACMD41, host may set S18R=1 in its argument to check card’s UHS-I availability.
+If card responds S18A=1 in R3, host may issue CMD11 to use UHS-I bus after ACMD41 operation.
+
+202
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+After issuing CMD2, CMD3, CMD7 and ACMD6 to make data transmission over 4 bits mode available,
+host issues CMD6 to switch a bus mode including UHS-I.
+If host detects “MBRControl Done” is 0, it cannot obtain proper data from User Area because card
+supports TCG security and the pre-boot authentication is not completed yet. In this case, host reads preboot authentication program from the TCG MBR Table and executes pre-boot authentication. If the
+authentication succeeds, host sets the value of “MBRControl Done” to 1b. After that, host can read/write
+data from/to the User Area as a normal manner. Host is not necessary to issue CMD0 after completing
+pre-boot authentication. Yet, if host issues CMD0 at this time, host needs card identification again from
+CMD8. However, pre-boot authentication is not required to access the User Area because “MBRControl
+Done” is not reset and kept as 1b.
+
+4.23 Replay Protected Memory Block
+4.23.1 Introduction
+The Replay Protected Memory Block (RPMB) provides a mechanism for the system to store data to a
+specific memory area in an authenticated and replay protected manner. This is provided by first
+programming authentication key information to the SD card that is used as shared secret. The system is
+not yet authenticated in this phase, therefore the authentication key programming should be done in a
+secure environment. (e.g., as a part of the manufacturing process). The authentication key is utilized to
+sign read and write accesses made to the replay protected memory area with Message Authentication
+Code (MAC). Use of Random Number (nonce) generation and write count register provide additional
+protection against replay of messages where messages could be recorded and played back later by an
+attacker.
+RPMB feature may be supported through SD interface. SD Express Card supporting RPMB feature shall
+support it through both SD and PCIe interface. The usage of RPMB through PCIe interface is done over
+NVMe protocol.
+The specific RPMB memory area is referred the RPMB unit.
+Description here is a blank in the Simplified Specification.
+Note that the term RPMB Target and RPMB Unit are in fact the same and they are both used
+hereafter interchangeably:
+a. RPMB Unit is not part of the User area (or Namespace in case of NVMe).
+b. The Force Erase operation, Password Lock/Unlock and Write Protection is not applicable to
+RPMB Unit.
+c. At most one RPMB target may be supported.
+d. RPMB feature may be supported through PCIe interface in SD Express card using Security Send
+and Security Receive commands as defined in NVMe specification.
+e. RPMB feature may be supported through SD interface using SECURE_SEND and
+SECURE_RECEIVE commands.
+f. RPMB feature discovery may be done as following:
+i.
+Through the SD Interface – reading EX_SECURITY field in SCR register (refer to Section
+5.6) and Security and Boot Register Set (refer to Table 5-32).
+ii.
+Through the PCIe/NVMe interface – using the Identify Controller Data Structure as
+defined in NVMe Specification.
+
+Figure 4-98 : RPMB Unit Layout in RPMB Supported Card (Removed in the Simplified
+Specification)
+Following subsections describe RPMB implementation over SD interface in detail including RPMB Device
+
+203
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Configuration Block Data Structure, RPMB data frame and RPMB operations. One can refer to NVMe
+specification for RPMB implementation over PCIe interface.
+
+4.23.1.1 RPMB Device Configuration Block
+Table 4-83 defines the RPMB Device Configuration Block Data structure - the non-volatile contents are
+stored within the SD card for RPMB unit / RPMB target. Device configuration block data structure field
+are defined in Security and Boot Register Set (refer to Table 5-32).
+
+204
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bytes
+00
+
+Component Name
+Boot partition Protection
+Enable
+
+Description
+This field indicates if Boot Partition Protection is enabled
+Bits 7:1 are reserved
+
+01
+
+Boot Partition Lock
+
+Bit 0: A value of ‘1’ indicates Boot Partition Protection is enabled.
+A value of ‘0’ indicates Boot Partition Protection is disabled or not
+supported. Once enabled, the SD card shall prevent disabling
+Boot Partition Protection
+This filed indicates the current status of the Boot Partition
+Lock/Protection using RPMB. This Field shall be cleared to 0h
+unless Boot Partition Protection is enabled (refer to Section
+4.21.4)
+Bits 7:2 are reserved.
+Bit 1:
+A value of ‘1’ indicates Boot Partition 1 is locked or protected
+using RPMB
+A value of ‘0’ indicates Boot Partition 1 is unlocked or not
+protected using RPMB.
+
+02
+
+User Area Write
+Protection Authentication
+Control
+
+Bit 0:
+A value of ‘1’ indicates Boot Partition 0 is locked or protected
+using RPMB.
+A value of ‘0’ indicates Boot Partition 0 is unlocked or not
+protected using RPMB
+This field specifies whether the SD Card processes or aborts
+modification of Permanent Write Protect and Write Protect Until
+Power Cycle. Bits 1:0 of this field shall be cleared to 00b after a
+power cycle.
+Bits 7:2 are reserved.
+Bit 1:
+A value ‘0’ indicates that the controller shall fail the command
+which attempts to set the Permanent Write Protect.
+A value '1’ indicates that the controller shall process the
+command which attempts to set the Permanent Write Protect.
+
+511:03
+
+Bit 0:
+A value ‘0’ indicates that the controller shall fail the command
+which attempts to modify Write Protect Until Power Cycle.
+A value ‘1’ indicates that the controller shall process the
+command which modify Write Protect Until Power Cycle.
+-Reserved
+Table 4-83 : RPMB Device Configuration Block Data Structure
+
+4.23.1.2 RPMB Contents
+Table 4-84 defines the non-volatile contents stored within the SD card for RPMB target.
+
+205
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Content
+Authentication
+key
+
+Type
+Write Once, Not
+erasable or
+readable
+
+Write Counter
+
+Read Only
+
+RPMB Data
+Area
+
+Readable and
+Writable, not
+erasable
+
+Size
+Size is dependent on
+authentication method
+reported in Security
+and Boot Register Set
+(Refer to Table 5-32)
+4 bytes
+
+Description
+Authentication key which is used to
+authenticate accesses when MAC is
+calculated
+Counter value for the total amount of
+successful authenticated data write
+requests made by the host. The initial
+value
+of
+this
+register
+after
+manufacture is 00000000h. The
+value is incremented by one
+automatically by the controller with
+each
+successful
+programming
+access. The value is not resettable.
+After the counter has reached
+maximum value of FFFFFFFFh, the
+controller shall no longer increment to
+prevent overflow.
+Data that is able to be read and
+written
+only
+via
+successfully
+authenticated read/write access. This
+data can be overwritten by host but
+can never be erased.
+
+Size is reported in
+Security and Boot
+Register Set (128KB
+minimum, 32MB
+maximum. Refer to
+Table 5-32)
+Table 4-84 : RPMB Contents
+
+4.23.1.3 RPMB Data Frame
+Each RPMB Data Frame is 256 bytes in size plus the size of the Data Field, and is organized as shown
+in Table 4-85. RPMB uses sector size of 512 bytes. The RPMB sector size is independent and not related
+to the logical block size used for the user area / Namespace.
+Bytes
+222-N:00
+
+Component Name
+Stuff Bytes
+
+222:222-(N-1)
+223
+
+Authentication Key or
+Message Authentication
+Code(MAC)
+RPMB Target
+
+239:224
+
+Nonce
+
+243:240
+
+Write Counter
+
+247:244
+
+Address
+
+Description
+Padding for the frame. Values in this field are not part of the
+MAC calculation. The size is 223 bytes minus the size of
+the Authentication Key(N)
+Size is dependent authentication method reported in
+Security and Boot Register Set (refer to Table 5-32) (e.g.,
+SHA-256 key is 32 bytes (refer to RFC 6234))
+Indicates Request/Response for RPMB target. If the value
+in this field is not equal to the SD Security Specific Field
+(SSSF) in the SECURE_SEND and SECURE_RECEIVE
+command, then the SD card shall return an error of Invalid
+Field in Command for the SECURE_SEND and
+SECURE_RECEIVE command
+Random number generated by the host for the requests
+and copied to the response by the RPMB target
+Total amount of successfully authenticated data write
+requests.
+Starting address of data to be programmed to or read from
+the RPMB.
+
+206
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+251:248
+
+Sector count
+
+253:252
+
+Result
+
+255:254
+
+Request/Response
+Message
+Data (Optional)
+
+(M-1)+256:256
+
+Number of sectors (512 bytes) requested to be read or
+written.
+Defined in Table 4-87.
+Note: The Result field is not needed for Request.
+Defined in Table 4-86.
+
+Data to be written or read by signed access where
+M = 512 * Sector count
+Table 4-85 : RPMB Data Frame
+
+SECURE_SEND and SECURE_RECEIVE commands are used to encapsulate and deliver data packets
+of any security protocol between the host and SD card without interpreting, dis-assembling or reassembling the data packets for delivery. SECURE_SEND and SECURE_RECEIVE commands used for
+RPMB access are populated with the RPMB Data Frame(s) defined in Table 4-85. The controller shall not
+return successful completion of a SECURE_SEND or SECURE_RECEIVE command for RPMB access
+until the requested RPMB Request/Response Message Type indicated is completed. The Security
+Protocol used for RPMB is defined in Section 4.23.4.
+
+4.23.1.4 RPMB Request and Response Message Types
+RPMB Data frame supports different types of Request/Response messages between the host and RPMB
+target. Request and Response Message types are indicated by 2bytes long Request/Response message
+field in RPMB Data frame. All message types supported are defined in Table 4-86. Request message
+types are sent from the host to the SD card. Response message types are sent to the host from SD card.
+Request/Response Message
+Types
+0001h
+Authentication Key
+programming request
+0002h
+
+Reading of the Write
+Counter value request
+
+0003h
+
+Authenticated data
+write request
+
+0004h
+
+Authenticated data
+read request
+
+0005h
+
+Result read Request
+
+0006h
+
+Authenticated Device
+Configuration Block
+Write request
+
+Description
+The host is attempting to
+program the Authentication
+Key for the RPMB Target
+to the controller
+The host is requesting to
+read the current Write
+Counter value from the
+RPMB target
+The host is attempting to
+write data to the RPMB
+target
+The host is attempting to
+read data from the RPMB
+target
+The host is attempting to
+read the result code for
+any of the other Message
+Types
+The host is attempting to
+write Device configuration
+block (DCB) to the RPMB
+target.
+
+207
+
+Requires
+Data
+No
+
+RPMB Frame
+Length (bytes)
+256
+
+No
+
+256
+
+Yes
+
+M + 256
+
+No
+
+256
+
+No
+
+256
+
+Yes
+
+512 + 256
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+0007h
+
+Authenticate Device
+Configuration Block
+read request
+
+0100h
+
+Authentication key
+programming response
+
+0200h
+
+Reading of the Write
+Counter value
+response
+
+0300h
+
+Authenticated data
+write response
+
+0400h
+
+Authenticated data
+read response
+
+0500h
+0600h
+
+Reserved
+Authenticated Device
+Configuration data write
+response
+
+0700h
+
+The host is attempting to
+read Device Configuration
+Block (DCB) from the
+RPMB target.
+Returned as a result of the
+host requesting a Result
+read request Message
+Type after programming
+the Authentication key
+Returned as a result of the
+host requesting a Result
+read request Message type
+after requesting the Write
+Counter value
+Returned as a result of the
+host requesting a Result
+read request Message
+Type after attempting to
+write data to RPMB target
+Returned as a result of the
+host requesting a Result
+read request Message
+Type after attempting to
+read data from RPMB
+target
+
+No
+
+256
+
+No
+
+256
+
+No
+
+256
+
+No
+
+256
+
+Yes
+
+M + 256
+
+Returned as a result of the
+No
+host requesting the Result
+read Message Type after
+attempting to write a
+Device Configuration Block
+to an RPMB target
+Authenticated Device
+Returned as a result of the
+Yes
+Configuration Data
+host requesting a Result
+Read response
+read request Message
+Type after attempting to
+read DCB from RPMB
+target
+Table 4-86 : RPMB Request and Response Message Types
+
+256
+
+512 + 256
+
+4.23.1.5 RPMB Operation Result
+RPMB Data frame has 2 bytes long Result field (refer to Table 4-85), which will contain RPMB Operation
+Result for Response message types. The structure and possible values of RPMB Operation Result are
+defined in Table 4-87.
+Bits
+15:08
+07
+
+Description
+Reserved
+Write Counter Status: Indicates if the Write Counter has expired (i.e., reached its
+maximum value). A value of ‘1’ indicates that the Write Counter has expired. A value of ‘0’
+indicates a valid Write Counter.
+
+208
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+06:00
+
+Operation Status: Indicates the operation status. Valid operation status values are listed
+below
+Value
+Description
+00h
+Operation successful
+01h
+General Failure
+02h
+Authentication Failure (MAC comparison not matching, MAC calculation
+failure
+03h
+Counter failure (counters are not matching in comparison , counter
+incrementing failure)
+04h
+Address failure (address out of range , wrong address alignment)
+05h
+Write failure (data/counter/result write failure)
+06h
+Read failure (data/counter/result read failure)
+07h
+Authentication Key not yet programmed. This value is the only valid Result
+value until the Authentication Key has been programmed. Once the key is
+programmed, the Result value shall no longer be used
+08h
+Invalid RPMB Device Configuration Block – This may be used when the
+target is not 0h
+09h to 7Fh Reserved
+Table 4-87 : RPMB Operation Result
+
+4.23.2 Authentication Method
+SD card with RPMB shall support one of the Authentication Method as indicated in the Security and Boot
+Register Set (refer to Table 5-32).
+Description here is a blank in the Simplified Specification.
+
+Table 4-88 : MAC Example (Removed in the Simplified Specification)
+
+4.23.3 RPMB Operations
+The host sends a Request Message type to the SD card to request an operation by the SD Card or to
+deliver data to be written into the RPMB memory block. To deliver a Request Message Type, the host
+uses the SECURE_SEND command. If the data to be delivered to the SD card is more than reported in
+Security and Boot Register Set (refer to Table 5-32), the host sends multiple SECURE_SEND commands
+to transfer the entire data.
+The host sends request using a Response Message Type to the controller to read the result of a previous
+operation request, to read the Write Counter, or to read data from RPMB memory block. To deliver a
+Response Message Type, the host uses the SECURE_RECEIVE command. If the data to be read from
+the SD card is more than reported in Security and Boot Register Set (refer to Table 5-32), the host sends
+multiple SECURE_RECEIVE commands to transfer the entire data.
+Figure 4-99 shows the SEURE_SEND and SECURE_RECEIVE operations of RPMB request and
+response message without RPMB Data frames - containing 256 bytes RPMB header and remaining 256
+bytes padded with zero.
+
+209
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Block Count = 1
+
+Host
+
+CMD
+23
+
+ACMD
+54
+
+Res
+
+Sector Count = 0
+SD data blk
+
+Res
+
+RPMB
+Header 0 padding
+256 Bytes 256 Bytes
+
+Card
+
+(No Data)
+Host
+
+CMD
+23
+
+ACMD
+53
+
+Res
+
+SD data blk
+
+Res
+
+RPMB
+Header 0 padding
+256 Bytes 256 Bytes
+
+Card
+
+Figure 4-99 : RPMB Messages Transfer without Data
+
+Block Count = 3
+
+Sector Count = 2
+
+Host
+
+CMD
+23
+
+Res
+
+ACMD
+54
+
+Res
+
+Host
+
+CMD
+23
+
+Res
+
+ACMD
+53
+
+Res
+
+SD data blk1
+
+SD data blk2
+
+SD data blk3
+
+RPMB
+Data
+Header
+256 Bytes
+256 Bytes
+
+Data
+512 Bytes
+
+0 padding
+Data
+256 Bytes 256 Bytes
+
+SD data blk1
+
+RPMB
+Data
+Header
+256 Bytes
+256 Bytes
+
+SD data blk2
+
+Data
+512 Bytes
+
+Card
+
+SD data blk3
+
+0 padding
+Data
+256 Bytes 256 Bytes
+
+Card
+
+M=512 * Sector Count
+
+Figure 4-100 : RPMB Messages Transfer with Data
+Figure 4-100 shows an example of SECURE_SEND and SECURE_RECEIVE operations with RPMB
+request and response messages associated with RPMB data frames of two sectors - containing 256 bytes
+RPMB header and 1024 bytes of data and 256 bytes of 0 padding. CMD23 will be send before
+SECURE_SEND and SECURE_RECEIVE command. The Block count in CMD23 will be one more than
+the sector count in RPMB header because the Sector Count in the RPMB header reflects the total number
+of sectors requested to be written or read while the Block Count in CMD23 reflects the total number of
+physical blocks send with the ACMD53 or ACMD54.
+
+4.23.3.1 Authentication Key Programming
+Authentication key programming is initiated by a SECURE_SEND command to program the
+Authentication Key to the RPMB target, followed by a subsequent SECURE_SEND command to request
+the result, and lastly, the host issues a SECURE_RECEIVE command to retrieve the result. RPMB
+authentication key data flow is shown in Table 4-89.
+Command
+
+SECURE_SEND 1
+
+Bytes in
+Field Name
+Value
+Command
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+Key to be
+222:222-(N-1)
+MAC/Key
+programmed
+RPMB target to
+223
+RPMB Target
+access (00h)
+239:224
+Nonce
+0…00h
+210
+
+Objective
+Send
+Authentication
+Key to be
+Programmed
+to the SD card
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+0000h
+255:254
+Request/Response 0001h (Request)
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1)
+MAC/Key
+0…00h
+RPMB target to
+223
+RPMB Target
+access (00h)
+239:224
+Nonce
+0…00h
+SECURE_SEND 2
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+0000h
+255:254
+Request/Response 0005h (Request)
+Data populated by the controller and returned to the
+host
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1)
+MAC/Key
+0…00h
+RPMB target
+223
+RPMB Target
+response was
+sent from (00h)
+SECURE_RECEIVE 1
+239:224
+Nonce
+0…00h
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+Result Code
+0100h
+255:254
+Request/Response
+(Response)
+Table 4-89 : RPMB – Authentication Key Data Flow
+
+Request
+Result of Key
+Programming
+
+Retrieve the
+Key
+Programming
+Result
+
+4.23.3.2 Read Write Counter Value
+The Read Write Counter sequence is initiated by a SECURE_SEND command to request the Write
+Counter value, followed by a SECURE_RECEIVE command to retrieve the Write Counter result. RPMB
+Read Write counter value flow is shown in Table 4-90.
+
+211
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bytes in
+Field Name
+Value
+Command
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1)
+MAC/Key
+0…00h
+RPMB target to
+223
+RPMB Target
+access (00h)
+Nonce generated
+239:224
+Nonce
+SECURE_SEND 1
+by the host
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+0000h
+255:254
+Request/Response 0002h (Request)
+Data populated by the controller and returned to the
+host
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated by
+222:222-(N-1)
+MAC/Key
+the controller
+RPMB target
+223
+RPMB Target
+response was sent
+from (00h)
+Copy of the Nonce
+SECURE_RECEIVE 1
+239:224
+Nonce
+generated by the
+host
+Current Write
+243:240
+Write Counter
+Counter value
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+Result Code
+255:254
+Request/Response 0200h (Response)
+Table 4-90 : RPMB – Read Write Counter Value Flow
+Command
+
+Objective
+
+Request
+Write
+Counter
+Read
+
+Retrieve
+Write
+Counter
+Read Result
+
+4.23.3.3 Authenticated Data Write
+The Authenticated Data Write is initiated by a SECURE_SEND command. The RPMB Data Frame
+delivered from the host to the SD card included the Request Message Type = 0003h, Nonce generated
+by the host, Sector count, Address, Write Counter, Data and MAC.
+When the SD card receives this RPMB Data Frame, that SD card first checks whether the Write Counter
+has expired. If the Write Counter has expired, then that SD card sets the result to 0085h (write failure,
+write counter expired) and no data is written to the RPMB data area.
+After checking the Write Counter is not expired, the Address is checked. If there is an error in the Address
+(e.g., out of range), then the result is set to 0004h (address failure) and no data is written to the RPMB
+data area.
+After checking the address is valid, the SD card calculates the MAC (refer to Section 4.23.1) and
+compares this with the MAC in the request. If the MAC in the request and the calculated MAC are different,
+then the controller sets the result to 0002h (authentication failure) and no data is written to the RPMB
+data area.
+If the MAC in the request and the calculated MAC are equal, then the SD card compares the Write Counter
+in the request with the Write Counter stored in the SD card. If the counters are different, then the SD card
+sets the result to 0003h (counter failure) and no data is written to RPMB data area.
+
+212
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+If the MAC and Write Counter comparisons are successful, then the write request is authenticated. The
+Data from the request is written to the Address indicated in the request and the Write Counter is
+incremented by one.
+If the write fails, then the returned result is 0005h (write failure). If another error occurs during the write
+procedure, then the returned result is 0001h (general failure).
+The success of programming the data should be checked by the host by reading the result register of the
+RPMB:
+1. The host initiates the Authenticated Data Write Verification process by issuing a SECURE_SEND
+command with delivery of a RPMB data frame containing the Request Message type = 0005h;
+2. The SD card returns a successful completion of the SECURE_SEND command when the
+verification result is read for retrieval;
+3. The host should then retrieve the verification result by issuing a SECURE_RECEIVE command;
+and
+4. The controller returns a successful completion of the SECURE_RECEIVE command and returns
+the RPMB data frame containing the Response Message Type = 0300h, copy of the Nonce
+received with Write request, the incremented counter value, the data address, the MAC and
+result of the data programming operation.
+Command
+
+SECURE_SEND 1
+
+Bytes in
+Field Name
+Value
+Command
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated
+222:222-(N-1)
+MAC/Key
+by the host
+RPMB target to
+223
+RPMB Target
+access (00h)
+Nonce generated
+239:224
+Nonce
+by the host
+Current Write
+243:240
+Write Counter
+Counter Value
+Address in
+247:244
+Address
+RPMB
+Number of 512B
+251:248
+Sector Count
+blocks
+253:252
+Result
+0000h
+255:254
+Request/Response 0003h (Request)
+Data to be
+(M-1)+256:256
+Data
+written
+
+213
+
+Objective
+
+Program
+data request
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1)
+MAC/Key
+0…00h
+RPMB target to
+223
+RPMB Target
+access (00h)
+239:224
+Nonce
+0…00h
+SECURE_SEND 2
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+0000h
+255:254
+Request/Response 0005h (Request)
+Data populated by the controller and returned to the
+host
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated
+222:222-(N-1)
+MAC/Key
+by the controller
+RPMB target
+223
+RPMB Target
+response was
+sent from (00h)
+Copy of the
+Nonce received
+239:224
+Nonce
+with the Write
+SECURE_RECEIVE 1
+request
+Incremented
+243:240
+Write Counter
+Write Counter
+Value
+Address in
+247:244
+Address
+RPMB
+251:248
+Sector Count
+00000000h
+253:252
+Result
+Result Code
+0300h
+255:254
+Request/Response
+(Response)
+Table 4-91 : RPMB – Authentication Data Write Flow
+
+Request
+Result of
+data
+Programming
+
+Retrieve
+Result from
+data
+Programming
+
+4.23.3.4 Authenticated Data Read
+The Authenticated Data Read sequence is initiated by a SECURE_SEND command. The RPMB data
+frame delivered from the host to the SD card includes the Request Message Type =0004h, Nonce,
+Address, and the Sector count.
+When the SD card receives this RPMB Data Frame, that controller first check the address. If there is an
+error in the Address, then the result is set to 0004h (address failure) and the data read is not valid.
+When the host receives a successful completion of the SECURE_SEND command from the controller,
+that host should send a SECURE_RECEIVE command to the SD card to retrieve the data. The controller
+returns an RPMB Data Frame with Response Message Type (0400h), the Sector Count, a copy of the
+Nonce received in the request, the Address, the Data, the controller calculated MAC, and the Result.
+Note: It is the responsibility of the host to verify the MAC returned on an Authenticated Data Read
+Request.
+
+214
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Bytes in
+Field Name
+Value
+Command
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1)
+MAC/Key
+0…00h
+RPMB target to
+223
+RPMB Target
+access (00h)
+Nonce generated by
+239:224
+Nonce
+the host
+SECURE_SEND 1
+243:240
+Write Counter
+00000000h
+247:244
+Address
+Address in RPMB
+Number of 512B
+251:248
+Sector Count
+blocks
+253:252
+Result
+0000h
+255:254
+Request/Response 0004h (Request)
+Data populated by the controller and returned to the
+host
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated by
+222:222-(N-1)
+MAC/Key
+the controller
+RPMB target
+223
+RPMB Target
+response was sent
+from (00h)
+Copy of the Nonce
+239:224
+Nonce
+generated by the
+SECURE_RECEIVE 1
+host
+243:240
+Write Counter
+00000000h
+247:244
+Address
+Address in RPMB
+Number of 512B
+251:248
+Sector Count
+blocks
+253:252
+Result
+Result Code
+255:254
+Request/Response 0400h (Response)
+Data read from
+(M-1)+256:256
+Data
+RPMB unit/RPMB
+target
+Table 4-92 : RPMB – Authentication Data Read Flow
+Command
+
+Objective
+
+Read Data
+request
+
+Retrieve
+result and
+data from
+read
+request
+
+4.23.3.5 Authenticated Device Configuration Block Write
+The Authenticated Device configuration block Write is initiated by a SECURE_SEND command. The
+RPMB Data Frame delivered from the host to the SD Card includes the Request Message type = 0006h,
+Nonce generated by host, Sector Count = 01h, MAC, Write Counter set to the current Write Counter
+value, and the RPMB Device configuration Block Data structure (refer to Table 4-93). All other fields are
+cleared to 0h.
+If the Write Counter has expired, then that controller sets the result to 0085h (write failure, write counter
+expired) and no data is written to the Device Configuration Block.
+The SD card calculate the MAC of Request Type, Block Count, Write Counter, Address and Data, and
+compares this with the MAC in the request. If the MAC in the request and the calculated MAC are different,
+then the SD card sets the result to 0002h (authentication failure) and no data is written to the RPMB
+Device Configuration Block.
+If the Data from RPMB Device configuration Block attempts to disable Boot Partition Protection, then the
+215
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+SD card sets the result to 0008h (Invalid RPMB Device Configuration Block) and no data is written to the
+RPMB Device configuration Block.
+If the MAC in the requested and the calculated MAC are equal, then the write request is authenticated.
+The Data from the request is written to the RPMB Device Configuration Block.
+If any error occurs during the write procedure, then the returned result is 0001h (general failure).
+The controller returns successful completion for SECURE_SEND command when the Authenticated Data
+Write operation is completed regardless of whether the Authenticated Device Configuration Block Write
+was successful or not.
+When the host receives a successful completion of the SECURE_SEND command from the SD card, that
+host should send a SECURE_RECEIVE command to the controller to retrieve the data. The controller
+returns an RPMB Data Frame with Response Message Type (0600h), the incremented counter value,
+copy of the Nonce received with the Write request, the MAC, and the Result. All other fields are cleared
+to 0h.
+The Write counter for the Device Configuration Block is independent of the Write Counter for RPMB unit/
+RPMB target 0. Authenticated Device Configuration Block Writes do not affect the Write Counter for
+RPMB target 0 / RPMB unit since the data is not part of RPMB data area. The current value of Write
+Counter for the Device Configuration Block may be read using an Authenticated Device Configuration
+Block Read (refer to Section 4.23.3.6).
+Command
+
+SECURE_SEND 1
+
+SECURE_SEND 2
+
+Bytes in
+Field Name
+Value
+Command
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated by
+222:222-(N-1) MAC/Key
+the host
+RPMB target to
+223
+RPMB Target
+access (00h)
+Nonce generated by
+239:224
+Nonce
+the host
+Current Write
+243:240
+Write Counter
+Counter Value
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000001h
+253:252
+Result
+0000h
+255:254
+Request/Response 0006h (Request)
+RPMB Device
+767:256
+Data
+Configuration Block
+data structure
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1) MAC/Key
+0…00h
+RPMB target to
+223
+RPMB Target
+access (00h)
+239:224
+Nonce
+0...00h
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+0000h
+255:254
+Request/Response 0005h (Request)
+
+216
+
+Objective
+
+Request
+Device
+Configuration
+Block Write
+
+Request
+result for
+data
+programming
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Data populated by the controller and returned to the
+host
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated by
+222:222-(N-1) MAC/Key
+the controller
+RPMB target
+223
+RPMB Target
+response was sent
+Retrieve
+from (00h)
+Device
+Copy of the Nonce
+SECURE_RECEIVE 1
+Configuration
+239:224
+Nonce
+received with the
+Block Write
+Write request
+Result
+Incremented Write
+243:240
+Write Counter
+Counter Value
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+Result Code
+255:254
+Request/Response 0600h (Response)
+Table 4-93 : RPMB – Authenticated Device Configuration Block Write Flow
+
+4.23.3.6 Authenticated Device Configuration Block Read
+The Authenticated Device Configuration Block Read sequence is initiated by a SECURE_SEND
+command. The RPMB data frame delivered from the host to the SD card includes the Nonce, Request
+Message Type = 0007h and Sector count =01h. All other fields are cleared to 0h.
+When the host receives a successful completion of the SECURE_SEND command from the SD card, that
+host should send a SECURE_RECEIVE command to the SD card to retrieve the data. The SD card
+returns an RPMB Data Frame with Response Message Type (0700h), the Sector Count =01h, a copy of
+Nonce received in the request, the RPMB Device Configuration Block Data Structure (Table 4-83), the
+MAC, the Write Counter set the current Write Counter value, and the Result. All other fields are cleared
+to 0h
+The Write Counter for the Device Configuration Block is independent of the Write Counter for RPMB
+target. The controller returns the Device Configuration Block Write Counter as shown in Table 4-94.
+Command
+
+SECURE_SEND 1
+
+Bytes in
+Field Name
+Value
+Command
+Data populated by the host and sent to the controller
+222-N:00
+Stuff Bytes
+0…00h
+222:222-(N-1)
+MAC/Key
+0…00h
+RPMB target to
+223
+RPMB Target
+access (00h)
+Nonce generated
+239:224
+Nonce
+by the host
+243:240
+Write Counter
+00000000h
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000001h
+253:252
+Result
+0000h
+255:254
+Request/Response 0007h (Request)
+
+217
+
+Objective
+
+Request
+Device
+Configuration
+Block Read
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Data populated by the controller and returned to the
+host
+222-N:00
+Stuff Bytes
+0…00h
+MAC generated by
+222:222-(N-1)
+MAC/Key
+the controller
+RPMB target
+223
+RPMB Target
+response was sent
+from (00h)
+Copy of the Nonce
+Retrieve
+239:224
+Nonce
+generated by the
+Device
+host
+SECURE_RECEIVE 1
+Configuration
+Current Write
+Block Read
+243:240
+Write Counter
+Counter Value
+Result
+247:244
+Address
+00000000h
+251:248
+Sector Count
+00000000h
+253:252
+Result
+Result Code
+255:254
+Request/Response 0700h (Response)
+RPMB Device
+Configuration
+(M-1)+256:256
+Data
+Block data
+structure
+Table 4-94 : RPMB – Authenticated Device Configuration Block Read Flow
+
+4.23.4 Security Protocol Type and Security Protocol Specific
+The security protocol code used in the argument fields in SECURE_SEND and SECURE_RECEIVE are
+as defined for SCSI commands SECURITY PROTOCOL IN and SECURITY PROTOCOL OUT
+respectively in INCITS 513-2015 SPC-4 (T10) and INCITS SPC-6 (T10) documents. A unique security
+protocol ID is assigned by T10 for each application. Refer to SFSC whose reference is described in A.2.4
+and Table 4-31 for the details of Security Protocol Specific 0 and Security Protocol Specific 1.
+
+4.23.4.1 Security Protocol 00h
+A SECURE_RECEIVE command with security protocol field cleared to 00h shall return information about
+the security protocols applications supported by the card out of the Security Protocol Field list defined by
+INCITS 513-2015 SPC-4 (T10). This command is used in security discovery process and is not assigned
+with SECURE_SEND command. Refer to SFSC whose reference is described in A.2.4 and Table 4-31
+for the details of security protocol 00h and Security Protocol specific field.
+4.23.4.2 Security Protocol EAh
+Security Protocol EAh is assigned for NVMe interface use (refer to Security Protocol Field in SECURITY
+PROTOCOL OUT command table in INCITS 513-2015 SPC-4 (T10). This Security Protocol code may be
+used while operating SD Express card through its PCIe/NVMe interface. The specific usage type is
+defined by the Security Protocol Specific Field in Table 4-95.
+Security Protocol Specific
+(SPSP0/SPSP1) Value
+0001h
+0002h – FFFFh
+
+Description
+Replay Protected Memory Block
+Reserved
+
+NVMe Security Specific Field
+(NSSF) Definition
+RPMB Target
+Reserved
+
+Note: There is a single RPMB target in SD card. Therefore the value of RPMB target in the NVMe Security Specific
+Field shall be 00h.
+
+Table 4-95 : Security Protocol EAh – Security Protocol Specific Values
+
+218
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.23.4.3 Security Protocol E7h
+Security Protocol E7h is assigned for SD Extended Security use in INCITS SPC-6 (T10). This Security
+Protocol Code may be used while operating any SD card through its SD interface that supports
+SECURE_RECEIVE and SECURE_SEND commands. The specific usage type is defined by the Security
+Protocol Specific Field in Table 4-96.
+Security Protocol Specific
+(SPSP0/SPSP1) Value
+0001h
+0002h – FFFFh
+
+SD Security Specific Field
+(SSSF) Definition
+RPMB Target
+Reserved
+
+Description
+Replay Protected Memory Block
+Reserved
+
+Note: There is a single RPMB target in SD card. Therefore the value of RPMB target in the SD Security Specific
+Field shall be 00h.
+
+Table 4-96 : Security Protocol E7h – Security Protocol Specific Values
+
+4.23.5 User Area Write Protection States and Authentication Control by RPMB
+User Area Write Protection is an optional configurable controller capability that enables the host to control
+the write protection state of User Area or to determine the write protection state of User Area. Write
+Protection state control is defined in CSD register (refer to Table 5-4, Table 5-16 and Table 5.3.4-1) and
+capability bit for Write Protect Until Power Cycle is defined in SD Status register (refer to Table 4-44).
+
+4.23.5.1 User Area Write Protection States
+Table 4-97 defines write protection states, that may be supported by card. All protection states persist
+across power cycles and controller level resets (refer to Section 4.2.1) except Write Protect Until Power
+Cycle, which transitions to the No Write Protect state on the occurrence of a power cycle. Note that
+Permanent Write Protect and Temporary Write Protect are mandatory features for SD interface cards
+while Write Protect Until Power Cycle is optional and it may be supported only if RPMB is enabled.
+State
+No Write Protect
+Temporary Write
+Protect (TWP)
+Write Protect Until
+Power Cycle
+(WP_UPC)
+Permanent Write
+Protect (PWP)
+
+Description
+The User Area is not Write Protected
+The User Area is Write Protected
+The User Area is Write Protected until the
+next power cycle
+
+Persistent Across
+Power
+Controller
+Cycles
+Level Resets
+Yes
+Yes
+Yes
+Yes
+No
+
+Yes
+
+The Namespace is Permanently Write
+Yes
+Protected
+Table 4-97 : User Area Write Protection States
+
+Yes
+
+Figure 4-101 defines the transition between Write Protection states. All Write Protection state transitions
+are based on commands unless specified otherwise.
+
+219
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Initial State
+
+Persistent across
+Power Cycle
+
+No Write
+Protect
+
+Write Protect
+
+Permanent
+Write Protect
+
+Write Protect
+Until Power Cycle
+
+If the Write Protect Until Power Cycle or the Permanent Write Protect states are
+supported by the controller and RPMB is Supported and Enabled (Key is set),
+then the controller shall support the RPMB User Area Write Protection
+Authentication control.
+
+Figure 4-101 : User Area Write Protection State Machine
+If RPMB is supported by the card then Write Protect Until Power Cycle (WP_UPC) and Permanent Write
+Protect (PWP) states are subject to the User Area Write Protection Authentication Control mechanism,
+which determines whether the controller processes or aborts commands which cause a transition into
+either of these two states (refer to Table 4-83).
+The results of using User Area Write Protection in combination with an external write protection system
+(e.g., TCG Storage Interface Interactions Specification) are outside the scope of this specification.
+Host software may check the current User Area Write Protection state of a User Area using CSD
+Register bits (refer to Table 5-4, Table 5-16 and Table 5.3.4-1)
+- For SD Interface
+o If RPMB is enabled, then PWP and WP_UPC shall be controlled via RPMB User Area Write
+Protection Authentication Control.
+o If RPMB is disabled, then PWP shall NOT be controlled via RPMB User Area Write Protection
+Authentication Control.
+- For SD Express card
+o If RPMB is supported by the card, it shall be supported by both interfaces – PCIe/NVMe and
+SD.
+o NVMe interface of SD Express card may support PWP or WP_UPC over PCIe interface only
+if the RPMB is supported and control them via “Namespace Write Protection Authentication
+Control” (as defined in NVMe specification ver 1.4). If RPMB is disabled, then PWP, WP_UPC
+shall not be supported by PCIe/NVMe interface.
+o If NVMe interface of SD Express card is not supporting PWP or WP_UPC as well as RPMB
+is not supported by the card, then PWP and TWP features of SD interface are applicable
+without RPMB and User Area Write Protection Authentication Control.
+
+4.23.5.2 User Area Write Protection Configuration
+A host can configure or determine the Write Protection state using CSD register. User Area write
+protection states are given below based on the CSD register bits set for Temporary Write Protect,
+Permanent Write Protect and Write Protect Until Power Cycle along with NVMe mapping.
+For further information about SD vs NVMe behavior, refer to Section 8.1.7.
+
+220
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CSD Register
+PERM_WRITE_PROTECT
+[13:13]
+0
+
+TMP_WRITE_PROTECT
+[12:12]
+0
+
+WP_UPC
+[9:9]
+0
+
+0
+
+0
+
+1
+
+0
+
+1
+
+Don’t care
+
+1
+
+Don’t care
+
+Don’t care
+
+SD
+Definition
+No Write
+Protect
+Write Protect
+Until Power
+Cycle
+Temporary
+Write Protect
+Permanent
+Write Protect
+
+NVMe Definition
+No Write Protect
+Write Protect Until
+Power Cycle
+Write Protect
+Permanent Write
+Protect
+
+Note: WP_UPC is cleared to 0 after power cycle.
+
+Table 4-98 : Write Protection States definition and NVMe Mapping
+If RPMB is enabled:
+-
+
+If host attempts to modify the Write Protect Until Power Cycle state or the Permanent Write Protect
+state without User Area Write Protection Authentication, then the command shall fail. In this case,
+card shall set the WP_VIOLATION bit.
+
+-
+
+If a host attempts to modify the Write Protect Until Power Cycle state and bit 0 of the Write Protection
+Authentication Control field in RPMB Device Configuration Block Data (Table 4-83 and Table 5-32) is
+cleared to ‘0’, then the command shall fail. In this case, card shall set the WP_VIOLATION bit.
+
+-
+
+If a host attempts to set the Permanent Write Protect state and bit 1 of the Write Protection
+Authentication Control field in RPMB Device Configuration Block Data (Table 4-83 and Table 5-32) is
+cleared to ‘0’, then the command shall fail. In this case, card shall set the WP_VIOLATION bit.
+
+Card shall respect any attempt to modify the Temporary Write Protection state without doing RPMB
+User Area Write Protection Authentication.
+
+221
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+5. Card Registers
+Six registers are defined within the card interface: OCR, CID, CSD, RCA, DSR and SCR. These can be
+accessed only by corresponding commands (see Section 4.7). The OCR, CID, CSD and SCR registers
+carry the card/content specific information, while the RCA and DSR registers are configuration registers
+storing actual configuration parameters.
+In order to enable future extension, the card shall return 0 in the reserved bits of the registers.
+
+5.1 OCR register
+The 32-bit operation conditions register stores the VDD voltage profile of the non UHS-II card and VDD1
+voltage profile of the UHS-II card. Additionally, this register includes status information bits. One status bit
+is set if the card power up procedure has been finished. This register includes another status bit indicating
+the card capacity status after set power up status bit. The OCR register shall be implemented by the
+cards.
+The 32-bit operation conditions register stores the VDD voltage profile of the card. Bit 7 of OCR is newly
+defined for Dual Voltage Card and set to 0 in default. If a Dual Voltage Card does not receive CMD8, OCR
+bit 7 in the response indicates 0, and the Dual Voltage Card which received CMD8, sets this bit to 1.
+Additionally, this register includes 2 more status information bits.
+Bit 31 - Card power up status bit, this status bit is set if the card power up procedure has been finished.
+Bit 30 - Card Capacity Status bit, 0 indicates that the card is SDSC. 1 indicates that the card is SDHC or
+SDXC. The Card Capacity Status bit is valid after the card power up procedure is completed and the card
+power up status bit is set to 1. The Host shall read this status bit to identify SDSC Card or
+SDHC/SDXC/SDUC Card.
+
+222
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+OCR bit
+position
+0-3

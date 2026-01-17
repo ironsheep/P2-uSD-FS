@@ -1,0 +1,2000 @@
+1.2V*
+1.14-1.3V
+900
+600
+(*) 1.2V supply is optional
+(**) Only one of 1.2V or 1.8V power rails is used
+(***) 3.3V power is supplied by both VDD1 and VDD1a pads
+(****) 1.8V power is supplied by both VDD2 and VDD2a pads
+Table 8-6 : Power Rating Table for SD Express Card (PCIe Gen4x2)
+
+8.3 Initialization Process of SD Express Card
+Following sections provide detailed description of the SD Express interface signals during the interface
+detection and initialization process (refer to Section 3.17.2 for the flow chart of the process and the card’s
+states diagram).
+
+8.3.1 Overview
+There are two options for SD Express initialization, one is starting with issuing SD commands, the other
+is without issuing SD commands. SD Express cards shall support both types of initialization. On the other
+hand, SD Express Host can execute either type of initialization, but starting with issuing SD commands
+is highly recommended because it can detect card type safely and properly by SD CMD8, and avoid
+potential interoperability issues as a result.
+When host executes Fast Boot, it needs to activate SD interface before initializing PCIe interface, because
+Fast Boot is available only in SD interface.
+
+8.3.2 SD Express Initialization Starting with Issuing SD Commands
+This section is a blank in the Simplified Specification
+Figure 8-2 : SD Express Initialization Starting with CMD8 by HVS
+(Host and Card support VDD3) (Removed in the Simplified Specification)
+Figure 8-3 : SD Express Initialization Starting with CMD8 by HVS
+(Host supports VDD3 but Card not) (Removed in the Simplified Specification)
+Figure 8-4 : SD Express Initialization Starting with CMD8 by HVS
+(Host does not support VDD3) (Removed in the Simplified Specification)
+Figure 8-5 : SD Express Initialization Starting with CMD8 by LVS
+(Both Host and Card support VDD3) (Removed in the Simplified Specification)
+
+8.3.3 SD Express Initialization without Issuing SD Commands
+This section is a blank in the Simplified Specification
+Figure 8-6 : SD Express Direct PCIe Initialization
+(Host and Card support VDD3) (Removed in the Simplified Specification)
+Figure 8-7 : SD Express Direct PCIe Initialization
+(Host supports VDD3 but Card not) (Removed in the Simplified Specification)
+
+317
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+8.3.4 SD Express Initialization without Issuing SD Commands But Unsuccessful
+This section is a blank in the Simplified Specification
+Figure 8-8 : SD Express Direct PCIe Init. with Fallback to SD
+(HVS Host supports VDD3 but Card not) (Removed in the Simplified Specification)
+Figure 8-9 : SD Express Direct PCIe Init. with Fallback to SD
+(LVS Host supports VDD3 but Card not) (Removed in the Simplified Specification)
+
+8.3.5 SD Express Initialization with Fast Boot
+This section is a blank in the Simplified Specification
+
+Figure 8-10 : SD Express Initialization with CV-mode Fast Boot (Removed in the Simplified
+Specification)
+Figure 8-11 : SD Express Initialization with CA-mode Fast Boot over UHS-I mode (Removed in
+the Simplified Specification)
+Figure 8-12 : SD Express Initialization with CA-mode Fast Boot over DS or HS mode (Removed
+in the Simplified Specification)
+
+318
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+8.4 Detailed Specifications of SD Express Speed Class
+8.4.1 Introduction
+8.4.1.1 Overview
+SD Express Speed Class is defined over PCIe bus of SD Express Card. Since this specification is
+constructed based on conventional Speed Classes, it is necessary to refer to Section 4.13. In addition,
+some NVMe specifications are referred for it such as Streams Directive, Dataset Management
+(abbreviated as DSM), and so on.
+SGS and SWS defined in Streams Directive corelate to AU size and RU size respectively (refer to Section
+8.4.2.1 for more details). In addition, Speed Class functions operated by CMD20 are mapped to the
+following 6 commands operated by the DSM command (refer to Section 8.4.6 for more details).
+ Start Recording
+ Update DIR/CI
+ Suspend AU/SGS
+ Resume AU/SGS
+ Set Free AU/SGS
+ Release DIR/CI
+Class 150, 300, 450 and 600 are newly introduced for SD Express Speed Class. Class 150 means stream
+recording speed at 150MB/s or faster is guaranteed. Different from the conventional Speed Classes, up
+to 8 streams can be recorded simultaneously in real-time to the SD Express card supporting SD Express
+Speed Class.
+Although the following functions are optional in the NVMe spec., the SD Express card shall support all of
+these functions if it supports SD Express Speed Class.
+ Flush command (if a volatile write cache is present in the card)
+ Dataset Management
+ Streams Directive
+ Host Controlled Thermal Management
+For explanatory convenience, the following abbreviations are used in this specification though they are
+not abbreviated in the NVMe specification.
+ CMP: Completion
+ ICDS: Identify Controller Data Structure
+ NCQ: I/O Completion Queue for NVMe
+ NSQ: I/O Submission Queue for NVMe
+ SID: Stream Identifier
+
+8.4.1.2 Area Assignment
+Figure 8-13 illustrates an example of area assignment for the SD Express Speed Class.
+
+319
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Address=00000000h
+
+Non-streamrecordable
+Area
+
+SWS unit
+
+Area for file system
+info.(MBR, FAT etc).
+
+SWS
+
+SWS unit
+SGS
+
+SGS unit
+
+SWS unit
+
+SWS boundary
+
+SWS unit
+
+SGS boundary
+SWS unit
+
+User
+Area
+
+Streamrecordable
+Area
+= Assigned as Sequential Area by Set Free AU/SGS
+= Assigned as Random Area by Update DIR/CI
+= Non-assigned Area
+
+Figure 8-13 : An Example of Area Assignment for SD Express Speed Class
+The User Area is divided by an SGS boundary which is a physical boundary of the User Area and whose
+address is a multiple of SGS (see Section 8.4.2.1.2). The leading part of the User Area starting from
+Address=00000000h is set aside for recording file system information such as Master Boot Record
+(MBR), Partition Table or FAT (File Allocation Table). A Stream-recordable Area starts from the next SGS
+boundary after the end of the area for file system information, and terminates at the end of the User Area.
+The rest part of the User Area except the Stream-recordable Area is called Non-stream-recordable Area
+and should not be used for stream recording.
+8.4.1.2.1 Sequential Area
+The stream data can be recorded in the Sequential Area assigned by “Set Free AU/SGS” command (see
+Section 8.4.6.6) on the Stream-recordable Area. The start address of each Sequential Area shall be
+aligned to the SGS boundary and the length of this area shall be a multiple of SGS.
+Each Sequential Area consists of one or multiple SGS units, and each SGS unit is divided into the specific
+number of SWS units as shown in Figure 8-13. Each SWS unit shall be aligned to the SWS boundary
+(whose address is a multiple of SWS defined in Section 8.4.2.1.1) and its size is identical to SWS.
+Let SWC denote Sequential Write Command and define as a Write command for stream recording. In the
+SWC, the Start LBA (SLBA) shall be aligned to the SWS boundary in the Sequential Area, and the Number
+of Logical Blocks (NLB) shall be a multiple of SWS except when recording the end part of file, and less
+than or equal to MDTS (see Section 8.4.2.1.4). During Speed Class Recording, when card receives an
+SWC whose NLB is not a multiple of SWS, card should pad left out area of the last SWS unit because
+this means file recording termination.
+Refer to Section 8.4.2.1.1 and 8.4.2.1.2 for more details.
+8.4.1.2.2 Random Area
+During the Speed Class Recording, not only stream data but also its associated data such as DIR or CI
+need to be written. The size of these data is comparatively small and they are recorded in the Random
+Area suitable for recording such kind of data. The Random Area is assigned by “Update DIR/CI” command
+(see Section 8.4.6.3) on the User Area.
+Start address of the Random Area shall be aligned to 16KB in the User Area, and its size is fixed to 16KB.
+The NLB in the Write command for this area will be between 512 bytes to 16KB. The maximum number
+of Random Area in a card is min(MSL, 8) x 2, where MSL is Max Stream Limit (see Section 8.4.2.1.3). It
+is recommended to assign Random Areas in the same SGS unit in order to minimize the number of SGS
+
+320
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+units for Random Area.
+The area assigned to neither Random Area nor Sequential Area is called as Non-assigned Area.
+
+8.4.1.3 Supporting Multiple Streams Access
+SD Express Speed Class defines multiple streams access, which allows two or more streams for
+recording and/or reading simultaneously. The maximum number of recordable streams is indicated in
+MSL field of the Streams Directive Return Parameters Data Structure (see 8.4.2.1.3). SD Express card
+supporting SD Express Speed Class shall set 2 or more to its MSL field.
+Note that even MSL value is more than 8, host can activate up to 8 recording streams at the same time
+during the Speed Class Recording State (see Figure 8-17).
+Card shall guarantee the sum of accumulated recording speed of valid streams indicated in the List of
+Open SID for Speed Class (see Section 8.4.10.3.2) is higher than or equal to its supported speed class.
+Also refer to Section 8.4.3 for speed class measurement.
+8.4.1.4 Basic Sequence of SD Express Speed Class
+Figure 8-14 shows an example sequence of SD Express Speed Class. In this example, 2 streams called
+S1 and S2 are recorded in parallel.
+Operation
+
+Command
+
+Power
+ON
+
+Card
+INIT
+
+Update DIR/CI Write
+Set Free
+Write
+(S1, S2)
+DIR (S1) DIR (S2) AU/SGS (S1,S2)
+DSM
+
+Write
+
+Write
+
+DSM
+
+Start REC
+(S1,S2)
+DSM
+
+Write
+Write
+Write
+FAT
+SWS
+RU (S1) Update (S1)
+RU
+
+Write
+
+Write
+
+Write
+Write
+Write
+FAT
+SWS
+RU (S2) Update (S2)
+RU
+Write
+
+Write
+
+Figure 8-14 : An Example Sequence of SD Express Speed Class
+After card initialization, host issues “Update DIR/CI” command and allocates 4 Random Areas for storing
+DIR and CI for each stream in this example. Then, host writes DIR for S1 and S2 to the area allocated by
+the “Update DIR/CI” command (see Section 8.4.6.3).
+Before starting the stream recording, host issues “Set Free AU/SGS” command (see Section 8.4.6.6) to
+assign the Sequential Area in the Stream-recordable Area, and then the “Start Recording” command (see
+Section 8.4.6.2) to notify the start of recording and request its preparation to the card.
+After that, host issues one or more Stream Write command (SWC) using NVMe Write command with
+DTYPE of Dword12 and DSPEC, DSM fields of Dword13 defined for recording S1. Host also needs to
+issue Random Write commands using NVMe Write command with DTYPE of Dword12 and DSPEC, DSM
+fields of Dword13 defined for updating the file system management information including FAT, Allocation
+Bitmap, DIR and CI. This operation is simply called as “FAT Update.” Similarly, writing data for S2 takes
+place as mentioned above.
+Table 8-7 shows essential parameters for NVMe Write commands.
+
+321
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Field
+Dword 10
+and 11
+Dword 12
+
+Bit
+63:00
+
+Description
+Starting LBA (SLBA)
+
+31
+30
+29:26
+25:24
+23:20
+19:16
+15:00
+
+Limited Retry (LR)
+Force Unit Access (FUA)
+Protection Information Field (PRINFO)
+Reserved
+Directive Type (DTYPE)
+Reserved
+Number of Logical Blocks (NLB)
+
+Dword 13
+
+31:16
+15:08
+07
+06
+05:04
+03:00
+
+Directive Specific (DSPEC)
+Reserved
+Incompressible
+Sequential Request
+Access Latency
+Access Frequency
+
+Stream Write
+Start Address of
+stream data
+1(1)
+0(2)
+0000b
+Reserved
+0001b
+Reserved
+A multiple of
+SWS(4)
+SID
+Reserved
+0 or 1(5)
+1
+00b
+0010b
+
+Random Write
+Start Address of
+random data
+1(1)
+1 or 0(3)
+0000b
+Reserved
+0000b
+Reserved
+Data size
+00h
+Reserved
+0 or 1(5)
+0
+11b
+0101b
+
+Note (1): If LR=0, card does not guarantee Speed Class Recording.
+Note (2): Host shall set FUA=0 to assure speed class performance. Otherwise, card may not
+guarantee the recording speed.
+Note (3): Host shall set FUA=1 for writing the file system management information including FAT,
+Allocation Bitmap, DIR and CI. Host may set either 0 or 1 as FUA to write other data to the
+Random Area assigned by “Update DIR/CI”.
+Note (4): NLB shall be less than or equal to MDTS (refer to Section 8.4.2.1.4). NLB may not be a
+multiple of SWS when host writes stream data at the end of the file.
+Note (5): Card behavior for read/write shall be the same regardless of Incompressible value.
+
+Table 8-7 : Essential Parameters of NVMe Write Commands for SD Express Speed Class
+8.4.1.5 Suspend and Resume
+Similar to Video Speed Class, Suspend and Resume functions are available in SD Express Speed Class
+as well. Host can suspend one or multiple stream recordings in the midst of recording to SGS unit by
+issuing “Suspend AU/SGS” command (see Section 8.4.6.4). Then, host is necessary to execute Release
+Identifier operated by Directive Send (see also Section 8.4.1.6). Note that the suspension address
+specified by the host shall be aligned to SWS boundary.
+Host can restart the stream recording from the suspension address by the “Resume AU/SGS” command
+(see Section 8.4.6.5) to utilize the rest part of the SGS units. The suspension addresses are obtained by
+issuing Get Log Page command (see Section 8.4.10.3.3). New SID is assigned when host issues SWC
+whose SLBA is included in the Resume AU/SGS.
+The rules of “Suspend AU/SGS” command are as follows.
+Host can set one or more suspension addresses in the “Suspend AU/SGS” command by calculating
+“Starting LBA (SLBA) + Number of Logical Blocks (NLB)” in the latest SWC for each stream. Such an
+address calculated by the formula above is called a valid suspension address. An invalid suspension
+address means an address not satisfying the formula. Note that when host executes Speed Class
+Recording for multiple streams, host can suspend either all streams or a part of them.
+If the “Suspend AU/SGS” command includes at least one invalid suspension address, card rejects this
+command, posts its CMP to the NCQ indicating 80h (Conflicting Attributes) in the status value, does not
+add it to the list of SD Express SUS_ADDR obtained by Get Log Page command, and continues speed
+class recording as if the command had not been issued. Note that when host specifies an SGS boundary
+as a suspension address, card handles it similar to invalid suspension address. This is because specifying
+an SGS boundary as a suspension address is meaningless considering the background that Suspend
+function is introduced to resume the stream recording from a suspension address “in the middle of” an
+SGS unit for efficient use of it.
+322
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Figure 8-15 shows examples of card operation when the “Suspend AU/SGS” command is received.
+Suppose SWS is 4MB (200h sectors) and all of SD Express SUS_ADDR indicate zero before issuing the
+“Suspend AU/SGS” command in these examples.
+(a)
+
+(b)
+
+Suspend AU/SGS
+
+Suspend AU/SGS
+
+• SLBA=10000200h,
+20000C00h
+
+• SLBA=10000200h,
+20000A00h
+
+NSQ
+
+NSQ
+
+SWC (SID=2)
+
+SWC (SID=2)
+
+• SLBA=20000800h
+• NLB= 400h
+
+• SLBA=20000800h
+• NLB= 400h
+
+SWC (SID=1)
+
+SWS=4MB (200h sectors)
+
+SWC (SID=1)
+
+• SLBA=10000000h
+• NLB= 200h
+
+• SLBA=10000000h
+• NLB= 200h
+
+SD Express SUS_ADDR
+Bytes
+03:00
+07:04
+11:08
+:
+31:28
+
+NSQ: I/O Submission Queue
+SWC: Sequential Write Command
+SLBA: Starting LBA
+NLB: Number of Logical Blocks
+
+SD Express SUS_ADDR
+
+Description
+10000200h (SD Express SUS_ADDR 1)
+20000C00h (SD Express SUS_ADDR 2)
+00000000h (SD Express SUS_ADDR 3)
+:
+00000000h (SD Express SUS_ADDR 8)
+
+Bytes
+03:00
+07:04
+11:08
+:
+31:28
+
+Description
+00000000h (SD Express SUS_ADDR
+00000000h (SD Express SUS_ADDR
+00000000h (SD Express SUS_ADDR
+:
+00000000h (SD Express SUS_ADDR
+
+1)
+2)
+3)
+8)
+
+Figure 8-15 : Examples of Suspend Operation
+In Example (a), two SWCs identified by SID=1 and SID=2 respectively have been posted in the NSQ as
+shown in the figure. Then, host posts a “Suspend AU/SGS” command to suspend these streams at
+address 10000200h and 20000C00h. Since SLBA and NLB of the latest SWC for SID1 are 10000000h
+and 200h respectively, the correct suspension address for it is calculated as 10000000h + 200h =
+10000200h. Similarly, that for SID2 is 20000800h + 400h = 20000C00h. In this example, since both
+SLBAs in the “Suspend AU/SGS” command completely match to the correct suspension addresses, card
+accepts this suspension command and indicates 10000200h and 20000C00h in the list of SD Express
+SUS_ADDR as valid suspension addresses.
+In Example (b), on the other hand, same SWCs have been posted in the NSQ. Then, host posts a
+“Suspend AU/SGS” command whose SLBAs are 10000200h and 20000A00h. In this case, the former
+SLBA (10000200h) matches to the correct suspension address, but the latter one (20000A00h) does not
+coincide with any suspension addresses (in other words, it is invalid). Therefore, card rejects this
+suspension command, responds CMP with Conflicting Attributes, and keeps the list of SD Express
+SUS_ADDR as it is.
+Refer to Section 8.4.6.4 and 8.4.6.5 for more details about the “Suspend AU/SGS” and “Resume AU/SGS”
+commands respectively.
+Application Note:
+Host should specify the suspension address which is aligned to both an SWS boundary and a Cluster
+boundary (whose address is a multiple of the cluster size).
+
+8.4.1.6 Access Rules for Multiple Streams Recording
+The following rules are introduced during Speed Class Recording State for writing one or multiple streams
+data in real-time.
+ Each stream shall be recorded from the top of an SGS unit continuously, and the size of writing data is
+a multiple of SWS except when recording the end part of a file.
+323
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ When the SGS unit is fully recorded, host can continue the stream recording from the top of another
+SGS unit. These SGS units are not necessary to be continuous.
+ Only data for one stream specified by the Stream Identifier (SID) can be stored in one SGS unit except
+when “Suspend and Resume” took place.
+ Host can suspend one or more stream recordings by the “Suspend AU/SGS” command. The
+suspension addresses shall be the multiple of SWS (see Section 8.4.1.5). This means if host terminates
+stream file recording at the address other than the SWS boundary, host cannot specify it as a
+suspension address.
+ After issuing “Resume AU/SGS” command, host may start stream recording from one of SLBAs
+specified by this command.
+Figure 8-16 illustrates an example of stream recording along the access rules above.
+SGS
+unit [a]
+↓
+(1)
+
+SID1→
+
+SGS
+unit [b]
+↓
+
+SGS
+unit [c]
+↓
+
+SGS
+unit [d]
+↓
+
+SID2→
+
+SGS
+unit [e]
+↓
+
+SGS
+unit [f]
+↓
+
+=SGS unit
+
+SID3→
+
+=SWS unit
+
+SID=Stream Identifier
+SUS_ADDR=Suspension Address
+(2)
+
+SID1
+
+SID2→
+
+SID1→
+
+SID3→
+* Colored SWS unit indicates the one that
+stream data have been written.
+
+SUS_ADDR=Ad1
+
+(3)
+
+SID1
+
+SID2 
+
+SID1→
+
+SUS_ADDR=Ad2
+
+SID3 
+* SID2 and SID3 are released.
+
+(4)
+
+SID1
+
+SID2→ SID1→
+
+SID4→
+* SID2 are reopened.
+
+Figure 8-16 : An Example of Multiple Stream Recording
+(1) A stream whose Stream Identifier is SID1 is recorded continuously from the top of SGS unit [a].
+Similarly, stream data by SID2 and SID3 are being stored in SGS unit [b] and [e] respectively.
+(2) As the SGS unit [a] is fully occupied by SID1 stream, host continues to record it from the top of another
+vacant SGS unit. In this example, since the data has been already recorded in SGS unit [b]
+subsequent to SGS unit [a], host selects a discrete SGS unit which is fully vacant (SGS unit [d], in
+this case).
+(3) When host issues “Suspend AU/SGS” command to suspend stream recordings specified by SID2 and
+SID3, they are suspended at the address Ad1 and Ad2 respectively. When host issues Get Log Page
+for finding SD Express SUS_ADDR, these Ad1 and Ad2 are indicated as suspension addresses.
+Then, host needs to release SID2 and SID3 by the Release Identifier operation.
+(4) After host issues “Resume AU/SGS” command, host gets the suspension addresses by Get Log Page
+command and starts stream recording by SID2 from address Ad1. Note that the stream operated by
+SID2 in (4) is irrelevant that by SID2 in (1) through (3) because SID2 was released in (3). Similarly,
+host may initiate stream recording by SID4 from Address Ad2.
+
+8.4.1.7 State Machine of the SD Express Speed Class
+Figure 8-17 shows a state machine of the SD Express Speed Class.
+
+324
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+PCIe
+Linkup
+
+Normal Access State
+
+Directive Receive
+
+(OSCSC = 0)
+
+(03h: Allocate Resources)
+
+Update DIR/CI
+Directive Send
+(02h: Release Resources)
+release all streams resources
+
+Speed Class
+Ready State
+
+Set Free AU/SGS or
+Resume AU/SGS
+
+(OSCSC = 0)
+OSCSC = 0
+
+Directive Send
+(01h: Release Identifier)
+
+OSCSC > 0
+
+Start Recording
+
+OSCSC = OSCSC - 1
+
+1st SWC
+
+Get Log Page
+
+for each SID
+
+(LID=C0h)
+
+OSCSC = OSCSC + 1
+
+Suspend AU/SGS
+
+Termination Conditions
+
+Speed Class
+Recording State
+
+Set Free AU/SGS or
+Resume AU/SGS
+
+(OSCSC ≥ 1)
+
+Release DIR/CI
+
+State
+Directive Send
+
+Update DIR/CI
+
+(02h: Release Resources)
+
+Command or Condition
+
+release all streams resources
+
+Directive Receive
+
+PCIe Mode
+
+(03h: Allocate Resources)
+
+Notes
+• OSCSC: Open SID Count for Speed Class
+
+Figure 8-17 : State Machine for SD Express Speed Class
+“PCIe Linkup” and “PCIe Mode” in this figure are same as those of Figure 3-23. States for SD Express
+Speed Class is defined as substates of PCIe Mode.
+When transiting from PCIe Linkup to PCIe mode, the state is Normal Access State. It is defined as a state
+that Speed Class Recording is unavailable because resources for it have not been allocated yet.
+When host issues Directive Receive command whose operation name is Allocate Resources, the state
+transits to Speed Class Ready State. In this state, Speed Class Recording gets available but no streams
+are recorded based on Speed Class Recording.
+After allocating Sequential Areas and Random Areas by “Set Free AU/SGS” and “Update DIR/CI”
+respectively, host executes “Start Recording” to inform card of that Speed Class Recording will start. Then
+host issues the SWC indicating a specific SID to start Speed Class Recording designated by the SID.
+When the SLBA in the first SWC for each SID matches to the one designated by “Start Recording,” card
+registers the associated SID as an open SID for Speed Class (OSID-SC), and increases the Open SID
+Count for Speed Class (OSCSC) value. As a result, the state transits to Speed Class Recording State
+and the Speed Class Recording designated by the SID starts successfully.
+Note that if the SLBA in the first SWC is not included in the “Start Recording”, the recording speed is not
+guaranteed for the associated SID, and OSCSC is not increased.
+If “Start Recording” specifies multiple SLBAs, host can continue to issue the first SWC for some SID to
+start one stream recording from one of SLBAs specified by the "Start Recording". For example, if the
+"Start Recording" specifies Ad1, Ad2 and Ad3, host issues the first SWC with SID1 starting from Ad1, that
+with SID2 from Ad2, and that with SID3 from Ad3 repeatedly.
+Since “Start Recording” can specify multiple SLBAs, host can issue an SWC with other SID one by one if
+its SLBA includes in the “Start Recording” issued previously.
+The Allocate Resources operation specifies the number of stream resources. Host does not need to
+allocate all resources for stream recording supporting by the card when transiting from Normal Access
+State. Even during Speed Class Ready State or Speed Class Recording State, host may allocate
+additional stream resources.
+When card detects Termination Conditions (refer to Section 8.4.9), host should issue Get Log Page
+command and get information which OSID-SC gets unavailable. Then, host should issue Directive Send
+command whose operation name is Release Identifier to release the associated OSID-SC. At that time,
+325
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+card decreases OSCSC value.
+Similarly, when host executes “Suspend AU/SGS,” host shall operate Release Identifier to release the
+suspended OSID-SC.
+Since the Termination Conditions may happen in the multiple streams at the same time, and host can
+suspend multiple streams by one “Suspend AU/SGS,” host can repeat to issue Directive Send (Release
+Identifier) commands to release associated multiple OSID-SCs. As a result, if OSCSC gets 0, the state
+transits to Speed Class Ready State because there are no valid OSID-SCs anymore.
+If host issues Directive Send command whose operation name is Release Resources, all OSID-SCs are
+released and the state directly transits to Normal Access State.
+Table 8-8 indicates the overview of each state for SD Express Speed Class. During Speed Class Ready
+State and Speed Class Recording State, there are some restrictions such as the number of available
+NSQs.
+The performance of Stream Reading is guaranteed during Speed Class Ready State or Speed Class
+Recording State.
+Item
+
+Stream Writing
+Number of
+Available NSQs
+Command
+Duration
+Stream
+Recording Rule
+Stream
+Reading
+
+Normal Access State
+Speed Class Recording
+is unavailable.
+Up to 64K (based on
+NVMe spec)
+Max duration is not
+defined.
+
+State
+Speed Class
+Ready State
+Speed Class Recording
+is available but no
+Speed Class Recordings
+are executed.
+
+Speed Class
+Recording State
+At least one Speed
+Class Recording is
+executed.
+
+1(1)
+
+1(1)
+
+Defined in Section 8.4.3
+
+Defined in Section 8.4.3
+
+N/A
+
+N/A
+
+Compliant to Section
+8.4.1.6
+
+Stream reading is
+possible but its
+performance is not
+guaranteed
+
+Stream read
+performance is
+guaranteed.
+
+Stream read
+performance is
+guaranteed.
+
+Note (1): When host posts commands to two or more NSQs during Speed Class Ready State or
+Speed Class Recording State, error does not occur but performance of stream write and/or
+read is not guaranteed.
+
+Table 8-8 : Overview of States for SD Express Speed Class
+
+8.4.2 SD Express Speed Class Parameters
+This section explains data defined by NVMe spec. which are closely related to the SD Express Speed
+Class. Refer to NVMe specifications for more details about these data and their associated ones.
+
+8.4.2.1 Data Defined in Return Parameters Data Structure of Streams Directive
+8.4.2.1.1 SWS
+SWS stands for Stream Write Size and means optimal size unit for the stream data recording by a write
+command. In the SD Express Speed Class, card shall be set either one of 4MB, 5MB or 6MB to this
+parameter. Host needs to read this parameter from the Return Parameters Data Structure of Streams
+Directive in the card and to issue a Write command for stream data whose size is a multiple of SWS
+except at the end of the file (see Section 8.4.1.2.1).
+Since SWS indicates a data size, it corresponds to “RU size” of the conventional Speed Class
+specifications. The term “SWS unit” is introduced for indicating a writing unit for SWS, and corresponds
+to RU of the conventional specifications.
+326
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+An SWS boundary means a physical boundary of the User Area whose address is a multiple of SWS.
+8.4.2.1.2 SGS
+SGS stands for Stream Granularity Size and means optimal size for managing streams. In the SD Express
+Speed Class, card shall be set either one of values described in Table 8-9.
+As well as SWS, SGS can be obtained from the Return Parameters Data Structure of Streams Directive.
+Since SGS is indicated by a unit of SWS in the data structure, it is a multiple of SWS as a result.
+Note that card shall select an SGS value from the integer multiples of cluster size associated with the
+card capacity. For example, a 32TB card shall set a multiple of 8MB as its SGS value because its cluster
+size is 8MB (16384 sectors). This means it cannot adopt values indivisible by 8MB such as 150MB,
+180MB, and so on. Refer to Appendix C.5.3 in the Part 2 File System Specification.
+Available SGS Values (in MB)
+120 / 150 / 180 / 210 / 240 / 270 / 300 / 330 / 360 / 390 /
+420 / 450 / 480 / 510 / 540 / 570 / 600 / 630 / 660 / 690 /
+720 / 750 / 780 / 810 / 840 / 870 / 900 / 930 / 960 / 990 /
+1,020 / 1,080 / 1,200 / 1,320 / 1,440 / 1,560 / 1,680 / 1,800 / 1,920 /
+2,040 / 2,160 / 2,280 / 2,400 / 2,520 / 2,640 / 2,760 / 2,880 /
+3,000 / 3,120 / 3,240 / 3,360 / 3,480 / 3,600 / 3,720 / 3,840 / 3,960 /
+4,080
+Table 8-9 : Available SGS Values for SD Express Speed Class
+Since SGS indicates a data size, it corresponds to “AU size” of the conventional Speed Class
+specifications. The term “SGS unit” is introduced for indicating a managing unit whose start address is
+aligned to the SGS boundary and whose size is identical to SGS. SGS unit corresponds to AU of the
+conventional specifications.
+8.4.2.1.3 MSL
+MSL stands for Max Streams Limit and indicates the maximum number of concurrently open streams for
+recording. In the SD Express card supporting SD Express Speed Class, this field shall be set a value
+greater than or equal to 2. It is allowed to set the value more than 8, but up to 8 streams can be recorded
+in parallel over the SD Express Speed Class specification.
+8.4.2.1.4 MDTS
+MDTS stands for Maximum Data Transfer Size. SD Express card supporting SD Express Speed Class
+shall indicate the value larger than or equal to SWS.
+
+8.4.2.2 Parameters Defined in Identify Controller Data Structure
+8.4.2.2.1 VWC
+VWC stands for Volatile Write Cache and indicates attributes related a volatile write cache in the card. If
+Bit 0 of VWC is 1, host should enable VWC by the Set Features command (Feature Identifier 06h) with
+WCE (Volatile Write Cache Enable) =1.
+8.4.2.2.2 PSD
+PSD stands for Power State Descriptor and indicates the characteristics of each Power State including
+MP (Maximum Power). Card can set at most 32 PSDs. In the NVMe spec, each PSD is defined as PSD0,
+PSD1, ..., and PSD31. SD Express card shall support Power States as described in Section 8.1.8. PSD0
+indicates the largest maximum power of all supported PSDs.
+
+327
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.2.2.3 MNTMT and MXTMT
+MNTMT stands for Minimum Thermal Management Temperatures and indicates the minimum
+temperature, in degrees Kelvin, of the specific parameter TMT1 set by Set Features command.
+Similarly, MXTMT stands for Maximum Thermal Management Temperatures and indicates the maximum
+temperature of TMT2.
+8.4.2.2.4 WCTEMP
+WCTEMP stands for Warning Composite Temperature Threshold and indicates the minimum composite
+temperature that indicates an overheating condition. Card shall be designed in order that its composite
+temperature does not exceed WCTEMP for maintaining the Speed Class Recording.
+
+8.4.3 Measurement Conditions for SD Express Speed Class
+8.4.3.1 Queue Specification
+According to the NVMe specification, host can create up to 65,535 NSQs at the same time. However,
+only one NSQ is available during Speed Class Ready State and Speed Class Recording State. In other
+words, host can post NVMe commands (Read, Write, DSM and so on) to one specified NSQ at that time.
+NVMe specification has no ordering restrictions for processing of commands within or across NSQs.
+Therefore, when volatile write cache is enabled (see Section 8.4.2.2.1), host is recommended to issue
+Flush command before writing random data such as FAT or DIR if host would like to maintain the
+consistency between stream data and its file system management information even in shutdown.
+Application Note:
+To keep consistency among file system management information even in abrupt shutdown,
+committing random data to non-volatile memory never precedes that of corresponding stream data
+in the card. If host needs to ensure that consistency, it is required to issue Flush command in advance,
+and post Random Write commands for file system management information such as FAT to the NSQ
+after detecting the CMP of the Flush command. Also refer to the following examples.
+Example (1)
+Figure 8-18 indicates an example of Write command operations that Host posts a command for FAT
+update to the NSQ after detecting the CMP of the previous Flush command. In this example, host
+
+328
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+suspends to issue SWC for S4 and after until FAT update for S1 through S3 completes.
+Host posts CMDs for FAT update to NSQ
+after detecting a CMP of previous Flush CMD.
+
+Create FAT
+for S1-S3
+
+FAT for
+S1-S3
+
+S3
+NSQ
+
+Commit to
+NV Memory
+
+NCQ
+
+S7
+S6
+
+S2
+
+Flush
+
+S5
+
+S1
+
+S3
+
+S4
+
+S1
+
+S1
+
+S2
+
+S2
+
+FAT for
+S1-S3
+
+S3
+
+S3
+
+S4
+
+FAT for
+S1-S3
+
+Flush
+
+S4
+
+S5
+
+S5
+
+S6
+
+S6
+
+S7
+
+S7
+
+NSQ = I/O Submission, NCQ = I/O Completion Queue,
+CMD = Command, CMP = Completion,
+NV Memory = Non-volatile Memory
+S1, S2, ...: Sequential Write CMD/CMP with order
+
+Figure 8-18 : Write Command Operations for Keeping Consistency in a File (1)
+Example (2)
+Figure 8-19 indicates another example of Write command operations. Like Example (1), host posts a
+command for FAT update to the NSQ after detecting the CMP of the previous Flush command. In this
+example, host continues to write following stream data (S4, S5, and S6) before updating FAT for S1
+through S3. In addition, this example shows out-of-order CMP posting to the NCQ.
+
+329
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Before issuing CMDs for FAT update, host may post following Sequential Write
+CMDs. Host commands FAT update after detecting a CMP of previous Flush CMD.
+Create FAT
+for S1-S3
+
+FAT for
+S1-S3
+
+Flush
+
+NSQ
+
+S3
+
+S6
+
+S2
+
+S5
+
+S1
+
+S4
+
+S8
+S6
+
+S7
+Setting FUA=1
+for FAT update
+
+Commit to
+NV Memory
+NCQ
+
+S1
+
+S1
+
+S2
+
+S2
+
+S3
+
+S3
+
+S4
+
+Flush
+
+S4
+
+S5
+
+FAT for
+S1-S3
+
+FAT for
+S1-S3
+
+S5
+
+S7
+
+S6
+
+S6
+
+S7
+
+S8
+
+S8
+
+Out-of-order indication in NCQ
+
+NSQ = I/O Submission, NCQ = I/O Completion Queue,
+CMD = Command, CMP = Completion,
+NV Memory = Non-volatile Memory
+S1, S2, ...: Sequential Write CMD/CMP with order
+
+Figure 8-19 : Write Command Operations for Keeping Consistency in a File (2)
+
+8.4.3.2 Command Duration
+Command duration is a basic parameter for the performance measurement. In the SD Express Speed
+Class, the command duration is defined as follows (see also Figure 8-20).
+(a) When NSQ is empty, it starts when the target CMD is posted to the NSQ and terminates when its
+CMP is detected from the NCQ.
+(b) Otherwise, it starts when CMP for the previous CMD is detected from the NCQ and ends when the
+target CMP is detected from the NCQ.
+(a) When NSQ is empty
+
+(b) When NSQ is not empty
+
+Target CMD is posted
+Target CMP
+
+NSQ
+
+NSQ
+
+Target CMP
+is detected
+
+Target CMD
+
+NCQ
+
+NSQ
+
+Previous CMP
+
+Previous CMP
+is detected
+
+NCQ
+
+Target CMP
+
+Target CMP
+is detected
+
+NCQ
+
+Previous CMD
+
+Target CMD
+
+Command Duration
+
+Command Duration
+
+Figure 8-20 : Definition of Command Duration in the SD Express Speed Class
+As described later, only case (b) is used for calculating Write Performance (Pw) and Read Performance
+(Pr) as shown in Figure 8-21.
+
+330
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Target CMD
+
+NSQ
+
+Previous CMP
+
+Previous CMP
+is detected
+
+Target CMP
+
+NCQ
+
+Target CMP for
+SRC is detected
+
+NCQ
+
+Previous CMD
+CMD
+
+Command Duration
+
+Figure 8-21 : Command Duration Used for Pw and Pr Calculation
+8.4.3.3 Performance Measurement for Sequential Write Command
+8.4.3.3.1 Measurement of Pw (Write Performance)
+Let T’i be the command duration of the i-th SWC posted when the NSQ is not empty. This means
+command durations for SWC posted when the NSQ is empty are excluded from the Write Performance
+calculation.
+Write Performance Pwn is calculated by the following formula:
+
+𝑃𝑤𝑛 =
+
+𝐿𝑑
+(𝑛+1)𝑑
+∑𝑖=𝑛𝑑+1 𝑇′𝑖
+
+(𝑛 = 0, 1, ⋯ ),
+
+where L is the NLB in the SWC (data length written by one SWC) and d is a specific natural number
+dependent on SWS as described in Table 8-10. Note that Ld is always equal to 600MB for calculating
+Pwn.
+SWS
+d
+4MB
+150
+5MB
+120
+6MB
+100
+Table 8-10 : Definition of Parameter “d” for Calculating Pw
+If all Pwn measured in MB/s by the formula above are greater than or equal to C, the card satisfies Class
+C of the SD Express Speed Class (C=150, 300, 450 or 600). In other words, Class C card shall satisfy
+the following Pw measurement condition for all n.
+𝑃𝑤 = min(𝑃𝑤𝑛 ) = min(𝑃𝑤0 , 𝑃𝑤1, 𝑃𝑤2 , ⋯ ) ≥ 𝐶
+The Pw measurement condition shall be satisfied under the indicated class and all lower classes
+supported by the card. For example, Class 600 card shall satisfy the condition under C=150, 300, 450
+and 600. Different from the Video Speed Class, Set Free AU/SGS is always excluded from the Pw
+measurement (refer to Section 8.4.3.5.2).
+The SID in each SWC is arbitrary while measuring Pw. Moreover, considering the actual use case, host
+may issue the SWC whose NLB is greater than SWS value. Even in this case, Class C card shall satisfy
+the condition above.
+Host shall post the Sequential Write commands in the ascending order of starting LBA in one SGS unit.
+Card may post these CMPs to NCQ out-of-order.
+Application Note:
+When verifying Class C performance, a tester needs to provide a stream data whose bit rate is higher
+than C [MB/s], for example, 1.1C or 1.2C [MB/s].
+
+331
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.3.3.2 Maximum Command Duration
+The maximum command duration for SWC whose NLB indicates same as one SWS is 250 [ms]. This rule
+is applied to both cases described as (a) and (b) in Section 8.4.3.2.
+
+8.4.3.4 Performance Measurement for Sequential Read Command
+8.4.3.4.1 Measurement of Pr (Read Performance)
+Let SRC denote Sequential Read Command and define as a Read command for stream reading. In the
+SRC, the Start LBA (SLBA) shall be aligned to the SWS boundary, and the Number of Logical Blocks
+(NLB) shall be a multiple of SWS except at the endpoint of reading.
+Similar to SWC, let T’i be the command duration of the i-th SRC posted when the NSQ is not empty.
+Read Performance Prm is calculated by the following formula:
+𝑃𝑟𝑚 =
+
+𝐿𝑑
+(𝑚+1)𝑑
+∑𝑖=𝑚𝑑+1 𝑇′𝑖
+
+(𝑚 = 0, 1, ⋯ ),
+
+where the definitions of L and d are same as those in Section 8.4.3.3.1.
+If all Prm measured in MB/s by the formula above are greater than or equal to C, the card satisfies Class
+C of the SD Express Speed Class (C=150, 300, 450 or 600). In other words, Class C card shall satisfy
+the following Pr measurement condition for all m.
+𝑃𝑟 = min(𝑃𝑟𝑚 ) = min(𝑃𝑟0 , 𝑃𝑟1 , 𝑃𝑟2 , ⋯ ) ≥ 𝐶
+Considering the practical use, Pr shall satisfy the target performance C even NLB is greater than SWS.
+8.4.3.4.2 Maximum Command Duration
+The maximum command duration for SRC whose NLB indicates same as one SWS is 100 [ms]. This rule
+is applied to both cases described as (a) and (b) in Section 8.4.3.2.
+8.4.3.4.3 Note for Sequential Read
+Host can set an area as Sequential Read Range by setting SR=1 by the DSM command (see Table 8-12).
+It is not necessary to set SR=1 before host reads data, but read performance may be improved in case
+of SR=1.
+When host intends to read data from the area recently written, host should post the read command after
+detecting the CMP of the write command associated with the area to be read.
+8.4.3.4.4 In case that Sequential Write and Read Operations Coexist
+Even when Sequential Write and Read operations are executed together, their measurement conditions
+are identical as described in Section 8.4.3.3 and 8.4.3.4 respectively.
+Figure 8-22 shows an example of Pw and Pr measurement when SWC and SRC coexist. In this example,
+value d is equal to 100 since SWS=6MB.
+Pw is calculated by detecting Tw’i (the command duration of the i-th SWC posted when the NSQ is not
+empty) and applying to the formula described in Section 8.4.3.3.1.
+Similarly, Pr is calculated by Tr’i (the command duration of the i-th SRC posted when the NSQ is not
+empty) with the formula in Section 8.4.3.4.1.
+
+332
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+SWS=6MB, d=100
+
+Tr’1
+
+NCQ
+
+Random
+Write
+
+Sw1
+
+Tw’1
+
+Sw2
+
+Tw’2
+
+Sr1
+
+Tr’50
+
+Sw3
+
+Sw99 Sw100
+
+Tw’3
+
+Tw’100
+
+Tr’99
+
+Random
+Read
+
+Sr50 Sw101
+
+Tr’100
+
+Sr99 Sr100
+
+Tw’101
+
+NCQ = I/O Completion Queue,
+Sw1, Sw2, ...: CMP of SWC with order
+Sr1, Sr2, ...: CMP of SRC with order
+Tw’1, Tw’2, ...: Command duration for SWC corresponding to Sw1, Sw2, ...
+Tr’1, Tr’2, ...: Command duration for SRC corresponding to Sr1, Sr2, ...
+
+Figure 8-22 : Pw and Pr Measurement When Sequential Write and Read Operations Coexist
+8.4.3.5 Performance for Random Write Command, Flush Command and DSM Commands
+8.4.3.5.1 Conditions of Random Write Command, Flush Command and DSM Commands Other
+Than Start Recording and Set Free AU/SGS
+Let Ti be the command duration of the i-th command including a Write command for updating the file
+system management information containing FAT, Allocation Bitmap, DIR and CI (up to 16KB), Flush
+command and DSM commands except “Start Recording” and “Set Free AU/SGS." Different from the
+calculation of Pw or Pr, Ti is measured for both case (a) and (b) in Section 8.4.3.2.
+During the Speed Class Recording state, the maximum Ti (Tmax) and the average Ti (Tave) (see also Figure
+8-23) shall satisfy the following inequalities respectively.
+𝑇𝑚𝑎𝑥 ≤ 100[ms]
+𝑛+31
+
+𝑇𝑎𝑣𝑒 (𝑛) =
+
+1
+∑ 𝑇𝑖 ≤ 50[ms] (𝑛 = 1,2, ⋯ )
+32
+𝑖=𝑛
+
+The i-th Random Write, Flush or DSM commands
+(except Start Recording and Set Free AU/SGS)
+
+1
+
+2
+
+3
+
+32 33 34
+
+Tave (1)
+Tave (2)
+Tave (3)
+
+Figure 8-23 : Calculation of Tave (n)
+
+333
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.3.5.2 Conditions of Start Recording and Set Free AU/SGS
+The maximum command duration for “Start Recording” command shall be 1 [sec].
+The maximum command duration for “Set Free AU/SGS” command is defined as 30 x N [ms], where N is
+the number of SGS units to be allocated by this command.
+
+8.4.3.6 Performance for Random Read Command
+The command duration Ti for a Random Read command (whose NLB is up to 4KB) is defined as
+described in Figure 8-20.
+The maximum command duration for this command is 20 [ms].
+8.4.3.7 Frequency of Random Write and Flush
+FAT Update is operated by several Random Write commands. In addition, if host would like to maintain
+the consistency of file system management information even in shutdown, it is recommended for host to
+issue Flush command before FAT update in case that a volatile write cache is enabled (see Section
+8.4.2.2.1 and 8.4.3.1).
+In the SD Express Speed Class, the following conditions are applied for Pw measurement.
+
+
+
+Random Write commands can be issued up to 6 x MSL times per 1 second.
+- The data size for these Random Write command is up to 16KB.
+A Flush command can be issued up to MSL times per 1 second.
+
+If MSL=8, for example, host can issue up to 8 Flush commands and up to 48 Random Write commands
+in 1 second.
+
+8.4.4 PCIe bus Mode Requirements for SD Express Speed Class
+Table 8-11 defines the PCIe bus modes that shall be supported for each SD Express Speed Class. If card
+supports specific SD Express Speed Class, it shall also support all lower Speed Classes. For example, if
+card supports Class 600, it needs to support Class 150, 300 and 450 additionally.
+For each Speed Class, moreover, card shall realize it over all supporting PCIe bus modes. As an example,
+if card has PCIe Gen4x1 mode and supports Class 300, card shall realize it in PCIe Gen3x1 mode as
+well.
+SD Express Speed Class
+(if card supporting)
+150 (MB/s)
+300 (MB/s)
+450 (MB/s)
+600 (MB/s)
+Note)
+
+PCIe Express Bus Speed Mode (Interface Mode)
+Gen3x1
+Gen3x2
+Gen4x1
+Gen4x2
+M
+MiS
+MiS
+MiS
+M
+MiS
+MiS
+MiS
+M
+MiS
+MiS
+MiS
+M
+MiS
+MiS
+MiS
+
+"M": This bus mode is mandatory when card supports the corresponding SD Express Speed Class.
+"Mis": This bus mode is mandatory if card supports both the corresponding SD Express Speed
+Class and the bus speed mode.
+
+Table 8-11 : PCIe Bus Mode Requirements for Each SD Express Speed Class
+
+8.4.5 Requirements of SD File System for SD Express Speed Class
+Refer to 4.13.2.7.3.
+
+8.4.6 Dataset Management Command for SD Express Speed Class
+8.4.6.1 Overview
+The Dataset Management (DSM) is used to specify attributes for ranges of logical blocks in the User
+334
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Area. In the SD Express Speed Class, it is used to operate some Speed Class functions which are
+originally defined in the Video Speed Class.
+Table 8-12 indicates a configuration of the DSM command. It consists of command parameters and data
+associated with it. Length of the data depends on the Number of Ranges (NR) in the command parameter.
+Available values vary according to the type of Speed Class functions as described below.
+
+Field
+Dword 10
+Dword 11
+
+DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Data Associated with the DSM Command
+Byte
+Bit
+Description
+15:08
+Starting LBA
+07:04
+Length in logical blocks
+03
+31:24 Command Access Size
+02:01
+23:11 Reserved
+10
+WP: Write Prepare
+09
+SW: Sequential Write Range
+08
+SR: Sequential Read Range
+00
+07:06 Reserved
+05:04 AL: Access Latency
+03:00 AF: Access Frequency
+Range 1
+15:08
+Starting LBA
+07:04
+Length in logical blocks
+:
+:
+:
+:
+Table 8-12 : Command Configuration of the DSM Command
+Context Attributes
+
+Range
+Range 0
+
+8.4.6.2 Start Recording
+8.4.6.2.1 Description
+This function indicates that host intends to start stream recording (see Section 8.4.1.7). This function
+requests the card to prepare stream recording (garbage collection, clean-up of internal status, etc.).
+8.4.6.2.2 Parameter
+Table 8-13 shows parameters for Start Recording.
+
+335
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Setting of DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Field
+Dword 10
+Dword 11
+
+Byte
+15:08
+07:04
+
+03
+02:01
+
+00
+Range 1
+
+15:08
+07:04
+
+:
+
+Setting of Data Associated with the DSM Command
+Bit
+Description
+Value
+Starting LBA
+Start Address for the 1st
+stream (SGS boundary or
+Resume Address)
+Length in logical blocks
+If the Starting LBA of Range 0
+is Resume Address, this
+indicates length from the
+Resume Address to the end of
+SGS unit in block unit.
+Otherwise, this indicates SGS
+value in block unit.
+31:24 Command Access Size
+0
+23:11 Reserved
+0
+10
+WP: Write Prepare
+1
+09
+SW: Sequential Write Range
+1
+08
+SR: Sequential Read Range
+0
+07:06 Reserved
+0
+05:04 AL: Access Latency
+00b
+03:00 AF: Access Frequency
+2h
+Starting LBA
+Start Address for the 2nd
+stream (SGS boundary or
+Resume Address)
+Length in logical blocks
+If the Starting LBA of Range 1
+is Resume Address, this
+indicates length from the
+Resume Address to the end of
+SGS unit in block unit.
+Otherwise, this indicates SGS
+value in block unit
+:
+:
+:
+:
+Table 8-13 : Parameters for Start Recording
+
+Context Attributes
+
+Range
+Range 0
+
+Value
+0
+0 to 7
+0
+0
+1
+0
+
+NR field in the Start Recording indicates the number of streams that start recording by this command. If
+Starting LBA indicates Resume Address specified by previous “Resume AU/SGS”, the Length in logical
+blocks shall indicate the length from the Resume Address to the end of SGS unit. Otherwise, Starting LBA
+shall be aligned to SGS boundary and Length in logical blocks shall be SGS.
+8.4.6.2.3 Maximum Command Duration
+The maximum command duration for “Start Recording” command is 1 second (see Section 8.4.3.5.2).
+
+336
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+8.4.6.2.4 Error Conditions
+At least one of the following conditions is satisfied, card rejects this command and sets 80h (Conflicting
+Attributes) to the Command Specific Status Values in the corresponding CMP.
+ NR is greater than 7.
+ Stream resources allocated by the Directive Receive (Allocate Resources) fall short after issuing the
+command. Suppose host allocates 2 stream resources by the Allocate Resources operation, for
+instance. At this time, if host issues “Start Recording” with NR=3 or more, card responds error because
+resources for stream recording are short.
+ At least one Start Address does not match to the SGS boundaries or Resume Addresses specified by
+the previous “Resume AU/SGS.”
+ Illegal value is set to at least one of “Length in logical blocks” field.
+
+8.4.6.3 Update DIR/CI
+8.4.6.3.1 Description
+This function allocates Random Areas for recording a DIR (directory entry) or a CI (continuous
+information).
+8.4.6.3.2 Parameter
+Table 8-14 shows parameters for Update DIR/CI.
+Setting of DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Field
+Dword 10
+Dword 11
+
+Byte
+15:08
+07:04
+03
+02:01
+
+00
+Range 1
+
+15:08
+07:04
+:
+
+Setting of Data Associated with the DSM Command
+Bit
+Description
+Value
+Starting LBA
+Start Address of Range 0
+Length in logical blocks
+32 (16KB in block unit)
+Command Access Size
+8 (4KB in block unit)
+31:24
+[Recommended to set to 8]
+23:11 Reserved
+0
+10
+WP: Write Prepare
+0
+09
+SW: Sequential Write Range
+0
+08
+SR: Sequential Read Range
+0
+07:06 Reserved
+0
+05:04 AL: Access Latency
+11b
+03:00 AF: Access Frequency
+5h
+Starting LBA
+Start Address of Range 1
+Length in logical blocks
+32 (16KB in block unit)
+:
+:
+:
+:
+Table 8-14 : Parameters for Update DIR/CI
+
+Context Attributes
+
+Range
+Range 0
+
+Value
+0
+0 to 15
+0
+0
+0
+0
+
+The number of random areas to be allocated is specified by NR. Starting LBA shall be aligned to 16KB in
+the User Area, and Length in logical blocks shall be 16KB. Command Access Size is a reference of the
+337
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+access size and indicates 8 for SD Express Speed Class.
+8.4.6.3.3 Maximum Command Duration
+Refer to Section 8.4.3.5.1.
+8.4.6.3.4 Error Conditions
+At least one of the following conditions is satisfied, card rejects this command and sets 80h (Conflicting
+Attributes) to the Command Specific Status Values in the corresponding CMP.
+ NR is greater than 15.
+ The number of allocated Random Areas gets greater than min(MSL x 2, 16) after issuing the command.
+ At least one Start Address is not aligned to 16KB boundary.
+ Illegal value is set to at least one of “Length in logical blocks” field.
+ Range(s) to be assigned by this command has been already defined as the Sequential Area.
+
+8.4.6.4 Suspend AU/SGS
+8.4.6.4.1 Description
+This function directs suspension of all or a part of stream recording.
+8.4.6.4.2 Parameter
+Table 8-15 shows parameters for Suspend AU/SGS.
+
+338
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Setting of DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Field
+Dword 10
+Dword 11
+
+Byte
+15:08
+07:04
+03
+02:01
+
+00
+Range 1
+
+15:08
+07:04
+:
+
+Setting of Data Associated with the DSM Command
+Bit
+Description
+Value
+Starting LBA
+Suspension address for the 1st
+suspended stream
+Length in logical blocks
+Length from the suspension
+address for the 1st suspended
+stream to the end of SGS
+31:24 Command Access Size
+0
+23:11 Reserved
+0
+10
+WP: Write Prepare
+0
+09
+SW: Sequential Write Range
+1
+08
+SR: Sequential Read Range
+0
+07:06 Reserved
+0
+05:04 AL: Access Latency
+00b
+03:00 AF: Access Frequency
+0h
+Starting LBA
+Suspension address for the
+2nd suspended stream
+Length in logical blocks
+Length from the suspension
+address for the 2nd suspended
+stream to the end of SGS
+:
+:
+:
+:
+Table 8-15 : Parameters for Suspend AU/SGS
+
+Context Attributes
+
+Range
+Range 0
+
+Value
+0
+0 to 7
+0
+0
+1
+0
+
+NR field in the Suspend AU/SGS indicates the number of streams to be suspended by this command.
+Starting LBA shall be aligned to SWS boundary and Length in logical block shall be the multiple of SWS.
+After issuing this command, host shall execute Release Identifier by Directive Send command to release
+SIDs for suspended streams. Suspension addresses can be obtained by Get Log Page command (see
+Section 8.4.10.3). After suspension, the areas from each suspension address to the end of its
+corresponding SGS unit are not regarded as the Sequential Area. If host alters any data in the SGS unit
+which includes the suspension address, the suspension address is cleared by the card.
+8.4.6.4.3 Maximum Command Duration
+Refer to Section 8.4.3.5.1.
+8.4.6.4.4 Error Conditions
+At least one of the following conditions is satisfied, card rejects this command and sets 80h (Conflicting
+Attributes) to the Command Specific Status Values in the corresponding CMP.
+ NR is greater than 7.
+ At least one Suspension Address is invalid (see Section 8.4.1.5). Note that the SGS boundary is
+regarded as invalid address even it is always aligned to the SWS boundary.
+
+339
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ Illegal value is set to at least one of “Length in logical blocks” field.
+Application Note:
+If the card did not suspend at one suspension address for any reason during the Speed Class
+Recording, then the card indicates a zero in the list of SD Express SUS_ADDR obtained by Get Log
+Page.
+
+8.4.6.5 Resume AU/SGS
+8.4.6.5.1 Description
+This function directs resuming of stream recording. Host may issue this command any time after
+suspension, even the power cycle occurs.
+8.4.6.5.2 Parameter
+Table 8-16 shows parameters for Resume AU/SGS.
+Setting of DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Field
+Dword 10
+Dword 11
+
+Byte
+15:08
+07:04
+03
+02:01
+
+00
+Range 1
+
+15:08
+07:04
+:
+
+Setting of Data Associated with the DSM Command
+Bit
+Description
+Value
+Starting LBA
+Suspension address for the 1st
+suspended stream
+Length in logical blocks
+Length from the suspension
+address for the 1st suspended
+stream to the end of SGS
+31:24 Command Access Size
+0
+23:11 Reserved
+0
+10
+WP: Write Prepare
+1
+09
+SW: Sequential Write Range
+1
+08
+SR: Sequential Read Range
+0
+07:06 Reserved
+0
+05:04 AL: Access Latency
+00b
+03:00 AF: Access Frequency
+0h
+Starting LBA
+Suspension address for the
+2nd suspended stream
+Length in logical blocks
+Length from the suspension
+address for the 2nd suspended
+stream to the end of SGS
+:
+:
+:
+:
+Table 8-16 : Parameters for Resume AU/SGS
+
+Context Attributes
+
+Range
+Range 0
+
+Value
+0
+0 to 7
+0
+0
+0
+0
+
+NR field in the Resume AU/SGS indicates the number of streams to be resumed by this command.
+Starting LBA shall be aligned to SWS boundary and Length in logical block shall be the multiple of SWS.
+340
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Host can issue any time when at least one suspension address is indicated in the list of SD Express
+SUS_ADDR obtained by Get Log Page (see Section 8.4.10.3.3). When “Resume AU/SGS” command
+succeeds, suspension addresses specified in the command are removed. Since the area from the
+suspension address to the end of SGS unit is recovered as a Sequential Area by this command, it is not
+necessary to issue Set Free AU/SGS command to start a stream recording from the suspension address.
+8.4.6.5.3 Maximum Command Duration
+Refer to Section 8.4.3.5.1.
+8.4.6.5.4 Error Conditions
+At least one of the following conditions is satisfied, card rejects this command and sets 80h (Conflicting
+Attributes) to the Command Specific Status Values in the corresponding CMP.
+ NR is greater than 7.
+ There are no valid suspension addresses.
+ At least one suspension address in the “Starting LBA” field does not match to the one in list of SD
+Express SUS_ADDR obtained by Get Log Page (see Section 8.4.10.3).
+ Illegal value is set to at least one of “Length in logical blocks” field.
+
+8.4.6.6 Set Free AU/SGS
+8.4.6.6.1 Description
+This function allocates SGS units to record stream data.
+8.4.6.6.2 Parameter
+Table 8-17 shows parameters for Set Free AU/SGS.
+
+341
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Setting of DSM Command Parameters
+Bit
+Description
+31:08 Reserved
+07:00 Number of Ranges (NR)
+31:03 Reserved
+02
+Attribute – Deallocate (AD)
+01
+Attribute – Integral Dataset for Write (IDW)
+00
+Attribute – Integral Dataset for Read (IDR)
+
+Field
+Dword 10
+Dword 11
+
+Byte
+15:08
+07:04
+03
+02:01
+
+00
+Range 1
+
+15:08
+07:04
+:
+
+Setting of Data Associated with the DSM Command
+Bit
+Description
+Value
+Starting LBA
+Start Address of Range 0
+Length in logical blocks
+Length of Range 0 in block unit
+31:24 Command Access Size
+0
+23:11 Reserved
+0
+10
+WP: Write Prepare
+1

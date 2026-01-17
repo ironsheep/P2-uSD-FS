@@ -1,0 +1,2000 @@
+turn.
+ Broadcast commands with response (bcr)
+response from all cards simultaneously - Since there is no Open Drain mode in SD Memory Card,
+this type of command shall be used only if all the CMD lines are separated - the command will be
+accepted and responded by every card separately.
+ Addressed (point-to-point) commands (ac)
+no data transfer on DAT
+ Addressed (point-to-point) data transfer commands (adtc)
+data transfer on DAT
+All commands and responses are sent over the CMD line of the SD Memory Card. The command
+transmission always starts with the left bit of the bit string corresponding to the command codeword.
+
+4.7.2 Command Format
+All commands have a fixed code length of 48 bits.
+Bit position
+47
+46
+[45:40]
+[39:8]
+Width (bits)
+1
+1
+6
+32
+Value
+'0'
+'1'
+x
+x
+Description Start bit Transmission bit
+Command index
+Argument
+Table 4-20 : Command Format
+
+[7:1]
+7
+x
+CRC7
+
+0
+1
+'1'
+End bit
+
+A command always starts with a start bit (always 0), followed by the bit indicating the direction of
+transmission (host = 1). The next 6 bits indicate the index of the command, this value being interpreted
+as a binary coded number (between 0 and 63). Some commands need an argument (e.g. an address),
+which is coded by 32 bits. A value denoted by 'x' in the table above indicates this variable is dependent
+on the command. All commands are protected by a CRC (see Section 4.5 for the definition of CRC7).
+Every command codeword is terminated by the end bit (always 1). All commands and their arguments
+are listed in Table 4-23 to Table 4-33.
+
+4.7.3 Command Classes
+The command set of the SD Memory Card system is divided into several classes (See Table 4-21). Each
+class supports a set of card functionalities.
+Table 4-21 determines the setting of CCC from the card supported commands. A CCC bit, which
+corresponds to a supported command number, is set to 1. A class in CCC includes mandatory commands
+is always set to 1. Cards with specific functions may need to support some optional commands. For
+example, Combo Card shall support CMD5.
+Class 0, 2, 4, 5 and 8 are mandatory and shall be supported by all SD Memory Cards. Class 7 except
+CMD40 is mandatory for SDHC, SDXC and SDUC. The other classes are optional. The supported Card
+Command Classes (CCC) are coded as a parameter in the card specific data (CSD) register of each card,
+providing the host with information on how to access the card.
+If different types of commands are assigned to a Command Class (Class 7, Class 8 and Class 11), which
+command supported can be determined by referring command support information in SCR register.
+
+97
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+0
+Card
+Command
+Class
+basic
+(CCC)
+
+CMD0
+
++
+
+CMD2
+
++
+
+CMD3
+
++
+
+CMD4
+
++
+
+1
+
+2
+
+Comm
+block
+and
+read
+Queue
+
+3
+reserv
+ed
+
+4
+block
+write
+
+5
+erase
+
+6
+
+7
+
+write
+lock
+proteccard
+tion
+
+8
+
+9
+
+applic
+ation
+I/O
+specifi mode
+c
+
+CMD5
+
+10
+
+11
+
+switch
+
+extens
+ion
+
++
+
+CMD6
+
++
+
+CMD7
+
++
+
+CMD8
+
++
+
+CMD9
+
++
+
+CMD10
+
++
+
+CMD11
+
++
+
+CMD12
+
++
+
+CMD13
+
++
+
+CMD15
+
++
+
+CMD16
+
++
+
+CMD17
+
++
+
+CMD18
+
++
+
+CMD19
+
++
+
+CMD20
+
++
+
++
+
++
+
++
+
+CMD21
+
++
+
+CMD22
+
++
+
++
+
+CMD23
+
++
+
++
+
+CMD24
+
++
+
+CMD25
+
++
+
+CMD27
+
++
+
++
+
+CMD28
+
++
+
+CMD29
+
++
+
+CMD30
+
++
+
+CMD32
+
++
+
+CMD33
+
++
+
+CMD34-37
+
++
+
+CMD38
+
++
+
+CMD39
+
++
+
+CMD40
+
++
+
+CMD42
+CMD43-47
+
++
++
+
+CMD48
+
++
+
+CMD49
+
++
+
+98
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+0
+Card
+Command
+Class
+basic
+(CCC)
+
+1
+
+2
+
+Comm
+block
+and
+read
+Queue
+
+3
+reserv
+ed
+
+4
+block
+write
+
+5
+erase
+
+6
+
+7
+
+write
+lock
+proteccard
+tion
+
+8
+
+9
+
+applic
+ation
+I/O
+specifi mode
+c
+
+CMD50
+
+10
+
+11
+
+switch
+
+extens
+ion
+
++
+
+CMD52
+
++
+
+CMD53
+
++
+
+CMD55
+
++
+
+CMD56
+
++
+
+CMD57
+
++
+
+CMD58
+
++
+
+CMD59
+
++
+
+ACMD6
+
++
+
+ACMD13
+
++
+
+ACMD14
+
++
+
+ACMD15
+
++
+
+ACMD16
+
++
+
+ACMD22
+
++
+
+ACMD23
+
++
+
+ACMD28
+
++
+
+ACMD41
+
++
+
+ACMD42
+
++
+
+ACMD51
+
++
+
+ACMD53
+
++
+
+ACMD54
+
++
+
+Table 4-21 : Card Command Classes (CCCs) in SD Mode
+Commands Support requirements
+CMD0
+
+Mandatory
+
+CMD2
+
+Mandatory
+
+CMD3
+
+Mandatory
+
+CMD4
+
+Mandatory
+
+CMD5
+
+Optional
+
+CMD6
+
+Mandatory for cards version 1.10 and after
+
+CMD7
+
+Mandatory
+
+CMD8
+
+Mandatory for cards version 2.00 and after
+
+CMD9
+
+Mandatory
+
+CMD10
+
+Mandatory
+
+CMD11
+
+Mandatory for cards supporting UHS-I.
+Optional for cards that do not support UHS-I.
+
+CMD12
+
+Mandatory
+
+CMD13
+
+Mandatory
+
+99
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Commands Support requirements
+CMD15
+
+Mandatory
+
+CMD16
+
+Mandatory
+
+CMD17
+
+Mandatory
+
+CMD18
+
+Mandatory
+
+CMD19
+
+Mandatory for cards supporting UHS-I.
+Optional for cards that do not support UHS-I.
+
+CMD20
+
+Not supported for SDSC cards.
+Mandatory for SDHC, SDXC and SDUC cards that support Video Speed
+Class.
+Optional for SDHC cards that support:
+a) Speed Class; or
+b) UHS Speed Grade,
+and do not support Video Speed Class.
+Mandatory for SDXC and SDUC cards that support Speed Class or UHS
+Speed Grade.
+
+CMD21
+
+Optional
+
+CMD22
+
+Not supported for SDHC and SDXC cards.
+Mandatory for SDUC cards.
+
+CMD23
+
+Not supported for SDSC cards.
+Mandatory for SDHC, SDXC and SDUC cards that support UHS104.
+Optional for SDHC, SDXC and SDUC cards that do not support UHS104.
+Mandatory for cards supporting ACMD53 or ACMD54 regardless of the
+conditions above. For SDSC card supporting ACMD53 or ACMD54, CMD23
+is effective only before ACMD53 and ACMD54. Otherwise, it is ignored
+(accepted but does not work).
+
+CMD24
+
+Mandatory for writable types of cards
+
+CMD25
+
+Mandatory for writable types of cards
+
+CMD27
+
+Mandatory for writable types of cards
+
+CMD28
+
+Optional
+
+CMD29
+
+Optional
+
+CMD30
+
+Optional
+
+CMD32
+
+Mandatory for writable types of cards
+
+CMD33
+
+Mandatory for writable types of cards
+
+CMD34-37
+
+Optional for cards version 1.10 and after
+
+CMD38
+
+Mandatory for writable types of cards
+Discard and FULE support is optional
+
+CMD39
+
+Mandatory for cards supporting boot functionalities
+
+CMD40
+
+Optional
+
+CMD42
+
+Optional for cards version 1.01 and 1.10.
+Mandatory for cards version 2.00 and after.
+COP support is optional for CMD42
+
+CMD43-47
+
+Mandatory for cards supporting Command Queue
+
+CMD48
+
+Optional
+Mandatory for cards supporting “Performance Enhancement Function” (refer
+to Section 5.8.2) or “Security and Boot Function” (refer to Section 5.8.3)
+
+100
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Commands Support requirements
+CMD49
+
+Optional
+Mandatory for cards supporting “Performance Enhancement Function” (refer
+to Section 5.8.2) or “Security and Boot Function” (refer to Section 5.8.3)
+
+CMD50
+
+Optional for cards version 1.10 and after
+
+CMD52
+
+Optional
+
+CMD53
+
+Optional
+
+CMD55
+
+Mandatory
+
+CMD56
+
+Mandatory
+
+CMD57
+
+Optional for cards version 1.10 and after
+
+CMD58
+
+Optional
+
+CMD59
+
+Optional
+
+ACMD6
+
+Mandatory
+
+ACMD13
+
+Mandatory
+
+ACMD14
+
+Optional
+
+ACMD15
+
+Optional
+
+ACMD16
+
+Optional
+
+ACMD22
+
+Mandatory for writable types of cards
+
+ACMD23
+
+Mandatory for writable types of cards
+
+ACMD28
+
+Optional
+
+ACMD41
+
+Mandatory
+
+ACMD42
+
+Mandatory
+
+ACMD51
+
+Mandatory
+
+ACMD53
+
+Optional
+Mandatory for cards supporting either TCG security or RPMB
+
+ACMD54
+
+Optional
+Mandatory for cards supporting either TCG security or RPMB
+
+Table 4-22 : Command Support Requirements
+
+101
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.7.4 Detailed Command Description
+The following tables describe in detail all SD Memory Card bus commands. The responses R1-R3, R6
+are defined in Section 4.9. The registers CID, CSD and DSR are described in Chapter 5. The card shall
+ignore stuff bits and reserved bits in an argument.
+CMD
+INDEX
+
+type
+
+argument
+
+CMD0
+
+bc
+
+[31:0] stuff bits
+or bus mode in
+Fast Boot
+
+CMD1
+
+reserved
+
+CMD2
+
+bcr
+
+CMD3
+
+resp
+
+abbreviation
+
+command description
+
+-
+
+GO_IDLE_STATE
+
+Resets all cards to idle state.
+When card supports boot functionalities
+and receives this command as the first
+one in idle state after power up, the
+argument is regarded as the bus mode
+in Fast Boot. Refer to Section 4.21.3.3.
+
+[31:0] stuff bits
+
+R2
+
+ALL_SEND_CID
+
+Asks any card to send the CID numbers on the CMD line (any card that is
+connected to the host will respond)
+
+bcr
+
+[31:0] stuff bits
+
+R6
+
+SEND_RELATIVE_
+ADDR
+
+Ask the card to publish a new relative
+address (RCA)
+
+CMD4
+
+bc
+
+[31:16] DSR
+[15:0] stuff bits
+
+-
+
+SET_DSR
+
+Programs the DSR of all cards
+
+CMD5
+
+reserved for I/O cards (refer to "SDIO Card Specification")
+
+CMD7
+
+ac
+
+[31:16] RCA
+[15:0] stuff bits
+
+R1b
+SELECT/DESELECT_ Command toggles a card between the
+(only
+CARD
+stand-by and transfer states or
+from
+between the programming and
+the
+disconnect states. In both cases, the
+selecte
+card is selected by its own relative
+d card)
+address and gets deselected by any
+other address; address 0 deselects all.
+In the case that the RCA equals 0, then
+the host may do one of the following:
+- Use other RCA number to perform
+card de-selection.
+- Re-send CMD3 to change its RCA
+number to other than 0 and then use
+CMD7 with RCA=0 for card deselection.
+
+CMD8
+
+bcr
+
+[31:12]reserved
+bits
+[11:8]supply
+voltage(VHS)
+[7:0]check
+pattern
+
+R7
+
+SEND_IF_COND
+
+Sends SD Memory Card interface
+condition, which includes host supply
+voltage information and asks the card
+whether card supports voltage.
+Reserved bits shall be set to '0'.
+
+CMD9
+
+ac
+
+[31:16] RCA
+[15:0] stuff bits
+
+R2
+
+SEND_CSD
+
+Addressed card sends its card-specific
+data (CSD) on the CMD line.
+
+CMD10
+
+ac
+
+[31:16] RCA
+[15:0] stuff bits
+
+R2
+
+SEND_CID
+
+Addressed card sends its card identification (CID) on CMD the line.
+
+CMD11
+
+ac
+
+[31:0] reserved
+bits (all 0)
+
+R1
+
+VOLTAGE_SWITCH
+
+Switch to 1.8V bus signaling level.
+
+CMD12
+
+ac
+
+[31:0] stuff bits
+
+R1b
+
+STOP_
+TRANSMISSION
+
+Forces the card to stop transmission
+
+102
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+CMD13
+
+type
+ac
+
+argument
+
+resp
+
+[31:16] RCA
+R1
+[15] Send Task
+Status Register
+
+abbreviation
+SEND_STATUS/SEN
+D_TASK_STATUS
+
+CQ not enabled:
+[15] = ‘0’ or ‘1’, Addressed card sends
+its status register
+CQ enabled:
+[15]=’0’, Addressed card sends its
+status register.
+[15]=’1’, Addressed card sends task
+status register.
+
+GO_INACTIVE_
+STATE
+
+Sends an addressed card into the
+Inactive State. This command is used
+when the host explicitly wants to
+deactivate a card. Reserved bits shall
+be set to '0'.
+
+[14:0] stuff bits
+
+CMD14
+
+Reserved
+
+CMD15
+
+ac
+
+[31:16] RCA
+[15:0] reserved
+bits
+
+-
+
+command description
+
+Table 4-23 : Basic Commands (class 0)
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD16
+
+ac
+
+[31:0] block
+length
+
+R1
+
+SET_BLOCKLEN
+
+In the case of a Standard Capacity SD
+Memory Card, this command sets the
+block length (in bytes) for all following
+block commands (read, write, lock).
+Default block length is fixed to 512
+Bytes. Set length is valid for memory
+access commands only if partial block
+read operation are allowed in CSD.
+In the case of SDHC, SDXC and SDUC
+Cards, block length set by CMD16
+command does not affect memory read
+and write commands. Always 512 Bytes
+fixed block length is used. This
+command is effective for
+LOCK_UNLOCK command.
+In both cases, if block length is set larger
+than 512Bytes, the card sets the
+BLOCK_LEN_ERROR bit.
+In DDR50 mode, data is sampled on
+both edges of the clock. Therefore, block
+length shall always be even.
+
+CMD17
+
+adtc
+
+[31:0] data
+address2
+
+R1
+
+READ_SINGLE_
+BLOCK
+
+In the case of a Standard Capacity SD
+Memory Card, this command, this
+command reads a block of the size
+selected by the SET_BLOCKLEN
+command. 1
+In case of SDHC, SDXC and SDUC
+Cards, block length is fixed 512 Bytes
+regardless of the SET_BLOCKLEN
+command.
+
+103
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD18
+
+adtc
+
+[31:0] data
+address2
+
+R1
+
+READ_MULTIPLE_
+BLOCK
+
+Continuously transfers data blocks from
+card to host until interrupted by a
+STOP_TRANSMISSION command.
+Block length is specified the same as
+READ_SINGLE_BLOCK command.
+
+CMD19
+
+adtc
+
+[31:0] reserved
+bits (all 0)
+
+R1
+
+SEND_TUNING_
+
+64 bytes tuning pattern is sent for SDR50
+and SDR104.
+
+BLOCK
+
+CMD20
+
+ac
+
+[31:28]Speed
+Class Control
+[27:0]See
+command
+description
+
+R1b
+
+SPEED_CLASS_CON Speed Class control command.
+TROL
+[27:0] Speed Class - 4.13.2.8
+[27:0] UHS Speed Grade - See Section
+4.13.2.8
+[27:0] Video Speed Class - See Section
+4.13.4.7
+
+CMD22
+
+ac
+
+[31:6] reserved
+bits (all 0)
+[5:0] extended
+address
+
+R1
+
+ADDRESS_EXTENSI
+ON
+
+CMD23
+
+ac
+
+[31:0] Block
+Count
+
+R1
+
+SET_BLOCK_COUNT Specify block count for CMD18 and
+CMD25.
+
+Address extension for SDUC cards.
+For CMD17, CMD18, CMD24, CMD25,
+CMD32, CMD33, 6-bit extended address
+is assigned to upper part of 512B unit
+sector address.
+For CMD20 Set Free AU, 6-bit extended
+address is assigned to upper part of
+512KB unit address.
+
+1) The data transferred shall not cross a physical block boundary unless READ_BLK_MISALIGN is set in the CSD.
+2) SDSC Card (CCS=0) uses byte unit address and SDHC and SDXC Cards (CCS=1) use block unit address (512 Bytes
+unit).
+
+Table 4-24 : Block-Oriented Read Commands (class 2)
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD16
+
+ac
+
+[31:0] block
+length
+
+R1
+
+SET_BLOCKLEN
+
+See description in Table 4-24
+
+CMD20
+
+ac
+
+[31:28]Speed
+Class Control
+[27:0]See
+command
+description
+
+R1b
+
+SPEED_CLASS_CONTRO
+L
+
+Speed Class control command.
+[27:0] Speed Class - 4.13.2.8
+[27:0] UHS Speed Grade - See Section
+4.13.2.8
+[27:0] Video Speed Class - See Section
+4.13.4.7
+
+CMD22
+
+ac
+
+[31:6] reserved R1
+bits (all 0)
+[5:0] extended
+address
+
+ADDRESS_EXTENSION
+
+Address extension for SDUC cards.
+For CMD17, CMD18, CMD24, CMD25,
+CMD32, CMD33, 6-bit extended
+address is assigned to upper part of
+512B unit sector address.
+For CMD20 Set Free AU, 6-bit extended
+address is assigned to upper part of
+512KB unit address.
+
+CMD23
+
+ac
+
+[31:0] Block
+Count
+
+SET_BLOCK_COUNT
+
+Specify block count for CMD18 and
+CMD25.
+
+R1
+
+104
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD24
+
+adtc [31:0] data
+address2
+
+R1
+
+WRITE_BLOCK
+
+CMD25
+
+adtc [31:0] data
+address2
+
+R1
+
+WRITE_MULTIPLE_BLOCK Continuously writes blocks of data until
+a STOP_TRANSMISSION follows.
+Block length is specified the same as
+WRITE_BLOCK command.
+
+CMD26
+
+Reserved For Manufacturer
+
+CMD27
+
+adtc [31:0] stuff bits R1
+
+PROGRAM_CSD
+
+In case of SDSC Card, block length is
+set by the SET_BLOCKLEN
+command1.
+In case of SDHC, SDXC and SDUC
+Cards, block length is fixed 512 Bytes
+regardless of the SET_BLOCKLEN
+command.
+
+Programming of the programmable bits
+of the CSD.
+
+1) The data transferred shall not cross a physical block boundary unless WRITE_BLK_MISALIGN is set in the CSD. In the
+case that write partial blocks is not supported, then the block length=default block length (given in CSD).
+2) SDSC Card (CCS=0) uses byte unit address and SDHC and SDXC Cards (CCS=1) use block unit address (512 bytes unit).
+
+Table 4-25 : Block-Oriented Write Commands (class 4)
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD28
+
+ac
+
+[31:0] data
+address2
+
+R1b
+
+SET_WRITE_PROT
+
+If the card has write protection features,
+this command sets the write protection bit
+of the addressed group. The properties of
+write protection are coded in the card
+specific data (WP_GRP_SIZE).
+SDHC, SDXC and SDUC Cards do not
+support this command.
+
+CMD29
+
+ac
+
+[31:0] data
+address2
+
+R1b
+
+CLR_WRITE_PROT
+
+If the card provides write protection features,
+this command clears the write protection bit
+of the addressed group.
+SDHC, SDXC and SDUC Cards do not
+support this command.
+
+CMD30
+
+adtc
+
+[31:0] write
+protect data
+address2
+
+R1
+
+SEND_WRITE_
+PROT
+
+If the card provides write protection
+features, this command asks the card to
+send the status of the write protection bits.1
+SDHC, SDXC and SDUC Cards do not
+support this command.
+
+CMD31
+
+Reserved
+
+1) 32 write protection bits (representing 32 write protect groups starting at the specified address) followed by 16 CRC bits
+are transferred in a payload format via the data line. The last (least significant) bit of the protection bits corresponds to
+the first addressed group. If the addresses of the last groups are outside the valid range, then the corresponding write
+protection bits shall be set to 0.
+2) Data address is in byte units in a Standard Capacity SD Memory Card.
+
+Table 4-26 : Block Oriented Write Protection Commands (class 6)
+
+105
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD32
+
+ac
+
+[31:0] data
+address1
+
+R1
+
+ERASE_WR_BLK_
+START
+
+Sets the address of the first write
+block to be erased.
+
+CMD33
+
+ac
+
+[31:0] data
+address1
+
+R1
+
+ERASE_WR_BLK_END Sets the address of the last write
+block of the continuous range to be
+erased.
+
+CMD38
+
+ac
+
+[31:0] Erase
+Function
+
+R1b
+
+ERASE
+
+CMD41
+
+Reserved
+
+Erase Function
+00000001h = Discard
+00000002h = FULE
+Others = Erase
+
+1) SDSC Card (CCS=0) uses byte unit address and SDHC and SDXC Cards (CCS=1) use block unit address (512 bytes
+unit).
+2) CMD40 is moved to Table 4-28 (Class 7).
+
+Table 4-27 : Erase Commands (class 5)
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD16
+
+ac
+
+[31:0] block
+length
+
+R1
+
+SET_BLOCKLEN
+
+See description in Table 4-24
+
+CMD40
+
+adtc Defined by
+DPS Spec.
+
+R1
+
+Defined by DPS
+Spec.
+
+Single block read type. Available even if
+card is locked.
+
+CMD42
+
+adtc [31:0]
+R1
+Reserved bits
+(Set all 0)
+
+LOCK_UNLOCK
+
+Used to set/reset the password or
+lock/unlock the card. The size of the data
+block is set by the SET_BLOCK_LEN
+command.
+Reserved bits in the argument and in Lock
+Card Data Structure shall be set to 0.
+
+CMD51
+
+reserved
+
+Table 4-28 : Lock Card (class 7)
+
+106
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+CMD
+INDEX
+
+type
+
+argument
+
+CMD23
+
+ac
+
+[31:0] Block
+Count
+
+CMD55
+
+ac
+
+CMD56
+
+resp
+R1
+
+abbreviation
+
+command description
+
+SET_BLOCK_COUN
+T
+
+Specify block count for ACMD53 and
+ACMD54.
+
+[31:16] RCA
+R1
+[15:0] stuff bits
+
+APP_CMD
+
+Indicates to the card that the next
+command is an application specific
+command rather than a standard
+command
+
+adtc [31:1] stuff bits. R1
+[0]: RD/WR
+
+GEN_CMD
+
+Used either to transfer a data block to
+the card or to get a data block from the
+card for general purpose/application
+specific commands. In case of a SDSC
+Card, block length is set by the
+SET_BLOCK_LEN command. In case of
+SDHC, SDXC and SDUC Cards, block
+length is fixed to 512 bytes. The host
+sets RD/WR=1 for reading data from the
+card and sets to 0 for writing data to the
+card.
+
+CMD60-63 reserved for manufacturer
+
+Table 4-29 : Application-Specific Commands (class 8)
+All the application-specific commands (given in Table 4-29) are supported if Class 8 is allowed (mandatory
+in SD Memory Card).
+CMD
+INDEX
+CMD52-54
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+Commands for SDIO (refer to "SDIO Card Specification")
+
+Table 4-30 : I/O Mode Commands (class 9)
+All future reserved commands shall have a codeword length of 48 bits, as well as their responses (if there
+are any).
+The following table describes all the application-specific commands supported/reserved by the SD
+Memory Card. All the following ACMDs shall be preceded with APP_CMD command (CMD55).
+ACMD
+INDEX
+
+type
+
+argument
+
+ACMD1-5
+
+Reserved
+
+ACMD6
+
+ac
+
+ACMD7-12
+
+Reserved
+
+ACMD13
+
+adtc
+
+[31:2] stuff bits
+[1:0]bus width
+
+[31:0] stuff bits
+
+resp
+
+abbreviation
+
+command description
+
+R1
+
+SET_BUS_WIDTH
+
+Defines the data bus width ('00'=1bit
+or '10'=4 bits bus) to be used for data
+transfer. The allowed data bus widths
+are given in SCR register.
+
+R1
+
+SD_STATUS
+
+Send the SD Status. The status fields
+are given in Table 4-44.
+
+ACMD14-16 Reserved for DPS Specification
+ACMD17
+
+Reserved
+
+ACMD18
+
+Reserved for SD security applications1
+
+107
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ACMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+ACMD19-21 Reserved
+ACMD22
+
+adtc
+
+[31:0] stuff bits
+
+R1
+
+SEND_NUM_WR_
+BLOCKS
+
+Send the number of the written (without errors) write blocks. Responds with
+32bit+CRC data block.
+If WRITE_BL_PARTIAL='0', the unit of
+ACMD22 is always 512 byte.
+If WRITE_BL_PARTIAL='1', the unit of
+ACMD22 is a block length which was
+used when the write command was
+executed.
+
+ACMD23
+
+ac
+
+[31:23] stuff bits
+[22:0]Number of
+blocks
+
+R1
+
+SET_WR_BLK_
+ERASE_COUNT
+
+Set the number of write blocks to be
+pre-erased before writing (to be used
+for faster Multiple Block WR com2
+
+mand). "1"=default (one wr block) .
+Not supported by SDUC card.
+ACMD24
+
+Reserved
+
+ACMD25
+
+Reserved for SD security applications
+
+ACMD26
+
+Reserved for SD security applications
+
+ACMD27
+
+Shall not use this command
+
+ACMD28
+
+Reserved for DPS Specification
+
+ACMD29
+
+Reserved
+
+1
+1
+
+ACMD30-35 Reserved for Security Specification
+ACMD36-37 Reserved
+ACMD38
+
+Reserved for SD security applications
+
+1
+
+ACMD39-40 Reserved
+ACMD41
+
+bcr
+
+[31]reserved bit
+R3
+[30]HCS(OCR[30])
+[29]reserved for eSD
+[28]XPC
+[27:25]reserved bits
+[24]S18R
+[23:0] VDD Voltage
+Window(OCR[23:0])
+
+SD_SEND_OP_COND Sends host capacity support
+information (HCS) and asks the
+accessed card to send its operating
+condition register (OCR) content in the
+response on the CMD line. HCS is
+effective when card receives
+SEND_IF_COND command.
+Sends request to switch to 1.8V
+signaling (S18R).
+Reserved bit shall be set to '0'. CCS
+
+bit is assigned to OCR[30].
+XPC controls the maximum power in
+the default speed mode of SDXC
+and SDUC card. XPC=0 means
+0.36W (100mA at 3.6V on VDD1)
+(max.) but speed class is not
+supported. XPC=1 means 0.54W
+(150mA at 3.6V on VDD1) (max.)
+and speed class is supported.
+
+108
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ACMD
+INDEX
+ACMD42
+
+ACMD43-49
+
+type
+ac
+
+argument
+[31:1] stuff bits
+[0]set_cd
+
+--
+
+-[31:0] stuff bits
+
+resp
+R1
+
+abbreviation
+SET_CLR_CARD_
+DETECT
+
+-R1
+
+-SEND_SCR
+
+command description
+Connect[1]/Disconnect[0] the 50
+KOhm pull-up resistor on CD/DAT3
+(pin 1) of the card.
+Reserved for SD security applications1
+
+ACMD51
+
+adtc
+
+Reads the SD Configuration Register
+(SCR).
+
+ACMD52
+
+Reserved for Security Specification
+
+ACMD53
+
+adtc
+
+[31:24] Security
+R1
+Protocol
+[23:16] Security
+Protocol Specific 1
+(SPSP1)
+[15:8] Security
+Protocol Specific 0
+(SPSP0)
+[7:0] SD Security
+Specific Field
+(SSSF) (4)
+
+SECURE_RECEIVE
+
+Continuously transfers data blocks
+from device to host. 3
+Bus timing of this command is
+equivalent to a multi-block read
+command, but the maximum data
+access time from the end bit of
+ACMD53 is 1 second.
+
+ACMD54
+
+adtc
+
+[31:24] Security
+R1
+Protocol
+[23:16] Security
+Protocol Specific 1
+(SPSP1)
+[15:8] Security
+Protocol Specific 0
+(SPSP0)
+[7:0] SD Security
+Specific Field
+(SSSF) (4)
+
+SECURE_SEND
+
+Continuously transfers data blocks
+from host to device. 3
+Bus timing of this command is
+equivalent to a multi-block write
+command, but the maximum busy
+length to write by ACMD54 is 1
+second.
+
+ACMD55
+
+Not exist
+
+Equivalent to CMD55.
+Refer to Section 4.3.9.1.
+
+ACMD56-59 Reserved for Security Specification
+1) Refer to "Part3 Security Specification" for a detailed explanation about the SD Security Features
+2) Command STOP_TRAN (CMD12) shall be used to stop the transmission in Write Multiple Block whether or not the preerase (ACMD23) feature is used.
+3) Security Protocol specific 0 and 1 relates to SP Specific 0 and SP Specific 1 of NVMe specification.
+Number of data blocks shall be defined by a preceding CMD23. Data transfer may be interrupted by a
+STOP_TRANSMISSION command.
+Block size is always 512bytes.
+4) Refer to Table 4-96 for definition of SD Security Specific field for security protocol E7h. For all other security protocol, this
+field is reserved
+
+Table 4-31 : Application Specific Commands used/reserved by SD Memory Card
+
+109
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Table 4-32 was added in version 1.10.
+CMD
+INDEX
+
+type
+
+CMD6
+
+adtc
+
+argument
+
+resp
+
+[31] Mode
+R1
+0:Check function
+1:Switch function
+[30:24] reserved (All '0')
+[23:20] reserved for function group 6 (0h or Fh)
+[19:16] reserved for function group 5 (0h or Fh)
+[15:12] function group 4 for Power Limit
+[11:8] function group 3 for Drive Strength
+[7:4] function group 2 for Command System
+[3:0] function group 1 for Access Mode
+
+abbreviation
+
+command
+description
+
+SWITCH_FUNC Checks switchable function
+(mode 0) and
+switch card function (mode 1).
+See Section
+4.3.10.
+
+CMD34 Reserved for each command system set by switch function command (CMD6).
+CMD35 Detailed definition is referred to each command system specification.
+CMD36
+CMD37
+CMD50
+CMD57
+
+Table 4-32 : Switch Function Commands (class 10)
+CMD
+INDEX
+
+type
+
+argument
+
+resp
+
+abbreviation
+
+command description
+
+CMD21
+
+Reserved for DPS Specification
+
+CMD39
+
+ac
+
+[31:24] Partition ID
+[23:0] Reserved
+
+R1b
+
+SELECT_CARD_
+PARTITION
+
+CMD48
+
+adtc
+
+[31]MIO
+0:Memory, 1:I/O
+[30:27] FNO
+[26] Reserved (=0)
+[25:9] ADDR
+[8:0] LEN
+
+R1
+
+READ_EXTR_SINGLE Single block read type.
+Refer to Section 5.7.2.1.
+
+CMD49
+
+adtc
+
+[31]MIO
+0:Memory, 1:I/O
+[30:27] FNO
+[26] MW
+[25:9] ADDR

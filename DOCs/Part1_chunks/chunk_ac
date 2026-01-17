@@ -1,0 +1,2000 @@
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+UHS50
+
+M
+
+M
+
+M
+
+N/A
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+UHS104
+
+M
+
+M
+
+M
+
+M
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+N/A
+
+UHS156
+
+M
+
+M
+
+M
+
+O
+
+(1)
+
+M
+
+O
+
+N/A
+
+N/A
+
+Non UHS
+UHS-I
+
+Non UHS
+SDXC/
+SDUC
+
+UHS-II
+Range B
+Range C Range D
+SDR50 SDR104 DDR50 FD156 HD312 FD312
+FD624
+
+DS
+SDSC
+
+SDHC
+
+UHS-I
+
+UHS-I
+UHS-II
+
+UHS624
+M
+M
+M
+O
+(1)
+M
+O
+M
+M
+UHS-III
+Note: Abbreviation: M: Mandatory, Optional, N/A: Not available, (1): O (Standard SD) and M (microSD)
+Table 3-10 : Bus Speed Mode Option / Mandatory
+
+3.11 Application Performance Class
+The specification defines Application Performance Class that indicates the minimum random and
+sequential performance of the card under specified pre-conditions (refer to Section 4.16).
+
+
+
+Application Performance Class 1 means:
+o Minimum Card Random performance is Write : 500 IOPS and Read : 1500 IOPS
+o Minimum sustained sequential write performance is 10MB/s
+Application Performance Class 2 means:
+o Minimum Card Random performance is Write : 2000 IOPS and Read : 4000 IOPS using
+Command Queue (if supported) and Cache Feature
+o Minimum sustained sequential write performance is 10MB/s using Command Queue (if
+supported) and Cache Feature
+
+Note that unit of random performance [IOPS] indicate number of 4KB sized I/O Operations completed in
+one second, wherein each transaction was targeted to a random address generated for 256MB address
+range.
+
+29
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.12 Cache
+Cache feature enables card to improve performance by directing host data into faster memory that may
+be volatile, which is up to card implementation. Hosts that enable Cache shall be aware that data loss
+may occur, if the contents in the Cache are not flushed before power off. Refer to Section 4.17 for details
+of Cache.
+
+3.13 Self Maintenance
+Self Maintenance scheme allows the card to performance internal background data management, while
+the host is aware those operations may be performed by the card and supports them accordingly. Self
+Maintenance may improve card performance, if enabled. Refer to Section 4.18 for details of Self
+Maintenance.
+
+3.14 Command Queue
+Command Queue (CQ) scheme allows the host to submit commands [tasks] even during data transfer.
+Voluntary CQ Mode allows card to re-order the tasks and execution of ready task is triggered by host
+based on the task ready status provided by the card. In Sequential CQ Mode, tasks are executed in order.
+Refer to Section 4.19 for details of Command Queue scheme.
+
+30
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.15 LV Interface
+Low voltage Interface is to enable card initialization in 1.8V IO mode rather than legacy 3.3V IO mode.
+Refer to Low Voltage Interface Addendum for additional details. Table 3-11 shows the Card Types and
+Supported Bus Speed Modes for LV interface.
+Card Classification SPI DS HS SDR12 SDR25 SDR50 SDR104 DDR50 FD156 HD312 FD624
+SDHC
+
+LV50
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+N/A
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+LV104
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+LV156
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+O
+
+(1)
+
+M
+
+O
+
+N/A
+
+LV624
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+O
+
+(1)
+
+M
+
+O
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+N/A
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+LV104
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+(1)
+
+N/A
+
+N/A
+
+N/A
+
+LV156
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+O
+
+(1)
+
+M
+
+O
+
+N/A
+
+LV624
+
+M
+
+M
+
+M
+
+M
+
+M
+
+M
+
+O
+
+(1)
+
+M
+
+O
+
+M
+
+SDXC/SDUC LV50
+
+(1) Optional for Standard SD, Mandatory for microSD cards
+
+Table 3-11 : LV Interface Bus Speed Mode Option / Mandatory
+
+3.16 Higher Bus Speed of UHS-II (UHS-III)
+From the Physical Layer Specification Version 6.00, enhanced bus speed mode of UHS-II, i.e. FD624 is
+newly introduced. Maximum bus speed of FD624 is 624MB/s. Refer to UHS-II Addendum Version 2.00 for
+more details. "UHS-II" and "UHS-III" denotes card types which are specified by required functions in the
+UHS-II Addendum. UHS-II Card supports Range A and Range B. UHS-III Card supports Range A to Range
+D.
+For simplicity, use of the term "UHS-II" in common to define extend functions of all card types by the UHSII Addendum and Versions.
+
+3.17 SD Express Card Type
+SD Express card supports the basic SD interface in UHS-I mode as well as PCIe/NVMe interface.
+SD Express Card supports either PCIe Gen 3 or Gen 4 interface, with either 1 lane (1 TX, 1 RX) or 2
+lanes (2 TX, 2 RX) as defined by PCI-SIG including hot plug-in/removal support. Due to limited space, a
+limited necessary number of out-of-band signals was adopted in SD Express from the PCI-Standard as
+described in Section 3.7.3. PCIe Gen 3 supports bit rate of up to 8Gbps, which allows up to 985MB/s (1
+lane) or 1,969MB/s (2 lanes) per each direction with 128/130 coding. Additionally, PCIe Gen 4 supports
+bit rate of up to 16Gbps, which allows up to 1,969MB/s (1 lane) or 3,938MB/s (2 lanes) per each direction.
+On top of the PCIe channel, the NVM Express (NVMe) protocol is used, as defined by NVMe revision 1.3
+(refer to Appendix A.2.2 ).
+
+31
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Card type
+Default Speed DS
+High Speed
+
+HS
+
+UHS50
+
+SDR50/DDR50
+
+UHS104
+
+SDR104
+
+PCIe G3L1
+
+PCIe Gen3x1
+
+PCIe G3L2 /
+PCIe G4L1
+
+PCIe Gen3x2 or Gen4x1
+
+PCIe G4L2
+
+PCIe Gen4x2
+0
+
+12
+
+25
+
+50
+
+104
+
+985
+
+3,938
+
+1,969
+
+Throughput (MB/s)
+Figure 3-22 : Interface Speed of SD Express Card
+SD Express Card may support the following PCIe interface modes.
+
+
+
+
+
+Gen3x1
+Gen3x2
+Gen4x1
+Gen4x2
+
+- Using up to PCIe Generation 3 and 1 lane
+- Using up to PCIe Generation 3 and 2 lanes
+- Using up to PCIe Generation 4 and 1 lane
+- Using up to PCIe Generation 4 and 2 lanes
+
+Table 3.17-1 defines SD Express card types and corresponding PCIe interface modes that shall be
+supported by each card type.
+Card Type
+PCIe Interface Modes Supported
+Gen3x1 (Already introduced at SD Ver7.00)
+PCIe G3L1
+PCIe G3L2
+Gen3x1, Gen3x2
+PCIe G4L1
+Gen3x1, Gen4x1
+PCIe G4L2
+Gen3x1, Gen3x2, Gen4x1, Gen4x2
+Table 3.17-1 : Card Types of SD Express Cards
+
+32
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.17.1 SD Express Host and Card Combination
+Host type
+Card type
+
+SD
+(any up to
+UHS50)
+
+SD – up to UHS50
+
+Up to
+
+50MB/s
+
+SD UHS104
+
+Up to
+
+50MB/s
+
+SD-UHS-II
+
+Up to
+
+50MB/s
+
+SD Express
+
+Up to
+
+50MB/s
+
+SD
+UHS104
+Up to
+
+50MB/s
+
+Up to
+
+104MB/s
+
+Up to
+
+104MB/s
+
+(if supported by
+card)
+Up to104MB/s
+
+(if supported by
+card)
+
+SD-UHS-II
+Up to
+
+SD Express
+
+50MB/s
+
+Up to 50MB/s
+
+(basic SD interface)
+
+(basic SD interface)
+
+Up to104MB/s
+
+Up to 104MB/s
+
+(basic SD interface
+and if host support it)
+
+(basic SD interface
+and if host support it)
+
+See Table
+
+3-8
+
+Up to 104MB/s
+(basic SD interface
+and if host support it)
+
+Up to104MB/s
+
+(basic SD interface
+and if host and card
+support it )
+
+See Table
+3.17.1-1
+
+Table 3-12 : SD Express Host and Card Combinations
+Host type
+Card type
+
+SD Express
+Gen3x1
+
+SD Express
+Gen3x2
+
+SD Express
+Gen4x1
+
+SD Express
+Gen4x2
+
+PCIe G3L1
+Up to 985MB/s
+Up to 985MB/s
+Up to 985MB/s
+Up to 985MB/s
+Up to 985MB/s
+Up to 1,969MB/s
+Up to 985MB/s
+Up to 1,969MB/s
+PCIe G3L2
+PCIe G4L1
+Up to 985MB/s
+Up to 985MB/s
+Up to 1,969MB/s
+Up to 1,969MB/s
+PCIe G4L2
+Up to 985MB/s
+Up to 1,969MB/s
+Up to 1,969MB/s
+Up to 3,938MB/s
+Table 3.17.1-1 : SD Express Host and Card Combinations (Detailed)
+
+3.17.2 SD Express Interface Selection and Initialization Sequence
+SD Express card may be initialized in either PCIe mode or SD Bus I/F mode. It is highly recommended
+to initialize through legacy SD Bus I/F mode allowing the host a simple method to detect card’s
+compatibility and support of PCIe and switch to PCIe mode if supported.
+Figure 3-24 shows the process of card detection and initialization from the host side.
+Figure 3-23 shows the card’s internal states related to SD and PCIe modes of operation.
+After VDD1 power up, the card’s IOs are in input mode (Pseudo Init State). After VDD2 or VDD3 is
+powered up after VDD1, the PCIe interface is ready for PCIe link-up operation.
+
+33
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Figure 3-23 : SD Express Interface Detection and Init – Card Internal States
+Description of the card’s internal states:
+ Pseudo Init State :
+IOs are in input mode. Moving out from this state happens either if SD CLK detected or CMD
+(CMD0, CMD8 or ACMD41) is accepted (to SD Mode) or if VDD2 or VDD3 presence detected (to
+PCIe Linkup state). Usage of SD CLK or CMD (here and after) is up to the card’s internal
+implementation which method to use. In the case of LVS identification, state transition condition
+shall be based on SD CLK detection only.
+ PCIe Linkup State :
+IOs are in PCIe IO mode + SD CLK line ready to accept transition or CMD line ready to accept
+CMD (up to implementation). Moving out from this state happens either if SD CLK detected or CMD
+(CMD0, CMD8 or ACMD41) is accepted (to SD Mode) or if PCIe Linkup=1b (to PCIe mode) or if
+transition of VDD2 or VDD3 from On to Off is detected (back to Pseudo Init).
+ SD Mode State:
+IOs are in SD mode. Moving out from this state is only upon detection of VDD2 or VDD3 transition
+from Off to On (to PCIe Linkup state). The transition is valid only when SD card is in ‘idle’ state (as
+in Figure 4-1). VDD2/3 On is a power on reset to SD Mode.
+ PCIe Mode State:
+IOs are in PCIe mode (SD CMDs are not supported). Moving out from this state is either if
+Linkup=0b (back to PCIe Linkup state) or if VDD2 or VDD3 are turned off (back to Pseudo Init
+State).
+ Transition notations:
+VDD2/3 on  VDD2 or VDD3 switch from Off to On
+VDD2/3 off  VDD2 or VDD3 switch from On to Off
+(VDD2 or VDD3 shall remain less than 0.2V for at least 1ms before next step)
+VDD2/3=on  VDD2 or VDD3 is in On state
+VDD2/3=off  VDD2 or VDD3 is in Off state
+SD CLK  Transition from 0 to 1 of SD CLK detected
+CMD  CMD0, CMD8, ACMD41 or CMD line driven to Low detection.
+34
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+(Host shall issue CMD0, CMD8 and ACMD41 command sequence as defined in SD
+initialization flow (Figure 4-2).
+An LVS host shall execute LVS handshake before CMD0.
+In addition, Fast Boot takes place if CMD line driven by host to Low for 74 clocks or
+greater, or if CMD0 with a special argument is issued by host with no other commands
+issued beforehand (Section 4.21.3)
+Following is a description of the interface detection and selection of SD Express card through a typical
+path. The full description with all the options is described in Figure 3-24.
+Upon card insertion detection it is recommended to initialize the SD bus interface and check through
+CMD8 whether the card supports PCIe mode and whether it supports VDD3. If it does not support PCIe,
+the host may proceed with the legacy SD Bus I/F mode. If PCIe is supported, the host assures that
+PERST# is asserted and CLKREQ# is pulled up and then it turns VDD2 on or VDD3 on (if VDD3 is
+supported by the card and the host). SD CLK shall only be provided when host is entering SD mode.
+Host then waits, up to 1ms (TPVCRL) for CLKREQ# line to be asserted (“0”) by the card and, if asserted,
+host de-asserts PERST# (=“1”) after providing stable REFCLK for at least 100us (TPERST-CLK). Host then
+may proceed with the PCIe/NVMe linkup process and initialization process. In case the PCIe training
+process fails (CLKREQ# line was not asserted by the card or PCIe linkup failed), the host may access
+the card through the legacy SD interface.
+Host may also initialize the card without going through the legacy SD Bus I/F mode first. However in
+microSD case it is highly recommended not to turn VDD3 on before SD card is detected to avoid any
+possible conflict with other similar card types in the market.
+Negotiation of Generation and number of lanes between host and card takes place during PCIe Linkup.
+Default NVMe Power State (PS) value of SD Express Card shall have Maximum Power value of 1.8W.
+Before completing PCIe Linkup, card shall not consume more than 1.8W even if the card has a capability
+of higher Power States. If SD Express Card supports power states with Maximum Power (MP) of more
+than 1.8W, and host wants to utilize a power state above 1.8W, host shall connect VDD1 also to pin#19
+allowing the split of the current consumed from VDD1 source between the two pads, pad#19 and pad#4,
+assuring that the maximum normal current passed through each of the connector’s contacts will not be
+more than 500mA. After activation of pad#19 host may select any power state above 1.8W.
+As described in Section 0, power consumption is limited to 1.8W in PCIe Gen3x1 mode even if the card
+supports over 1.8W power and host sets MP over 1.8W. However, the host and the card may activate
+pin#19 and pad#19 respectively in this case.
+Host may use either of the following two methods before connecting VDD1 to pad#19:
+ The above mentioned method of host reading the cards power state capability and acting upon it.
+ Electrical method of detecting pad19 existence as described in Appendix J.
+Moreover, host may supply VDD2 and VDD2a at the same time. Refer to Section 6.4.3 for more details.
+If the host does not support power states above 1.8W and/or pad#19 does not exist, host shall not activate
+pin#19.
+
+35
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+(1) Host may
+
+Vdd1(3.3v) ma y be
+s upplied before insertion
+
+Ca rd Insertion
+Detection
+Turn VDD1 ON
+
+Hi ghly Recommended (3)
+SD CLK s tarts
+
+chose to operate card in SD mode even if PCIe is
+supported. Its up to host needs
+all voltages (Vdd1 and Vdd2 or Vdd3] are stable
+(3) Host that supports SD Express card may initialize the card
+directly through the PCIe interface, though initialization through
+the SD interface is highly recommended for advance discovery
+of the cards capabilities.
+(4) Power consumption over 1.8W and providing voltage via pin
+VDD1a are allowed only in PCIe Mode for PCIe Gen3x2, Gen4x1,
+or Gen4x2 mode.
+(2) Assumed that
+
+SD Ini t (CMD8 and Read R7)
+No
+
+Ca rd s upports PCIe?
+
+Yes (1)
+SD CLK Stops
+Yes
+
+Ca rd s upports VDD3?
+
+No
+Hos t Supports VDD3?
+Yes
+As s ure that PERST# asserted
+(l ow) and CLKREQ# high (Pullup)
+then Turn VDD3 ON
+Wa i t TPVCRL(2)
+
+VDD2/3 off
+
+CLKREQ#=‘0’?
+
+Yes
+Host wants
+to turnVDD2/3
+off?
+
+No
+
+Proceed with PCIe
+Opera tion (from PCIe LO) (4)
+
+No
+
+As s ure that PERST# asserted
+(l ow) and CLKREQ# high (Pullup)
+then Turn VDD2 ON
+
+VDD3 off
+(optional)
+No
+
+Wa i t TPVCRL(2)
+No
+CLKREQ#=‘0’?
+
+Yes
+
+Yes
+
+SD CLK
+Sta rts
+
+SD Ini t
+(up to CMD8)
+* Ignore PCIe
+s upport
+
+Conti nue
+i ni t as
+l egacy SD
+
+Sta rt RefClk followed by de -assert PERST# “high”
+
+Yes
+
+No
+
+PCIe Li nkup s ucceed?
+(Li nkup=1b?)
+
+Legend:
+
+PCIe Mode
+
+Ps eudo Init
+
+Tra nsition between Card States
+
+SD Mode
+
+Figure 3-24 : SD Express Interface Detection and Initialization Flow (Host side)
+Figure 3-25 provides illustration of the PCIe training process as described in the SD Express Interface
+Detection flow.
+PCIe/NVMe linkup and the rest of the initialization sequence shall be done as defined by PCIe Standard.
+
+36
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+VDD1:3.3V
+
+TPVCRL(max) 1ms
+Power valid to CLKREQ# output active
+
+VDD2:1.8V
+or VDD3:1.2V
+
+TPVPGL(min) 50ms
+Logic ‘1’
+
+Recommended power valid to PERST# inactive
+
+Asserted by Card to indicate PCIe interface is ready to init
+
+CLKREQ#/DAT2
+
+Logic ‘0’
+
+TPERST#-CLK(min) 100us
+REFCLK stable before PERST# inactive
+
+PERST#/DAT3
+
+Logic ‘1’
+
+Logic ‘0’
+
+REFCLK+-
+
+Figure 3-25 : PCIe Training Process
+
+Symbol
+
+Parameter
+
+Min
+
+Max
+
+Units
+
+TPVCRL
+
+Power Valid(1) to CLKREQ#
+Output active
+
+1
+
+ms
+
+TPVPGL
+
+Power Valid to PERST# Input
+inactive. This parameter is
+implementation specific and
+recommended only.
+
+50
+
+ms
+
+TPERST-CLK
+
+REFCLK stable before PERST#
+inactive
+
+100
+
+us
+
+Note (1): Power Valid is measured at the later rising edge of either VDD1, VDD2 or VDD3
+
+Table 3-13 : Timing of PCIe Interface Training
+A detailed description of the SD Express card interface condition is given in Section 8.3.
+
+37
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+3.17.3 Summary of Bus Speed Mode for SD Express Card
+Bus Speed
+Mode*1
+
+Max. Power*2
+[W]
+
+Max. Bus
+Speed
+
+Max. Clock
+Frequency
+
+Signal
+Voltage
+
+[MB/s]
+
+[MHz]
+
+[V]
+
+SDHC*4
+
+SDXC*5 / SDUC*3
+
+PCIe Gen4x2
+
+3,938
+
+100
+
+0.4
+
+4.00
+
+4.00
+
+PCIe Gen4x1
+
+1,969
+
+100
+
+0.4
+
+2.80
+
+2.80
+
+PCIe Gen3x2
+
+1,969
+
+100
+
+0.4
+
+2.80
+
+2.80
+
+PCIe Gen3x1
+
+985
+
+100
+
+0.4
+
+1.80*6
+
+1.80*6
+
+SDR104
+
+104
+
+208
+
+1.8
+
+1.80*6
+
+1.80*6
+
+SDR50
+
+50
+
+100
+
+1.8
+
+1.44
+
+1.44
+
+DDR50
+
+50
+
+50
+
+1.8
+
+1.44
+
+1.44
+
+SDR25
+
+25
+
+50
+
+1.8
+
+0.72
+
+0.72
+
+SDR12
+
+12.5
+
+25
+
+1.8
+
+0.36
+
+0.36/0.54*7
+
+High Speed
+
+25
+
+50
+
+3.3
+
+0.72
+
+0.72
+
+Default Speed
+
+12.5
+
+25
+
+3.3
+
+0.36
+
+0.36/0.54*7
+
+PCIe I/F
+
+SD I/F
+
+*1: The card supporting PCIe mode shall support all lower UHS-I modes except SDR104, which is
+optional.
+*2: Host may control card power by the Power Limit Function of CMD6 when operated in any of nonPCIe modes. In PCIe/NVMe mode the host may control the maximum consumed power through the
+PCIe power throttling (in static manner during init) or with NVMe power state modes.
+*3: SDUC stands for SD Ultra Capacity Memory Card. SDSC is not supported by SD-PCIe Express
+cards.
+*4: SDHC stands for SD High Capacity Memory Card.
+*5: SDXC stands for SD Extended Capacity Memory Card.
+*6: The max. power of removable card is 1.80W and that of embedded device is 2.88W
+*7: Host may select either card power by XPC in ACMD41 when operated in any of non-PCIe modes
+In SPI mode, XPC is not supported and the power shall be up to 0.36W (3.6V 100mA).
+*8: Minimum power requirement of SD Express host in PCIe mode is 1.80W and it is applied from PHY
+Initialization.
+
+Table 3-14 : Bus Speed Modes of SD Express Card
+
+3.18 Features of Non CPRM Card
+Security is optional for writeable SDSC, SDHC and SDXC SD Memory cards. SDUC Card does not
+support security feature. SD_SECURITY shall be set to 0 for Non CPRM Cards. Non CPRM Cards will
+not support any security commands except for ACMD44. For all security commands mentioned below, the
+card shall either set ILLEGAL_COMMAND error bit or ERROR bit in the status register. The choice of the
+response is left to the card vendor’s implementation.
+ACMD18, ACMD25, ACMD26, ACMD38, ACMD43, ACMD45, ACMD46, ACMD47, ACMD48, ACMD49
+(SDSC only)
+
+3.19 Boot Functionalities
+Boot partition and Fast Boot functionalities are defined to support IoT and mobile hosts that store their
+boot code in SD card. Those hosts need to fetch their boot code promptly after power up with minimal
+delay.
+These functions are not defined for UHS-II mode and cannot be implemented to UHS-II cards.
+38
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Refer to Section 4.21 for more details.
+
+3.20 TCG Security
+TCG (Trusted Computing Group) provides open standards for secure computing, including enterprise
+storage, mobile devices and so on. Thousands of vendors offer a variety of TCG-based products,
+including hardware, applications, and services.
+To introduce TCG security while keeping backward compatibility to the existing SD Specifications,
+following items are defined:
+(1) Protocols over SD interface for TCG security
+(2) Specifications for realizing MBR Shadowing in SD card
+For TCG supported card (Bit45 of SCR is set to 1), TCG is enabled when Enabled column of the SPInfo
+Table is 1 (True), and disabled otherwise. A card where TCG is enabled is called “TCG enabled card.”
+This function is not defined for UHS-II mode and cannot be implemented to UHS-II cards.
+Refer to Section 4.22 for more details.
+
+3.21 RPMB
+RPMB (Replay Protected Memory Block) is introduced to store data in an authenticated memory area for
+the purpose of protecting from replay attack, or avoiding unexpected data update regardless of whether
+it is intentionally or not.
+For RPMB supported card (Bit46 of SCR is set to 1), RPMB is enabled when RPMB key is set, and
+disabled otherwise. A card where RPMB is enabled is called “RPMB enabled card.”
+Write Protect Until Power Cycle is introduced in Physical Layer Specification Version 9.00. This feature
+is controlled by RPMB. When RPMB is enabled, Write Protect Until Power Cycle and Permanent Write
+Protect are controlled by RPMB.
+This function is not defined for UHS-II mode and cannot be implemented to UHS-II cards.
+Refer to Section 4.23 for more details.
+
+39
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4. SD Memory Card Functional Description
+4.1 General
+All communication between host and cards is controlled by the host (master). The host sends commands
+of two types: broadcast and addressed (point-to-point) commands.
+ Broadcast commands
+Broadcast commands are intended for all cards. Some of these commands require a response.
+ Addressed (point-to-point) commands
+The addressed commands are sent to the addressed card and cause a response from this card.
+A general overview of the command flow is shown in Figure 4-1 for card identification mode and in
+Figure 4-13 for data transfer mode. The commands are listed in the command tables (Table 4-23 to
+Table 4-33). The dependencies between current state, received command, and following state are
+listed in Table 4-35. In the following sections, the various card operation modes will be described first.
+Afterwards, the restrictions for controlling the clock signal are defined. All SD Memory Card commands, along with the corresponding responses, state transitions, error conditions and timings are
+presented in the succeeding sections.
+Two operation modes are defined for the SD Memory Card system (host and cards):
+ Card identification mode
+The host will be in card identification mode after reset and while it is looking for new cards on the
+bus. Cards will be in this mode after reset until the SEND_RCA command (CMD3) is received.
+ Data transfer mode
+Cards will enter data transfer mode after their RCA is first published. The host will enter data transfer
+mode after identifying all the cards on the bus.
+ Pre-init mode
+This mode is introduced to define state transition related to LVS Identification and Fast Boot. When
+host does not support 3.3V signaling, LVS Identification is necessary before transit to idle state. In
+addition, to execute Fast Boot, host drives CMD line Low for greater than or equal to 74 clocks or
+issues CMD0 with a special argument.
+Table 4-1 shows the dependencies between operation modes and card states. Each state in the SD
+Memory Card state diagram (see Figure 4-1) is associated with one operation mode:
+
+Card state
+Operation mode
+Inactive State
+inactive
+Idle State
+card identification mode
+Ready State
+Identification State
+Stand-by State
+Transfer State
+Sending-data State
+data transfer mode
+Receive-data State
+Programming State
+Disconnect State
+Table 4-1 : Overview of Card States vs. Operation Modes
+Refer to Section 4.21.5 for pre-init mode.
+
+40
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.2 Card Identification Mode
+While in card identification mode the host resets all the cards that are in card identification mode, validates
+operation voltage range, identifies cards and asks them to publish Relative Card Address (RCA). This
+operation is done to each card separately on its own CMD line. All data communication in the Card
+Identification Mode uses the command line (CMD) only.
+During the card identification process, the card shall operate in the SD clock frequency of the identification
+clock rate fOD (see Section 6.6.6).
+
+4.2.1 Card Reset
+In SD Mode, the command GO_IDLE_STATE (CMD0) is the software reset command and sets each card
+into Idle State regardless of the current card state. Cards in Inactive State are not affected by this command.
+After power-on by the host, all cards are in Idle State, including the cards that have been in Inactive State
+before.
+After power-on or CMD0, all cards' CMD lines are in input mode, waiting for start bit of the next command. The cards are initialized with a default relative card address (RCA=0x0000) and with a default
+driver strength with 400KHz clock frequency. In case of 3.3V signaling, default driver strength is
+specified by the Driver Stage Register (DSR) if supported and selected highest driving current capability.
+In case of 1.8V signaling, default driver strength is specified by type B driver.
+In UHS-II Mode, RCA is not cleared to 0x0000 by CMD0 and kept its Device ID, which is determined by
+Enumeration.
+
+4.2.2 Operating Condition Validation
+At the start of communication between the host and the card, the host may not know the card supported
+voltage and the card may not know whether it supports the current supplied voltage. The host issues a
+reset command (CMD0) with a specified voltage while assuming it may be supported by the card. To
+verify the voltage, a following new command (CMD8) is defined in the Physical Layer Specification Version
+2.00.
+SEND_IF_COND (CMD8) is used to verify SD Memory Card interface operating condition. The card
+checks the validity of operating condition by analyzing the argument of CMD8 and the host checks the
+validity by analyzing the response of CMD8 (See Section 4.3.13). The supplied voltage is indicated by
+VHS field in the argument. The card assumes the voltage specified in VHS as the current supplied voltage.
+Only 1-bit of VHS shall be set to 1 at any given time. Both CRC and check pattern are used for the host
+to check validity of communication between the host and the card.
+If the card can operate on the supplied voltage, the response echoes back the supply voltage and the
+check pattern that were set in the command argument.
+If the card cannot operate on the supplied voltage, it returns no response and stays in idle state. It is
+mandatory to issue CMD8 prior to first ACMD41 to initialize SDHC, SDXC or SDUC Card (See Figure
+4-1). Receipt of CMD8 makes the cards realize that the host supports the Physical Layer Specification
+Version 2.00 or later and the card can enable new functions.
+SD_SEND_OP_COND (ACMD41) is designed to provide SD Memory Card hosts with a mechanism to
+identify and reject cards which do not match the VDD range desired by the host. This is accomplished by
+the host sending the required VDD voltage window as the operand of this command (See Section 5.1).
+Cards which cannot perform data transfer in the specified range shall discard themselves from further
+bus operations and go into Inactive State. The levels in the OCR register shall be defined accordingly
+(See Section 5.1). Note that ACMD41 is application specific command; therefore APP_CMD (CMD55)
+shall always precede ACMD41. The RCA to be used for CMD55 in idle_state shall be the card's default
+RCA = 0x0000.
+After the host issues a reset command (CMD0) to reset the card, the host shall issue CMD8 prior to
+ACMD41 to re-initialize the SD Memory card.
+41
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Figure 4-1 shows State Diagram of card Identification mode for SD I/F. In case of UHS-II mode, refer to
+SD-TRAN Section of the UHS-II Addendum. Moreover, in case of executing Fast Boot, also refer to
+Section 4.21.5.
+Power on
+
+CMD0 +
+CS Asserted
+("0")
+
+SPI Operation
+Mode
+
+Idle State
+(idle)
+
+CMD0
+
+from all states except (ina)
+If card cannot operate under supplied voltage,
+card doesn't respond and return to 'Idle State'
+
+CMD8
+
+Inactive
+State(ina)
+
+ACMD41
+
+card returns busy (*1) or
+host omitted voltage range
+
+It is mandatory for the host compliant
+to Physical Spec Version 2.00
+to send CMD8 before ACMD41
+
+Ready State
+(ready)
+
+No Response
+(Non valid command)
+Must be a
+MultiMediaCard
+
+cards with non compatible
+voltage range
+
+CMD11
+
+Start MultiMediaCard
+initialization process
+starting at CMD1
+
+card executes Voltage
+Switch Sequence.
+Whether it can be executed
+is determined in ACMD41.
+
+CMD2
+
+Identification
+State(ident)
+card-identification-mode
+
+data-transfer-mode
+
+Card responds with
+new RCA
+
+CMD3
+
+Stand-by State
+(stby)
+
+CMD3
+Card responds with
+new RCA
+
+CMD15
+from all states in
+data-transfer-mode
+
+(*1) Note : Card returns busy when
+- Card executes internal initialization process
+- Card is High or Extended capacity SD Memory Card and host doesn't support
+High or Extended capacity
+This means that CMD8 is mandatory to initialize High capacity SD Memory Card.
+
+Figure 4-1 : SD Memory Card State Diagram (card identification mode)
+By setting the OCR to zero in the argument of ACMD41, the host can query each card and determine the
+common voltage range before sending out-of-range cards into the Inactive State (query mode). This query
+should be used if the host is able to select a common voltage range or if a notification to the application
+of non-usable cards in the stack is desired. The card does not start initialization and ignores HCS in the
+argument (refer to Section 4.2.3) if ACMD41 is issued as a query. Afterwards, the host may choose a
+voltage for operation and reissue ACMD41 with this condition, sending incompatible cards into the
+Inactive State.
+During the initialization procedure, the host is not allowed to change the operating voltage range. Refer
+to power up sequence as described in Section 6.4.
+
+42
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.2.3 Card Initialization and Identification Process
+After the bus is activated the host starts card initialization and identification process (See Figure 4-2). The
+initialization process starts with SD_SEND_OP_COND (ACMD41) by setting its operational conditions
+and the HCS bit in the OCR. The HCS (Host Capacity Support) bit set to 1 indicates that the host supports
+SDHC or SDXC Card. The HCS (Host Capacity Support) bit set to 0 indicates that the host supports
+neither SDHC nor SDXC Card.
+Receiving of CMD8 expands the ACMD41 function; HCS in the argument and CCS (Card Capacity
+Status) in the response. HCS is ignored by cards, which didn't respond to CMD8. However the host should
+set HCS to 0 if the card returns no response to CMD8. Standard Capacity SD Memory Card ignores HCS.
+If HCS is set to 0, SDHC and SDXC Cards never return ready status (keep busy bit to 0). The busy bit in
+the OCR is used by the card to inform the host whether initialization of ACMD41 is completed. Setting the
+busy bit to 0 indicates that the card is still initializing. Setting the busy bit to 1 indicates completion of
+initialization. Card initialization shall be completed within 1 second from the first ACMD41. The host
+repeatedly issues ACMD41 for at least 1 second or until the busy bit are set to 1.
+The card checks the operational conditions and the HCS bit in the OCR only at the first ACMD41 with
+setting voltage window in the argument. While repeating ACMD41, the host shall not issue another
+command except CMD0.
+If the card responds to CMD8, the response of ACMD41 includes the CCS field information. CCS is
+valid when the card returns ready (the busy bit is set to 1). CCS=0 means that the card is SDSC. CCS=1
+means that the card is SDHC or SDXC.
+The host performs the same initialization sequence to all of the new cards in the system. Incompatible
+cards are sent into Inactive State. The host then issues the command ALL_SEND_CID (CMD2), to each
+card to get its unique card identification (CID) number. Card that is unidentified (i.e. which is in Ready
+State) sends its CID number as the response (on the CMD line). After the CID was sent by the card it
+goes into Identification State. Thereafter, the host issues CMD3 (SEND_RELATIVE_ADDR) asks the card
+to publish a new relative card address (RCA), which is shorter than CID and which is used to address the
+card in the future data transfer mode. Once the RCA is received the card state changes to the Stand-by
+State. At this point, if the host wants to assign another RCA number, it can ask the card to publish a new
+number by sending another CMD3 command to the card. The last published RCA is the actual RCA
+number of the card.
+The host repeats the identification process, i.e. the cycles with CMD2 and CMD3 for each card in the
+system.
+Initialization of SDXC is identical to SDHC. User area capacity of SDXC card is specified by C_SIZE and
+it shall be more than or equal to 32GB.
+Refer to Section 8.3 for SDUC card initialization.
+Figure 4-2 shows Card Initialization and Identification for SD I/F. In case of UHS-II mode, refer to SDTRAN Section of the UHS-II Addendum.
+Application Notes:
+The host shall set ACMD41 timeout more than 1 second to abort repeat of issuing ACMD41 when
+the card does not indicate ready. The timeout count starts from the first ACMD41 which is set voltage
+window in the argument.
+
+43
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Power-on
+
+CMD0
+
+CMD8
+
+No response
+
+Ver2.00 or later SD Memory Card(voltage mismatch)
+or Ver1.X SD Memory Card
+or not SD Memory Card
+
+No response
+
+Ver2.00 or later
+SD Memory Card
+
+Unusable
+Card
+
+Card returns
+Card with compatible
+busy
+Voltage range
+
+Compatible voltage range
+and check pattern is correct
+
+If host supports high capacity, HCS is set to 1
+ACMD41
+with HCS=0or1
+cards with non compatible voltage range
+or time-out (no response or busy) occurs
+Unusable
+Card
+
+Card returns
+busy
+Card is
+ready?
+
+Card returns
+ready
+Not SD Memory Card
+
+Non-compatible voltage range
+or check pattern is not correct
+
+Valid
+Response?
+
+ACMD41
+with HCS=0
+
+Unusable
+Card is
+ready?
+Card
+cards with non compatible
+voltage range (card goes to
+'ina' state) or time-out
+(no response or busy) occurs
+
+Card returns response
+
+Card returns ready
+CCS in
+Response?
+
+CCS=1
+
+CCS=0
+Ver1.X
+Standard Capacity
+SD Memory Card
+
+Ver2.00 or later
+Standard Capacity
+SD Memory Card
+
+S18R and S18A ?
+
+Ver2.00 or later
+High Capacity or
+Extended Capacity
+SD Memory Card
+S18R and S18A are negotiated in ACMD41.
+S18A is valid only when card returns ready.
+
+S18R=1&S18A=1
+CMD11
+
+S18R=0 or S18A=0
+
+CMD2
+CMD3
+
+Figure 4-2 : Card Initialization and Identification Flow (SD mode)
+
+44
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.2.3.1 Initialization Command (ACMD41)
+Followings are general rules of the argument of ACMD41:
+(1) If the voltage window field (bit 23-0) in the argument is set to zero, it is called "inquiry CMD41" that
+does not start initialization and is use for getting OCR. The inquiry ACMD41 shall ignore the other field
+(bit 31-24) in the argument.
+(2) If the voltage window field (bit 23-0) in the argument is set to non-zero at the first time, it is called "first
+ACMD41" that starts initialization. The other field (bit 31-24) in the argument is effective.
+(3) The argument of following ACMD41 shall be the same as that of the first ACMD41.
+Figure 4-3 shows argument format and Figure 4-4 shows response format. Two new fields are added to
+the argument of ACMD41.
+If a SDXC Card is initialized with XPC=0, the card is operating at up to 0.36W (100mA at 3.6V on VDD1)
+in Default Speed or SDR12, and if the card does not support Speed Class, Class 0 is indicated in SD
+Status. If a SDXC Card is initialized with XPC=1, the card is operating at up to 0.54W (150mA at 3.6V on
+VDD1) in Default Speed or SDR12, and the card supports Speed Class. Re-initialization is required to
+change XPC selection.
+UHS-I supported host sets S18R=1 in the argument of ACMD41 to request the card to switch 1.8V
+signaling level. UHS-I card respond with S18A=1 in the response of ACMD41 (if in 3.3V signaling mode)
+and then host can issue voltage switch command. Once voltage switch is performed, UHS-I card indicates
+S18A=0 to keep current signal voltage. In UHS-II mode, the card always indicates S18A=0.
+(1) Argument of ACMD41
+47
+
+46
+
+45-40
+
+39
+
+38
+
+37
+
+36
+
+35-33
+
+32
+
+31-16
+
+15-08
+
+07-01
+
+00
+
+S
+
+D
+
+Index
+
+Busy
+31
+
+HCS
+30
+
+(FB)
+29
+
+XPC
+28
+
+Reserved
+27-25
+
+S18R
+24
+
+OCR
+23-08
+
+Reserved
+07-00
+
+CRC7
+
+E
+
+0
+
+1
+
+101001
+
+0
+
+x
+
+0
+
+x
+
+000
+
+x
+
+xxxxh
+
+0000000
+
+xxxxxxx
+
+1
+
+1
+
+1
+
+6
+
+1
+
+1
+
+1
+
+1
+
+3
+
+1
+
+16
+
+8
+
+7
+
+1
+
+Host Capacity Support
+0b: SDSC Only Host
+1b: SDHC or SDXC Supported
+
+SDXC Power Control
+0b: Power Saving
+1b: Maximum Performance
+
+S18R : Switching to 1.8V Request
+0b: Use current signal voltage
+1b: Switch to 1.8V signal voltage
+
+Note: Fast Boot (Bit 29) is reserved for eSD. This bit is not related to the Fast Boot described
+in Section 4.21.3 of this document.
+Figure 4-3 : Argument of ACMD41
+(2) Response of ACMD41 (R3)
+47
+
+46
+
+45-40
+
+39
+
+38
+
+37
+
+36-33
+
+32
+
+31-16
+
+15-08
+
+07-01
+
+00
+
+S
+
+D
+
+Index
+
+Busy
+31
+
+CCS
+30
+
+UHS-II
+29
+
+Reserved
+28-25
+
+S18A
+24
+
+OCR
+23-08
+
+Reserved
+07-00
+
+CRC7
+
+E
+
+0
+
+0
+
+111111
+
+x
+
+x
+
+x
+
+0000
+
+x
+
+xxxxh
+
+0000000
+
+1111111
+
+1
+
+1
+
+1
+
+6
+
+1
+
+1
+
+1
+
+4
+
+1
+
+16
+
+8
+
+7
+
+1
+
+Busy Status
+0b: On Initialization
+1b: Initialization Complete
+
+Card Capacity Status
+0b: SDSC
+1b: SDHC or SDXC
+
+UHS-II Card Status
+0b: Non UHS-II Card
+1b: UHS-II Card
+
+S18A : Switching to 1.8V Accepted
+0b: Continues current voltage signaling
+1b: Ready for switching signal voltage
+
+Figure 4-4 : Response of ACMD41
+CCS (Bit 30), UHS-II (Bit 29) and S18A (Bit 24) are valid when Busy (Bit 31) is set to 1. For host or card
+
+45
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+supporting SDUC, refer to Figure 4-75 in Section 4.20.2.
+
+46
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+4.2.4 Bus Signal Voltage Switch Sequence
+Refer to Low Voltage Interface Addendum for LV interface Card initialization.
+Also refer to Section 4.21.3 for signal voltage switching during Fast Boot.
+
+4.2.4.1 Initialization Sequence for UHS-I
+Figure 4-5 shows sequence of commands to perform voltage switch and Figure 4-6 shows initialization flow
+chart for UHS-I hosts. Red and yellow boxes are new procedure to initialize UHS-I card.
+Repeat ACMD41
+The Last ACMD41
+CMD55
+
+R1
+
+CMD41
+
+Bit 30: HCS=1
+Bit 24: S18R=1
+
+R3
+
+CMD55
+
+R1
+
+CMD41
+
+Bit 31: Busy
+Bit 30: CCS Invalid
+Bit 24: S18A Invalid
+
+R3
+
+CMD11
+
+R1
+
+Voltage Switch
+
+CMD2
+
+R2
+
+Bit 31: Ready
+Bit 30: CCS=1
+Bit 24: S18A=1
+
+Figure 4-5 : ACMD41 Timing Followed by Voltage Switch Sequence
+
+CMD2
+
+CMD0
+
+CMD3
+
+CMD8
+
+CMD7
+ACMD41 HCS=1, S18R=1
+CMD42
+No Response
+
+D31=0 (busy)
+
+Check busy
+
+D31=1 (Completed)
+CCS=0 (SDSC)
+Check CCS
+CCS=1 (SDHC/SDXC)
+S18A=0 (No Switch)
+Check S18A
+S18A=1 (Switch)
+
+ACMD6
+4-bit mode
+No
+
+UHS-I Card?
+Yes
+CMD6
+Function Group 3
+Driver Strength
+
+CMD11
+
+CMD6
+Function Group 1, 4
+
+No Response
+Check Resp.
+Get Response
+
+UHS-I Mode Power Limit
+
+Voltage Switch Sequence
+Switch to SDR12 timing
+Switch Error
+Yes
+Power Cycle
+
+CMD19
+Tuning
+
+No
+Error?
+No
+
+Complete?
+1.8V Signal
+
+UHS-I Mode
+
+Yes
+
+Figure 4-6 : UHS-I Host Initialization Flow Chart
+When signaling level is 3.3V, host repeats to issue ACMD41 with HCS=1 and S18R=1 until the response
+indicates ready. The argument (HCS and S18R) of the first ACMD41 is effective but the all following
+ACMD41 should be issued with the same argument. If Bit 31 indicates ready, host needs to check CCS
+and S18A. The card indicates S18A=0, which means that voltage switch is not allowed and the host needs
+to use current signaling level. S18A=1 means that voltage switch is allowed and host issues CMD11 to
+invoke voltage switch sequence. By receiving CMD11, the card returns R1 response and start voltage
+47
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+switch sequence. No response of CMD11 means that S18A was 0 and therefore host should not have sent
+CMD11. Completion of voltage switch sequence is checked by high level of DAT[3:0]. Any bit of DAT[3:0]
+can be checked depends on ability of the host.
+When entering tran state, CARD_IS_LOCKED status in the R1 response should be checked (it is indicated
+in the response of CMD7). If the card is locked, CMD42 is required to unlock the card. If the card is unlocked,
+CMD42 can be skipped.
+In case of UHS-I card, appropriate driver strength is selected by CMD6 Function Group 3 and one of UHSI modes is selected by CMD6 Function Group 1.
+In SDR50 and SDR104 modes, if tuning of sampling point is required, CMD19 is repeatedly issued until
+tuning is completed.
+
+4.2.4.2 Timing to Switch Signal Voltage
+This section is a blank in the Simplified Specification.
+Table 4-2 : S18R and S18A Combinations (Removed in the Simplified Specification)
+Figure 4-7 : Signal Voltage Switch Sequence (Removed in the Simplified Specification)
+4.2.4.3 Timing of Voltage Switch Error Detection
+This section is a blank in the Simplified Specification.
+Figure 4-8 : Error Indication Timing (Removed in the Simplified Specification)
+4.2.4.4 Voltage Switch Command
+Figure 4-9 shows Voltage Switch Command (CMD11) definition. CMD11 can be executed in ready state
+and doesn't change the state. Even if the card is locked, CMD11 can be executed. Returning R1 type
+response means the card starts voltage switch sequence. If the host detects no response, power cycle
+should be executed.
+There are four cases that the card indicates no response to CMD11.
+(1) The card does not support voltage switch.
+(2) The card supports voltage switch but ACMD41 is received with S18R=0.
+(3) The card receives CMD11 not in ready state.
+(4) Signaling level is already switched to 1.8V.
+For all above cases, CMD11 is treated as an illegal command.
+Voltage Switch Command
+S T Index
+0 1 001011
+
+CMD
+
+Reserved
+all 0
+
+CRC7 E
+0111011 1
+
+CMD11
+
+R1
+
+DAT[3:0]
+
+Figure 4-9 : Voltage Switch Command
+4.2.4.5 Tuning Command
+A known data block ("Tuning block") can be used to tune sampling point for tuning required hosts. The
+tuning capability of sampling point is mandatory for HOST-SDR-VD and optional for HOST-SDR-FD. This
+48
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+procedure gives the system optimal timing for each specific host and card combination and compensates
+for static delays in the timing budget including process, voltage and different PCB loads and skews.
+CMD19 is defined for Send Tuning Block Command. R1 type response is defined. CMD19 can be
+executed in transfer state of 1.8V signaling mode while the card is unlocked. The other case, CMD19 is
+treated as illegal command. Data block, carried by DAT[3:0], contains a pattern for tuning sampling
+position to receive data on the CMD and DAT[3:0] line. The block length of CMD19 is fixed and CMD16
+is not required.
+The tuning command (CMD19) follows the timing of the single block read command as described in Figure
+4-10.
+Send Tuning Block Command
+S T Index
+0 1 010011
+
+Reserved
+all 0
+
+CMD
+
+CRC7 E
+1000110 1
+
+CMD19
+
+R1
+
+DAT[3:0]
+
+Data Block
+146ck
+S
+0
+
+128-bit Tuning Block per Line
+Tuning Block Pattern
+
+CRC16 E
+xxxx 1
+
+Figure 4-10 : Send Tuning Block Command
+This sequence is defined as multiple, consecutive executions of CMD19 that are sent from the host and
+responded by the card, without any other command mixed between them.
+The card shall complete a sequence of 40 times CMD19 executions in no more than 150ms. The tuning
+process is normally shorter than 40 executions of CMD19, and therefore should be shorter than 150ms.
+The sequence period definition does not include any host processing time. If host needs time to process
+CMD19 between executions, the sequence may be longer by this amount of time.
+FF0FFF00
+FFDFFFDD
+FFF0FFF0
+FFFDFFFD
+
+FFCCC3CC
+FFFBFFFB
+0FFCCC3C
+DFFFBFFF
+
+C33CCCFF
+BFFF7FFF
+CC33CCCF
+BBFFF7FF
+
+FEFFFEEF
+77F7BDEF
+FFEFFFEE
+F77F7BDE
+
+Table 4-3 : Tuning Block Pattern
+This section is a blank in the Simplified Specification.
+Figure 4-11 : Tuning Block on DAT[3:0] (Removed in the Simplified Specification)
+
+4.2.4.6 An Example of UHS-I System Block Diagram
+This section is a blank in the Simplified Specification.
+Figure 4-12 : An Example of UHS-I System Block Diagram (Removed in the Simplified
+Specification)
+
+49
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association

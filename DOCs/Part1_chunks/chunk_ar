@@ -1,0 +1,885 @@
+DIR slot
+Distributed
+Extension Register
+Extension Register
+Space
+Fast Boot
+Flash
+File System Area
+Fixed Data Window
+group
+LBA
+Logical Erase
+Lumped
+MBRControl table
+MBR Shadowing
+Non CPRM Card
+Open-drain
+payload
+pre-boot authentication
+push-pull
+SD Express Speed
+Class
+sector
+Sequential CQ mode
+
+The AU that is currently designated for Video Speed Class recording
+The AUs that have been assigned and not completely written
+A number of bytes, basic data transfer unit
+To start the program that makes host equipment ready
+Set of instructions or software that runs over the host equipment at its
+start-up
+A specific partition for storing boot code
+A command sent to all cards on the SD bus
+Block Length set by CMD16
+A faster memory in card that may be volatile to store host data
+temporarily
+A Fast Boot starting by issuing CMD0 with special argument
+A Fast Boot starting by driving CMD line Low
+Card supporting Video Speed Class has eight slots to register locations
+of DIR write to manage average time of FAT update.
+A signal path between host and card which has a distributed system
+effects. As described in transmission line theory.
+Register defined by a Function Specification in Extension Register
+Space.
+Register Spaces accessible by CMD48/49/58/59 with 17-bit ADDR and
+FNO. There are two types of spaces: memory space and I/O space.
+A function to obtain boot code faster and earlier. In this document, this
+means a procedure to get boot code just after power up by minimal
+operations.
+A type of multiple time programmable non-volatile memory
+The area comprising Partition table, FAT, Bitmap, Directory Entry, etc.
+There is an overlapped area of valid data window for all delay variation.
+A number of sectors, composite erase and write protect unit
+A Logical Block Address identifies a specific sector
+Erasing the logical address to physical address mapping
+A signal path between host and card which is considerably small
+compared to the signal rise time. It is considered as "lumped" system
+A table including parameters to control MBR Shadowing
+For TCG supported card, a function to be accessible to TCG MBR Table
+before pre-boot authentication.
+Regular Writeable SD Card (SDSC/SDHC/SDXC/SDUC) that does not
+support the CPRM security.
+A logical interface operation mode. An external resistor or current
+source is used to pull the interface level to HIGH, the internal transistor
+pushes it to LOW
+Net data
+A kind of authentication for accessing the User Area of TCG supported
+card properly after power up
+A logical interface operation mode, a complementary pair of transistors
+is used to push the interface level to HIGH or LOW
+Minimum performance defined in the PCIe mode.
+A number of blocks, basic erase unit
+Command Queue mode where tasks are submitted and executed in
+364
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+Self Maintenance
+SGS boundary
+SGS unit
+Speed Class
+Speed Grade
+stuff bit
+suspended AU
+SWS boundary
+SWS unit
+TCG Table
+TCG MBR Table
+three-state driver
+token
+Tuning
+User Area Partition
+Variable Data Window
+Video Speed Class
+Voluntary CQ mode
+
+increasing order of task ID from Task 0
+A method where internal operations are carried out based on Host’s
+enablement
+LBA whose address is the multiple of SGS.
+The memory area whose starting address is aligned to the SGS
+boundary and whose size is same as SGS
+Minimum performance defined in Default and High Speed Modes
+Minimum performance defined in UHS-I and UHS-II mode
+Filling bits to ensure fixed length frames for commands and responses
+An AU that has been addressed by a CMD20 “Suspend AU” command
+LBA whose address is the multiple of SWS.
+The memory area whose starting address is aligned to the SWS
+boundary and whose size is same as SWS
+Generic term of tables including basic data structures for TCG security
+An area storing code to be processed after power cycle, including preboot authentication program. Identical to “MBR Table” defined in the
+TCG Storage Architecture Core Specification.
+A driver stage which has three output driver states: HIGH, LOW and
+high impedance (which means that the interface does not have any
+influence on the interface level)
+Code word representing a command
+Host adjusts sampling clock by Send Tuning Block Command.
+A partition including User Area
+An overlapped area of valid data window is not available or too small
+for all Process, Voltage and Temperature variations.
+Minimum performance independently defined from Speed Class and
+Speed Grade
+Command Queue mode where tasks are submitted in arbitrary order
+and executed based on ready state indicated by card
+
+B.2 Abbreviations
+ACMD6
+ACMD41
+AU
+CDM
+CID
+CLK
+CMD
+CRC
+CSD
+CMD0
+CMD8
+CMD6
+CMD11
+CMD19
+CMP
+COP
+CQ
+DAT or DAT[3:0]
+DDR
+DDR50
+DS
+
+Set bus width command
+Initialization command
+Allocation Unit
+Charged Device Model
+Card IDentification number register
+clock signal
+command line or SD bus command (if extended CMDXX)
+Cyclic Redundancy Check
+Card Specific Data register
+Reset command
+Voltage check command
+Switch command used for selecting one of UHS-I modes
+Voltage switch command to change signaling level 3.3V to 1.8V.
+A new command for sending tuning block
+Completion defined in the NVMe specification
+Card Ownership Protection
+Command Queue
+4-bit data line of SD bus
+Double data rate signaling
+One of UHS modes with double data rate. Up to 50MB/sec at 50MHz
+Default Speed Mode
+365
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+DSM
+DSR
+ECC
+eSD
+ESL
+ESR
+FD156
+FD312
+FD624
+FEP
+G3L1
+G3L2
+G4L1
+G4L2
+HD312
+Host-SDR-FD
+Host-SDR-VD
+Host-DDR
+HS
+IF-RECV
+IF-SEND
+IOPS
+ICDS
+LID
+LOW, HIGH
+LV50
+LV104
+LV156
+LV624
+MDTS
+MLCC
+MNTMT
+MP
+MSB, LSB
+MLCC
+MTP
+MXTMT
+NCQ
+NERASE
+TERASE
+TOFFSET
+NLB
+NR
+NSQ
+NSAC
+
+Dataset Management defined in the NVMe specification
+Driver Stage Register
+Error Correction Code
+Embedded SD Memory Device defined by Part 1 eSD Addendum
+Equivalent Series Inductance
+Equivalent Series Resistance
+UHS-II Full Duplex mode with data transfer rate up to 156MB/s
+UHS-II Full Duplex mode with data transfer rate up to 312MB/s
+UHS-II Full Duplex mode with data transfer rate up to 624MB/s
+Force Erase Password
+One of SD Express Card Types supporting up to Gen3 and 1 lane
+One of SD Express Card Types supporting up to Gen3 and 2 lanes
+One of SD Express Card Types supporting up to Gen4 and 1 lane
+One of SD Express Card Types supporting up to Gen4 and 2 lanes
+UHS-II Half Duplex with 2 Lanes mode with data transfer rate up to 312MB/s
+One of host types with SDR signaling, fixed-delay (can't use tuning)
+One of host types with SDR signaling, variable-delay (can use tuning)
+One of host types with DDR signaling
+High Speed Mode
+An interface command to transmit data from card to host over security protocol
+An interface command to transmit data from host to card over security protocol
+Input/Output Operations Per Second
+Identifier Controller Data Structure defined in the NVMe specification
+Log Page IDentifier defined in the NVMe specification
+Binary interface states with defined assignment to a voltage level
+One of LV card classification type that supports single data rate up to 50MB/sec
+at 100MHz
+One of LV card classification type that supports single data rate up to
+104MB/sec at 208MHz
+One of LV card classification type that supports UHS-II Full Duplex mode with
+data transfer rate up to 156MB/s. May support Half Duplex mode with data
+transfer rate up to 312MB/s.
+One of LV card classification type that supports UHS-II Full Duplex mode with
+data transfer rate up to 624MB/s. May support Half Duplex mode with data
+transfer rate up to 312MB/s.
+Maximum Data Transfer Size defined in the NVMe specification
+Multi-Layer Ceramic Capacitor
+Minimum Thermal Management Temperature defined in the NVMe specification
+Maximum Power defined in the NVMe specification
+The Most Significant Bit or Least Significant Bit
+Multi-Layer Ceramic Capacitor
+Multiple Time Programmable memory
+Maximum Thermal Management Temperature defined in the NVMe
+specification
+I/O Completion Queue defined in the NVMe specification
+The recommended numbers of AUs to be erased in one erase operation.
+Timeout value used for erasing multiple AU's as specified by ERASE_SIZE.
+Offset time used for calculating erase timeout.
+Number of Logical Blocks defined in the NVMe specification
+Number of Ranges defined in the NVMe specification
+I/O Submission Queue defined in the NVMe specification
+Defines the worst case for the clock rate dependent factor of the data access
+time
+366
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+OCR
+OSCSC
+OSID-SC
+OSID-SC DS
+OTP
+Pw
+Pm
+Pr
+PDN
+PRw
+PRr
+PS
+PSD
+PSSw
+RCA
+ROM
+RPMB
+RU
+SCPS
+SCTMT1
+SCTMT2
+SDCLK
+SGS
+S18R
+S18A
+SID
+SIIS
+SLBA
+SPI
+SPL
+SRC
+SU
+SUS_ADDR
+SWC
+SWS
+TAAC
+tag
+TBD
+TCG
+Tfw
+Tfr
+TMT1
+TMT2
+tODLY
+UHS
+UI
+SD Bus I/F
+SD Express
+SDR
+SDR12
+SDR25
+SDR50
+SDR104
+
+Operation Conditions Register
+Open SID Count for Speed Class
+Open SID for Speed Class
+Open SID for Speed Class Data Structure
+One Time Programmable memory
+Performance of Write
+Performance of Move
+Performance of Read
+Power Delivery Network
+Performance of Random Write
+Performance of Random Read
+Power State defined in the NVMe specification
+Power State Descriptor defined in the NVMe specification
+Performance of Sustained Sequential Write
+Relative Card Address register
+Read Only Memory
+Replay Protected Memory Block
+Recording Unit
+Speed Class Power State
+Speed Class TMT1
+Speed Class TMT2
+Clock line of SD bus
+Stream Granularity Size defined in the NVMe specification
+Switching to 1.8V Request in ACMD41 argument
+Switching to 1.8V Accepted in ACMD41 response
+Stream IDentifier
+Storage Interface Interactions Specification
+Starting LBA defined in the NVMe specification
+Serial Peripheral Interface
+Slot Power Limit defined in the PCIe and NVMe specification
+Stream Read Command
+Sub Unit
+SUSpension ADDRess
+Stream Write Command
+Stream Write Size defined in the NVMe specification
+Defines the time dependent factor of the data access time
+Marker used to select groups or sector to erase
+To Be Determined (in the future)
+Trusted Computing Group
+FAT write time
+FAT read time
+Thermal Management Temperature 1 defined in the NVMe specification
+Thermal Management Temperature 2 defined in the NVMe specification
+Output Delay from SDCLK under all delay parameters condition.
+Ultra High Speed
+Unit Interval is one bit nominal time, SDCLK nominal period.
+Interface using contact pin numbers 1 to 9.
+SD Card that includes PCIe/NVMe interface
+Single data rate signaling
+One of UHS-I modes with single data rate. Up to 12.5MB/sec at 25MHz
+One of UHS-I modes with single data rate. Up to 25MB/sec at 50MHz
+One of UHS-I modes with single data rate. Up to 50MB/sec at 100MHz
+One of UHS-I modes with single data rate. Up to 104MB/sec at 208MHz
+367
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+UHS50
+UHS104
+UHS156
+UHS624
+UHS-II I/F
+UUID
+VCA
+VHS
+VDD
+VDD1
+VDD2
+VDD3
+VSC
+VSS
+VWC
+WCTEMP
+X5R/X7R
+
+One of UHS-I Card Types supporting SDR50
+One of UHS-I Card Types supporting SDR104
+UHS-II Generation 1 Card Type supporting FD156 and HD312 (Optional)
+UHS-II Generation 2 Card Type supporting FD624
+Interface using contact pin numbers 7 to 8 and 10 to 17.
+Universally Unique IDentifier
+Card accepted voltage range
+Host supplied voltage range
++ power supply of non UHS-II Card
+3.3V range power supply for UHS-II Card and SD Express Card
+1.8V range power supply for UHS-II Card and SD Express Card
+1.2V range power supply for SD Express Card (Second row)
+Video Speed Class
+Power supply ground
+Volatile Write Cache defined in the NVMe specification
+Warning Composite TEMPerature threshold defined in the NVMe specification
+Symbol for dielectric material of capacitors
+
+368
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix C (Informative) :
+Examples for Fixed Delay UHS-I Host Design
+This section is a blank in the Simplified Specification
+
+C.1 Internal Clock Delay Method (Removed in the Simplified
+Specification)
+Figure C-1 : Delayed Internal Clock Method (Removed in the Simplified Specification)
+
+C.1.1 Creation of Loopback Clock (Removed in the Simplified
+Specification)
+Figure C-2 : Loopback Clock Method (Removed in the Simplified Specification)
+
+369
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix D : UHS-I Tuning Procedure
+This section is a blank in the Simplified Specification
+
+D.1 UHS-I Tuning Procedure (Removed in the Simplified
+Specification)
+
+370
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix E :
+Host Power Delivery Network (PDN) Design Guide
+This section is a blank in the Simplified Specification
+
+E.1 Supporting Hot Insertion (Removed in the Simplified
+Specification)
+Figure E-1 : Capacitance Connected to Power Line (Removed in the Simplified Specification)
+Table E-1 : Example of Chi1 and Chi2 values (Removed in the Simplified Specification)
+
+E.2 Decoupling Capacitors (Removed in the Simplified
+Specification)
+Figure E-2 : Recommended power delivery (Removed in the Simplified Specification)
+
+E.3 UHS-II Host Decoupling Capacitors (Removed in the
+Simplified Specification)
+Figure E-3 : General UHS-II Host Decoupling Capacitors (Removed in the Simplified
+Specification)
+Table E-2 : Example of decoupling configuration for UHS-II Host (Removed in the Simplified
+Specification)
+
+371
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix F :
+Application Notes of Extension Function
+F.1 Identification of Function Driver
+There are two types of function drivers. "Standard Driver" controls a Standard Function, which will be
+defined by a Function Specification and it will be provided by OS or Host System vendor. "Particular
+Driver" controls a Particular Function and it will be provided by the function developer.
+During a function initialization, Host Driver finds and loads a most suitable function driver installed on
+Host System referring to 4 codes in the General Information.
+SFC (Standard Function Code)
+2 byte
+FCC (Function Capability Code)
+2 byte
+FMC (Function Manufacturer Code) 2 byte
+PFC (Particular Function Code)
+2 byte
+Standard Driver is selected by SFC and FCC. SFC>0 and FCC=0 means that there is a unique function
+driver for a SFC and Host Driver finds the driver by only SFC. SFC>0 and FCC>0 means that there are
+multiple of function drivers to a SFC. These Card Drivers will be installed to Host System with "Capability
+Information" which corresponds to FCC. Host Driver selects one driver of which Capability Information
+accords with FCC. SFC=0 means that there is no Standard Driver and then Host Driver finds a Particular
+Driver which accords with FMC and PFC.
+Table F-1 shows combination of the codes to identify a function driver. If SFC>0, FMC>0 and PFC>0, the
+function may use Standard Driver and Particular Driver depends on driver installation to Host System.
+Use of Particular Driver is higher priority for supporting higher functionality than use of Standard Driver
+SFC
+Non-zero
+Non-zero
+0000h
+Non-zero
+
+FCC
+0000h
+Non-zero
+0000h
+any value
+
+FMC
+0000h
+0000h
+Non-zero
+Non-zero
+
+PFC
+0000h
+0000h
+Non-zero
+Non-zero
+
+Selection of Function Driver
+Select a Standard Driver by only SFC
+Host selects one of Drivers by FCC
+Select Particular Function Driver by FMC and PFC
+Select either Particular or Standard Function Driver
+Particular Driver has higher priority
+
+Table F-1 : Combination of Codes to Identify a Function Driver
+
+372
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+F.2 Concept of Event Detection Method
+To use Event Indication Method is defined in Section 5.7.5, host support is required for event detection
+and function driver management. Host Controller or Host Driver detects FX_EVENT generation and then
+interrupt hander calls a Function Driver to deal with the event.
+
+F.2.1 Role of Driver Modules
+Figure F-1 shows an example configuration of hardware and drivers layers. Some of functions may
+generate events.
+Host Device
+
+Memory
+Memory
+Application
+Memory
+Application
+Application
+File System
+Memory Driver
+
+Function
+Function
+Application
+Function
+Application
+Application
+
+Function
+Function
+Application
+Function
+Application
+Application
+
+Function
+Driver
+
+Function
+Function
+Application
+Function
+Application
+Application
+
+Function
+Driver
+
+Function
+Driver
+
+Function Extension General Driver
+
+Host Controller and Host Driver
+SD Card
+Extension Register
+Function
+Function
+Function
+
+General Info.
+FXE
+Event Function Number Register
+
+Figure F - 1 :
+Figure F-1 : Hardware and Driver Layer of Host and Card
+ Host Controller and Host Driver
+Host Controller is an interface device between Host System (System Memory) and SD Card that is
+connected to system bus. Host Driver is software for controlling the Host Controller. Host Driver
+manages to issue SD Commands to SD Card according to requests from Memory Driver and Function
+Drivers by accessing Host Controller Registers. Host Controller has capability to generate interrupt to
+host CPU according to the response of the SD Card. FX_EVENT on R1 is one of interrupt events by
+Function Devices. On detecting FX_EVENT, Host Driver gets "Function Extesion General Driver" to
+deal with the event.
+ Memory Driver
+SD Memory Card Driver to manage memory access to or from SD Memory Card. Indication of
+FX_EVENT is not supported by this driver.
+ Function Driver
+This driver knows how to control a function and generates commands sequece to control Extesion
+Registers according to requests of application. This driver knows how to deal with the evets of the
+function. Funciton Driver will be provided by card vendor.
+373
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+ Function Extesion General Driver (FEGD)
+During SD Card initialization, this driver finds and loads a Function Driver installed on Host System for
+controlling a function which is supported by the SD Card. This driver manages communication between
+multiple of Function Drivers and Host Driver. On detecting FX_EVENT informed by Host Driver, this
+driver reads FXE Register Set and determines which Function Driver to deal with the event.
+
+F.2.2 Host Implementation to use Event Detection Method
+ Card Initialization
+When Host Controller detects SD Card, Host Driver will initialize memory portion at first. By detecting
+Extension Function support on the card, Host Driver tries to find and load Function Drivers installed in
+the Host System by referring to the General Information. If a Function Driver can be loaded, it is
+connected to "Function Extension General Driver", which can communicate multiple of function drivers.
+Host Driver is connected to the "Function Extension General Driver". Standard Driver Interface is
+assumed to communicate between two driver layers.
+ Event Detection
+While Host Controller issues SD Commands to the card, host may check event generation by R1
+response of any command without issuing extra-commands for polling. While there is no command to
+be issued to the card, Host Driver inserts CMD13 for polling events at some interval.
+By reading FXE Register Set, Function Extension General Driver determines priority of event handling
+and get a Function Driver to deal with the event.
+
+374
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix G : Application Notes for
+Application Performance Class Hosts
+G.1 Check for Application Performance Class support
+For cases that hosts care about random performance, it is recommended for host to check for their desired
+Application Performance Class as following:
+1. Check what is the Application Performance Class type of card. If it is matching the class required by
+the host, the card may be approved.
+2. In case Application Performance Class is not indicated, the host may perform internal benchmark test
+and check for the absolute execution time to qualify the card. If it is matching or better than the
+execution time expected from the corresponding Application Performance Class expected by the host,
+the card may be approved.
+In Android devices that performs card adoption process and the Application Performance Class test is not
+adopted yet by core Android, it would be highly recommended to add the above two steps before the
+legacy Android benchmark test process.
+The given test method may serve hosts as a simple way for host to filter cards in the field, however Cards
+that declares Application Performance Class support shall meet the SD standard specification for
+Application Performance Class conditions as defined in Section 4.16.
+
+375
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix H (Informative) : Application Notes related to SD
+Express cards
+This section is a blank in the Simplified Specification
+
+H.1 SD Express I/Os Characteristics (Removed in the Simplified
+Specification)
+Figure H-1 : Characteristics of SD Express card’s side band signals IOs (Removed in the
+Simplified Specification)
+
+376
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix I (Informative) : Supply Voltage(s) Generation
+This section is a blank in the Simplified Specification
+
+I.1 Supply Voltage(s) Generation (Removed in the Simplified
+Specification)
+Figure I-1 : Voltage Drop by PCB Trace and Socket (Removed in the Simplified Specification)
+
+377
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix J (Informative) : Pad 19 Existence Detection
+This section is a blank in the Simplified Specification
+
+J.1 Example 1 (Removed in the Simplified Specification)
+Figure J-1 : Implementation Example of Detecting Pad 19 (1) (Removed in the Simplified
+Specification)
+
+J.2 Example 2 (Removed in the Simplified Specification)
+Figure J-2 : Implementation Example of Detecting Pad 19 (2) (Removed in the Simplified
+Specification)
+
+J.3 Example 3 (Removed in the Simplified Specification)
+Figure J-3 : Implementation Example of Detecting Pad 19 (3) (Removed in the Simplified
+Specification)
+
+378
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix K (Informative) : Initialization Sequence Related
+to Boot Functions, TCG Security and RPMB
+In Physical Layer Specification Version 9.00, Boot Functionalities, TCG security and RPMB are introduced.
+This Appendix shows sample initialization sequences for host to use these functions over SD interface.
+
+K.1 Sample Sequence 1
+Figure K-1 shows a sample initialization sequence when host updates a boot code for TCG enabled card
+without Fast Boot.
+Power on
+Execute card
+identification in Section
+4.2.2 and issue CMD7
+
+Select User Area
+Partition by CMD39
+
+Select bus mode
+by (ACMD6 and) CMD6
+
+Identify security features
+by ACMD51
+
+Read “Active Boot
+Partition” by CMD48
+
+Read MBRControl Table
+by ACMD53
+
+Switch to the Active Boot
+Partition by CMD39
+
+“MBRControl Enable” = 1
+AND
+“MBRControl Done” = 0?
+
+Read a boot code by
+CMD18
+
+No
+
+Yes
+
+Switch to the target Boot
+Partition to be updated
+by CMD39
+
+Read pre-boot
+authentication program
+from TCG MBR Table by
+CMD18
+
+Unlock the target Boot
+Partition by ACMD53/54
+
+Perform pre-boot
+authentication
+
+Update a boot code by
+CMD25
+
+Update “MBRControl
+Done” to 1 by ACMD54
+
+Update “Active Boot
+Partition” by CMD49
+
+Read or write
+from/to User Area
+
+Lock the target Boot
+Partition by ACMD53/54
+
+Figure K-1 : Sample Initialization Sequence for Updating a Boot Code and Accessing TCG
+Enabled Card
+
+379
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+K.2 Sample Sequence 2
+Figure K-2 shows a sample initialization sequence when host starts up TCG enabled card with Fast Boot.
+Power on
+
+Execute Fast Boot in
+Section 4.21.3
+
+Identify security features
+by ACMD51
+
+Execute card
+identification in Section
+4.2.2 and issue CMD7
+
+Read MBRControl Table
+by ACMD53
+
+Select bus mode
+by (ACMD6 and) CMD6
+
+“MBRControl Enable” = 1
+AND
+“MBRControl Done” = 0?
+
+No
+
+Yes
+Read pre-boot
+authentication program
+from TCG MBR Table by
+CMD18
+Perform pre-boot
+authentication
+
+Update “MBRControl
+Done” to 1 by ACMD54
+
+Read or write
+from/to User Area
+
+Figure K-2 : Sample Initialization Sequence to for Starting Up TCG Enabled Card with Fast Boot
+
+380
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Appendix L : Simplified Mechanical Drawings
+These Simplified Mechanical Dimensions are not described in the original Physical Layer Specification. They
+are created out of the Mechanical Addenda.
+
+L.1 Standard Size SD Card Simplified Dimensions
+
+Figure L-1 : Standard Size SD Card Simplified Dimensions
+
+Figure L-2 : Standard Size SD UHS-II and SD Express G3L1 (Gen3 1 lane) Card Simplified Pads
+side (same dimensions as standard SD Card)
+
+381
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+Figure L-3 : Standard SD Express G4L1 (Gen 4 1 lane) Card simplified view of pads side
+
+Figure L-4 : Standard SD Express G3L2 (Gen3 2 lanes) or G4L2 (Gen 4 2 lanes) Card simplified
+view of pads side
+
+382
+
+©Copyright 2001-2023 KIOXIA, Panasonic Connect, SanDisk and SD Card Association
+Physical Layer Simplified Specification Version 9.10
+
+L.2 microSD Card Simplified Dimensions
+
+Figure L-5 : microSD Card Simplified Dimensions
+
+Figure L-6 : microSD Card Simplified Dimensions Pads side
+
+The Last Page
+
+383
+
+

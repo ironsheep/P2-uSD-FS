@@ -1,0 +1,9 @@
+# Logs
+src/logs/
+
+# macOS
+.DS_Store
+
+# Build artifacts
+*.bin
+*.lst
