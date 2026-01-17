@@ -406,12 +406,150 @@ See `OB4269-Technical-Adjustments.md`
 
 ---
 
+## PASM2 Conversion Analysis
+
+### Current Implementation Status
+
+The driver strategically uses inline PASM2 for the performance-critical data paths while keeping higher-level logic in Spin2.
+
+#### Functions Already in PASM2
+
+| Function | Lines | Purpose | PASM Technique |
+|----------|-------|---------|----------------|
+| `readSector()` | 763-791 | Read 512 bytes from card | `REP` loop, `wrfast`/`wflong` FIFO |
+| `writeSector()` | 800-815 | Write 512 bytes to card | `REP` loop, `rdfast`/`rflong` FIFO |
+| `transfer()` | 836-848 | SPI bit exchange | `REP` loop with `testp`/`drvc` |
+
+These three functions handle >95% of the I/O time and are already optimized.
+
+#### Functions in Spin2 (Analysis)
+
+| Function | Lines | Spin2 Overhead | PASM Candidate? | Rationale |
+|----------|-------|----------------|-----------------|-----------|
+| `cmd()` | 727-753 | ~50 bytecodes/call | **Maybe** | Called every sector op, but logic is complex |
+| `readNextSector()` | 555-563 | ~30 bytecodes | No | FAT chain logic, I/O bound anyway |
+| `readFat()` | 521-523 | ~10 bytecodes | No | Trivial wrapper |
+| `allocateCluster()` | 525-546 | ~80 bytecodes | No | Complex FAT traversal with conditionals |
+| `searchDirectory()` | 438-493 | ~200 bytecodes | No | String handling, complex branching |
+| `countFreeClusters()` | 261-275 | ~40 bytecodes | No | Called once on unmount only |
+| `clus2sec()` / `sec2clus()` | 569-576 | ~5 bytecodes each | No | Simple math, negligible |
+
+### Detailed Analysis of Potential Candidates
+
+#### `cmd()` Function - Moderate Priority
+
+**Current implementation**: Spin2 calling PASM `transfer()`
+
+```
+cmd() workflow:
+1. transfer(-1, 8)      ← PASM
+2. pinl(cs)             ← Spin2 (1 bytecode)
+3. transfer(-1, 8)      ← PASM
+4. transfer($40|op, 8)  ← PASM
+5. transfer(parm, 32)   ← PASM
+6. transfer(crc, 8)     ← PASM
+7. repeat/transfer      ← Spin2 loop + PASM
+8. pinh(cs)             ← Spin2 (1 bytecode)
+```
+
+**Analysis**: The actual SPI transfers are already PASM. The Spin2 overhead is:
+- Function call/return: ~10 cycles
+- Pin control: ~2 cycles each
+- Loop control: ~5 cycles per iteration
+
+**Verdict**: Converting `cmd()` to full PASM would save ~2-5µs per sector operation. This is measurable but minor compared to the ~100µs+ for actual data transfer.
+
+#### `readNextSector()` Function - Not Recommended
+
+**Reason**: This function's purpose is FAT chain traversal, which involves:
+- Calculating cluster numbers (math)
+- Calling `readSector()` for FAT lookup (already PASM)
+- Conditional branching based on cluster boundaries
+
+The I/O dominates; the Spin2 logic is not the bottleneck.
+
+#### Filesystem Functions - Not Recommended
+
+Functions like `searchDirectory()`, `allocateCluster()`, `deleteFile()` involve:
+- Complex string manipulation
+- Multiple conditional branches
+- FAT table traversal with variable-length chains
+- Directory entry parsing
+
+These are poorly suited to PASM because:
+1. Complex control flow is verbose in PASM
+2. They're called infrequently (file open/close, not per-sector)
+3. Spin2's readability aids maintenance
+
+### PASM Conversion Decision Matrix
+
+| Factor | Weight | `cmd()` | `readNextSector()` | `allocateCluster()` | `searchDirectory()` |
+|--------|--------|---------|-------------------|--------------------|--------------------|
+| Call frequency | High | Every sector | Sequential reads | File extend | File open |
+| Current overhead | Medium | ~50 cycles | ~30 cycles | ~80 cycles | ~200 cycles |
+| Code complexity | High | Medium | Medium | High | Very High |
+| I/O bound? | High | No | Yes | Yes | Yes |
+| **Recommendation** | - | **Maybe** | No | No | No |
+
+### Conclusion: PASM Conversion
+
+**The driver is already well-optimized.** The three critical data-path functions (`readSector()`, `writeSector()`, `transfer()`) are in PASM using P2's most efficient techniques:
+
+1. **REP blocks** - Zero-overhead loops
+2. **FIFO streaming** - `wrfast`/`rdfast` for hub access
+3. **Bit-level operations** - `rcl`, `rol`, `testp`, `drvc`
+
+**The only marginal candidate** is `cmd()`, which could be converted to save a few microseconds per sector. However:
+- The improvement would be ~2-5% at best
+- The current hybrid approach (Spin2 control + PASM transfer) is maintainable
+- Smart Pin SPI (documented above) would provide much larger gains
+
+**Recommendation**: Focus optimization efforts on Smart Pin SPI rather than converting more Spin2 to PASM. The current PASM coverage hits the critical 95% of I/O time.
+
+---
+
+## Future Investigation: Events and Interrupts
+
+The P2 provides hardware mechanisms that could further optimize waiting:
+
+### WAITX vs Active Polling
+
+Current `transfer()` uses `waitx delay` for timing. For slower SPI clocks during init, this is appropriate.
+
+### Event-Driven Waiting
+
+For operations that wait on external conditions (card ready, response received), the P2 offers:
+
+| Mechanism | Use Case | Benefit |
+|-----------|----------|---------|
+| `WAITSE1` | Wait for Smart Pin event | COG sleeps until data ready |
+| `WAITATN` | Wait for interrupt | Multi-cog coordination |
+| `POLLSE1` | Non-blocking check | Continue other work while waiting |
+| `COGATN` | Signal between cogs | Async I/O notification |
+
+### Potential Applications
+
+1. **Card busy polling**: After write, card pulls MISO low while busy. Could use pin event instead of polling loop.
+2. **Multi-cog I/O**: One cog handles SPI, signals completion to application cog.
+3. **DMA-style streaming**: Smart Pins with events for continuous data flow.
+
+*These techniques require P2KB documentation for proper implementation.*
+
+---
+
 ## Conclusion
 
 The OB4269 driver is well-implemented for a bit-banged approach. Smart Pin SPI offers the most significant performance improvement opportunity with moderate implementation effort. The existing code structure with separate readSector()/writeSector() methods makes targeted optimization straightforward.
+
+**Key findings**:
+1. **Already optimized**: readSector/writeSector/transfer are PASM with REP and FIFO
+2. **Marginal gains available**: cmd() could be PASM but <5% improvement
+3. **Best opportunity**: Smart Pin SPI for 2-4x data transfer speed
+4. **Future potential**: Event-driven waiting for reduced CPU utilization
 
 **Recommended next step**: Implement Smart Pin version of transfer() method as a proof-of-concept, then extend to sector operations if successful.
 
 ---
 
 *Performance study prepared for P2-uSD-Study project*
+*Updated 2026-01-16: Added PASM2 conversion analysis*

@@ -1,0 +1,377 @@
+'' =================================================================================================
+''
+''   File....... RT_mount_handle_basics_tests.spin2
+''   Purpose.... This object exercises the flash filesystem basic out-of-order-op detection
+''   Author..... Stephen M Moraco
+''               -- see below for terms of use
+''   E-mail.....stephen@ironsheep.biz
+''   Started.... AUG 2023
+''   Updated.... 19 DEC 2023
+''
+'' =================================================================================================
+
+CON
+
+     _CLKFREQ        = 320_000_000
+
+{
+    ' debug via serial to RPi (using RPi gateway pins)
+    '  USES LED1 (56) and LED2 (57) pins
+    DEBUG_PIN_TX = 57           ' GRY GPIO 10
+    DEBUG_PIN_RX = 56           ' WHT GPIO 8 (gnd is BLK GPIO 6)
+    DEBUG_WINDOWS_OFF = -1      ' no debug windows showing
+    DEBUG_BAUD = 2_000_000      ' comms at 2Mbit
+'}
+
+OBJ
+    flash : "flash_fs"
+    utils : "RT_utilities"
+
+DAT
+
+testfile            BYTE    "miscTest.bin", 0
+testfile2           BYTE   "otherTest.bin", 0
+testfile3           BYTE   "yetAnotherTest.bin", 0
+
+usedBlocks          LONG    0
+freeBlocks          LONG    0
+fileCount           LONG    0
+handle              LONG    0
+handle1             LONG    0
+badHandle           LONG    0
+status              LONG    0
+desiredId           LONG    0
+fileSize            LONG    0
+rdCount             LONG    0
+rdValue             LONG    0
+snHi                LONG    0
+snLo                LONG    0
+endPosition         LONG    0
+writeLength         LONG    0
+filename            BYTE    0[127+1]
+
+PUB go()
+    ' Ensure all handle calls fail before mounted
+    utils.startTestGroup(@"Attempting things while not mounted")
+    utils.startTest(@"Unmount()")
+    status := flash.unmount()
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"serial_number()")
+    utils.setCheckCountPerTest(2)
+    snHi, snLo := flash.serial_number()
+    utils.evaluateSubValue(snHi, @"serial_number() hi", 0)
+    utils.evaluateSubValue(snLo, @"serial_number() lo", 0)
+
+    utils.startTest(@"serial_number() check for error")
+    status := flash.error()
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"open()")
+    status := flash.open(@testfile, "r")
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"open_circular()")
+    status := flash.open_circular(@testfile2, "r", 8192)
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"rename()")
+    status := flash.rename(@testfile, @testfile2)
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"delete()")
+    status := flash.delete(@testfile)
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"exists()")
+    utils.setCheckCountPerTest(2)
+    status := flash.exists(@testfile)
+    utils.evaluateSubValue(status, @"exists()", false)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"exists()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"file_size()")
+    status := flash.file_size(@testfile)
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"file_size_unused()")
+    status := flash.file_size_unused(@testfile)
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"directory()")
+    status := flash.directory(@desiredId, @filename, @fileSize)
+    utils.evaluateResultNegError(status, flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"stats()")
+    utils.setCheckCountPerTest(2)
+    usedBlocks, freeBlocks, fileCount := flash.stats()
+    utils.evaluateSubStatus(usedBlocks, @"stats()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"stats()", flash.E_NOT_MOUNTED)
+
+    badHandle := $1234 ' ignored when filesystem not mounted
+
+    utils.startTest(@"flush()")
+    status := flash.flush(badHandle)
+    utils.evaluateSubStatus(status, @"flush()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"flush()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"close()")
+    status := flash.close(badHandle)
+    utils.evaluateSubStatus(status, @"close()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"close()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"create_file()")
+    status := flash.create_file(@"emptyFile", $00, 123)
+    utils.evaluateSubStatus(status, @"create_file()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"create_file()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"seek()")
+    endPosition := flash.seek(badHandle, 25, flash.SK_FILE_START)
+    utils.evaluateSubStatus(endPosition, @"seek()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"seek()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"write()")
+    writeLength := flash.write(badHandle, @"TEST", 4)
+    utils.evaluateSubStatus(writeLength, @"write()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"write()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"wr_byte()")
+    status := flash.wr_byte(badHandle, 4)
+    utils.evaluateSubStatus(status, @"wr_byte()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_byte()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"wr_word()")
+    status := flash.wr_word(badHandle, $fc0)
+    utils.evaluateSubStatus(status, @"wr_word()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_word()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"wr_long()")
+    status := flash.wr_long(badHandle, $ffff_ece0)
+    utils.evaluateSubStatus(status, @"wr_long()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_long()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"wr_str()")
+    status := flash.wr_str(badHandle, @"dummy string")
+    utils.evaluateSubStatus(status, @"wr_str()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_str()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"read()")
+    rdCount := flash.read(badHandle, @filename, 6)
+    utils.evaluateSubStatus(rdCount, @"read()", 0)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"read()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"rd_byte()")
+    rdValue := flash.rd_byte(badHandle)
+    utils.evaluateSubStatus(rdValue!, @"rd_byte()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_byte()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"rd_word()")
+    rdValue := flash.rd_word(badHandle)
+    utils.evaluateSubStatus(rdValue!, @"rd_word()", flash.E_NOT_MOUNTED)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_word()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"rd_long()")
+    rdValue := flash.rd_long(badHandle)
+    utils.evaluateSubStatus(rdValue, @"rd_long()", 0)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_long()", flash.E_NOT_MOUNTED)
+
+    utils.startTest(@"rd_str()")
+    rdCount := flash.rd_str(badHandle, @filename, 127+1)
+    utils.evaluateSubStatus(rdCount, @"rd_str()", 0)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_str()", flash.E_NOT_MOUNTED)
+
+
+    ' Ensure all open calls fail when no more handles
+    utils.startTestGroup(@"Attempting file ops with no more handles")
+
+    utils.startTest(@"format()")
+    status := flash.format()                            ' Comment out this line to not erase all files
+    utils.evaluateResultNegError(handle, flash.SUCCESS)
+
+    utils.startTest(@"mount()")
+    status := flash.mount()
+    utils.evaluateResultNegError(handle, flash.SUCCESS)
+
+    utils.showChipAndDriverVersion()
+
+    utils.startTest(@"open() OK")
+    handle := flash.open(@testfile, "A")
+    status := flash.error()
+    utils.evaluateSubStatus(handle, @"open()", 0)
+    utils.evaluateSubStatus(status, @"open()", flash.SUCCESS)
+
+    utils.startTest(@"open_circular() OK")
+    handle1 := flash.open_circular(@testfile2, "A", 8192)
+    status := flash.error()
+    utils.evaluateSubValue(handle1, @"open_circular()", 1)
+    utils.evaluateSubStatus(status, @"open_circular()", flash.SUCCESS)
+
+    ' all opens should fail from here
+    utils.startTest(@"open() No handles")
+    handle := flash.open(@testfile3, "R")
+    status := flash.error()
+    utils.evaluateSubStatus(handle, @"open()", flash.E_NO_HANDLE)
+    utils.evaluateSubStatus(status, @"open()", flash.E_NO_HANDLE)
+
+    utils.startTest(@"open_circular() No handles")
+    handle := flash.open_circular(@testfile3, "R", 8192)
+    status := flash.error()
+    utils.evaluateSubStatus(handle, @"open_circular()", flash.E_NO_HANDLE)
+    utils.evaluateSubStatus(status, @"open_circular()", flash.E_NO_HANDLE)
+
+    utils.startTest(@"close() without writing should leave no file")
+    handle := flash.close(0)                            ' first file opened is 0
+    status := flash.error()
+    utils.evaluateSubStatus(handle, @"close()", flash.SUCCESS)
+    utils.evaluateSubStatus(status, @"close()", flash.SUCCESS)
+
+    utils.startTest(@"close() (circular) without writing should leave no file")
+    handle := flash.close(1)                            ' second file opened is 1
+    status := flash.error()
+    utils.evaluateSubStatus(handle, @"close()", flash.SUCCESS)
+    utils.evaluateSubStatus(status, @"close()", flash.SUCCESS)
+
+    utils.startTest(@"directory() should be empty if no files")
+    desiredId := 0                                      ' get first file found
+    status := flash.directory(@desiredId, @filename, @fileSize)
+    rdCount := strsize(@filename)                       ' should be zero if no file found!
+    utils.evaluateSubValue(rdCount, @"directory()", 0)
+    utils.evaluateSubStatus(status, @"directory()", flash.SUCCESS)
+
+
+    ' all these ops should fail with illegal handle
+    utils.startTestGroup(@"Attempting file ops with bad handle $1234")
+    badHandle := $1234
+
+    utils.startTest(@"flush()")
+    status := flash.flush(badHandle)
+    utils.evaluateSubStatus(status, @"flush()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"flush()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"close()")
+    status := flash.close(badHandle)
+    utils.evaluateSubStatus(status, @"close()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"close()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"seek()")
+    endPosition := flash.seek(badHandle, 25, flash.SK_FILE_START)
+    utils.evaluateSubStatus(endPosition, @"seek()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"seek()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"write()")
+    writeLength := flash.write(badHandle, @"TEST", 4)
+    utils.evaluateSubStatus(writeLength, @"write()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"write()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"wr_byte()")
+    status := flash.wr_byte(badHandle, 4)
+    utils.evaluateSubStatus(status, @"wr_byte()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_byte()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"wr_word()")
+    status := flash.wr_word(badHandle, $fc0)
+    utils.evaluateSubStatus(status, @"wr_word()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_word()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"wr_long()")
+    status := flash.wr_long(badHandle, $ffff_ece0)
+    utils.evaluateSubStatus(status, @"wr_long()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_long()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"wr_str()")
+    status := flash.wr_str(badHandle, @"dummy string")
+    utils.evaluateSubStatus(status, @"wr_str()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"wr_str()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"read()")
+    rdCount := flash.read(badHandle, @filename, 6)
+    utils.evaluateSubValue(rdCount, @"read()", 0)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"read()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"rd_byte()")
+    rdValue := flash.rd_byte(badHandle)
+    utils.evaluateSubStatus(rdValue, @"rd_byte()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_byte()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"rd_word()")
+    rdValue := flash.rd_word(badHandle)
+    utils.evaluateSubStatus(rdValue, @"rd_word()", flash.E_BAD_HANDLE)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_word()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"rd_long()")
+    rdValue := flash.rd_long(badHandle)
+    utils.evaluateSubValue(rdValue, @"rd_long()", 0)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_long()", flash.E_BAD_HANDLE)
+
+    utils.startTest(@"rd_str()")
+    rdCount := flash.rd_str(badHandle, @filename, 127+1)
+    utils.evaluateSubValue(rdCount, @"rd_str()", 0)
+    status := flash.error()
+    utils.evaluateSubStatus(status, @"rd_str()", flash.E_BAD_HANDLE)
+
+    utils.showSubTestResults()
+
+    utils.ShowStats()                   ' should have empty filesystem
+    utils.showFiles()
+
+    utils.ShowTestEndCounts()
+
+    debug("* Test Complete")
+
+
+
+con { license }
+
+{{
+  =================================================================================================
+
+  Terms of Use: MIT License
+
+  Copyright (c) 2023 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  =================================================================================================
+}}
