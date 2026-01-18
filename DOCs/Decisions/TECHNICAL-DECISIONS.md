@@ -1,0 +1,685 @@
+# Technical Decisions: SD Card Driver
+
+This document captures research findings and architectural decisions for the SD card driver. These are conclusions that inform design but don't require sprint action items.
+
+---
+
+## TD-001: FIELD Operator Not Applicable
+
+**Date**: 2026-01-17
+**Status**: DECIDED - Not using FIELD
+
+### Background
+
+The Spin2 FIELD operator provides efficient packed bit-field access for arrays of small values:
+- 1-bit flags: 8 per byte
+- 2-bit states: 4 per byte
+- 4-bit nibbles: 2 per byte
+- Arbitrary bit widths packed across byte/word boundaries
+
+```spin2
+' Example: 800 boolean flags in 100 bytes
+DAT
+  flagStorage   BYTE    0[100]
+VAR
+  LONG  flagField
+
+PUB init()
+  flagField := ^@flagStorage.[0]      ' 1-bit fields
+
+PUB setFlag(index)
+  FIELD[flagField][index]~~           ' Set to 1
+```
+
+### Analysis
+
+We examined the driver for FIELD applicability:
+
+| Pattern | Current Implementation | FIELD Applicable? |
+|---------|----------------------|-------------------|
+| **flags variable** | Single LONG with `decod` bit masks | **No** - single word, not array |
+| **Attribute byte** | Direct `& %0001_1110` masking | **No** - single byte extraction |
+| **FAT entries** | 32-bit values at fixed offsets | **No** - must match FAT32 format |
+| **Directory entries** | 32-byte fixed structures | **No** - must match FAT32 format |
+| **CSD parsing** | Bit shifts on 128-bit register | **No** - one-time extraction |
+| **buf[512]** | Raw sector data | **No** - on-disk format |
+
+### Decision
+
+**Do not use FIELD in this driver.**
+
+**Rationale:**
+1. FIELD is designed for large arrays (hundreds/thousands of items) - we don't have these
+2. Most data structures must match FAT32 on-disk format exactly
+3. Flag variables are single words, not arrays
+4. Even with multiple file handles (4-8), a simple `BYTE` array is clearer and faster
+5. No memory pressure - we have 512KB hub RAM
+
+**Direct bit operations are preferred because they are:**
+- Simpler to read and maintain
+- Faster (no field pointer indirection)
+- Appropriate for fixed on-disk formats
+
+### Future Consideration
+
+If we ever need to track large numbers of items (e.g., sector allocation bitmap for thousands of sectors), FIELD would be reconsidered. Current design doesn't require this.
+
+---
+
+## TD-002: Smart Pins for SPI - Deep Analysis
+
+**Date**: 2026-01-17
+**Status**: DECIDED - Hybrid approach (Option 3)
+
+### Overview
+
+This analysis examines Smart Pins for SPI against five criteria:
+1. Clock speed independence from system clock
+2. Pin setup (one-time vs. per-transfer)
+3. Streamer applicability
+4. Timeout and error handling
+5. Raw performance
+
+### 1. Clock Speed Independence
+
+**The Problem**: Applications set `_CLKFREQ` at the top of their code for various reasons:
+- HDMI drivers need specific derived clocks (e.g., 252 MHz for 1080p)
+- Audio applications need precise sample rates
+- Power-sensitive applications may run slower
+
+**Current code dependency** (SD_card_driver.spin2 line 721):
+```spin2
+bit_delay := clkfreq / 100_000    ' ~50kHz for init
+' Later (line 847):
+bit_delay := 2                     ' Fast mode
+```
+
+The `waitx delay` in the transfer loop depends on `clkfreq`:
+
+| System Clock | bit_delay for 50kHz init | Actual SPI Rate |
+|-------------|-------------------------|-----------------|
+| 80 MHz | 800 | 50 kHz |
+| 160 MHz | 1600 | 50 kHz |
+| 252 MHz | 2520 | 50 kHz |
+| 300 MHz | 3000 | 50 kHz |
+
+**Smart Pin advantage**: Period is specified in system clocks via X register:
+```spin2
+' P_TRANSITION for clock generation
+period := clkfreq / spi_rate      ' Calculate once at init
+WXPIN(sck_pin, period)            ' Set period
+
+' If clkfreq changes, recalculate:
+period := clkfreq / spi_rate
+WXPIN(sck_pin, period)            ' Update dynamically
+```
+
+**Verdict**: **SIMILAR** - Both require calculation from clkfreq. Smart Pins don't provide true clock independence; they just move where the calculation happens.
+
+---
+
+### 2. Pin Setup Analysis
+
+**Current implementation pin manipulation**:
+
+| Location | CS | MOSI | MISO | SCK |
+|----------|-----|------|------|-----|
+| `mount()` | pinh (deselect) | pinh | - | pinh |
+| `initCard()` | pinh | pinh (idle high) | - | pinl (mode 0) |
+| `cmd()` start | pinl (select) | - | - | - |
+| `cmd()` end | pinh (deselect) | - | - | - |
+| `transfer()` | - | drvc per bit | testp per bit | drvl/drvh per bit |
+| `readSector()` | - | - | testp per bit | drvl/drvh per bit |
+| `writeSector()` | - | drvc per bit | - | drvl/drvh per bit |
+
+**Key observations**:
+- **CS**: Must toggle per-transaction (SmartPins won't help - keep direct control)
+- **SCK**: Toggled every bit - **perfect for P_TRANSITION**
+- **MOSI**: Driven every bit - **candidate for P_SYNC_TX**
+- **MISO**: Sampled every bit - **candidate for P_SYNC_RX**
+
+**Smart Pin setup pattern** (from P2KB production code):
+```pasm2
+' ONE-TIME SETUP (at driver start)
+' ────────────────────────────────
+' Clock pin: P_TRANSITION mode
+DIRL    sck_pin                     ' Reset
+WRPIN   ##P_TRANSITION | P_OE, sck_pin
+WXPIN   period, sck_pin             ' Bit period
+DIRH    sck_pin                     ' Enable
+
+' MOSI: P_SYNC_TX, clocked by sck_pin
+DIRL    mosi_pin
+WRPIN   ##P_SYNC_TX | P_OE, mosi_pin
+WXPIN   ##(sck_pin << 24) | %1_00111, mosi_pin  ' Clock source + 8-bit start-stop
+DIRH    mosi_pin
+
+' MISO: P_SYNC_RX, clocked by sck_pin
+DIRL    miso_pin
+WRPIN   ##P_SYNC_RX, miso_pin
+WXPIN   ##(sck_pin << 24) | %0_00111, miso_pin  ' Clock source + 8-bit pre-edge
+DIRH    miso_pin
+
+' PER-TRANSFER (for 8-bit byte)
+' ────────────────────────────────
+REV     tx_data                     ' MSB→LSB for SD card
+SHL     tx_data, #24                ' Left-justify for 8-bit
+WYPIN   tx_data, mosi_pin           ' Load TX data
+WYPIN   #16, sck_pin                ' 16 edges = 8 bits
+' Wait for completion via IN flag or event
+TESTP   miso_pin WC                 ' Check IN flag
+RDPIN   rx_data, miso_pin           ' Read received
+SHR     rx_data, #24                ' Right-justify
+REV     rx_data                     ' LSB→MSB
+```
+
+**Verdict**: **SMART PINS VIABLE** - One-time setup, per-transfer just loads data and triggers clock.
+
+---
+
+### 3. Streamer Applicability
+
+The P2 Streamer provides DMA-like functionality with:
+- `RDFAST`/`WRFAST` for hub↔FIFO setup
+- NCO-driven timing for autonomous transfers
+- Direct pin output modes
+
+**Current code already uses FIFO** (SD_card_driver.spin2 lines 891, 928):
+```pasm2
+wrfast    ##$8000_0000,ptr    ' Setup write FIFO for readSector
+rdfast    ##8000_0000,ptr     ' Setup read FIFO for writeSector
+wflong    data                 ' Stream to hub
+rflong    data                 ' Stream from hub
+```
+
+**Streamer for SPI assessment**:
+
+| Streamer Mode | Applicability to SPI |
+|--------------|---------------------|
+| Hub→Pins direct | **No** - needs bit-serial, not parallel |
+| Hub→LUT→Pins | **No** - same issue |
+| Pins→Hub | **No** - needs bit-serial |
+| With SmartPins | **Maybe** - could trigger SmartPin transfers at NCO rate |
+
+**Critical issue**: Streamer drives pins as parallel buses (1-32 bits simultaneously). SPI is serial (1 bit at a time, clocked). The streamer's value is in feeding the FIFO, which the current code already exploits.
+
+**Verdict**: **STREAMER NOT APPLICABLE** for SPI serialization, but current FIFO usage (`wrfast`/`rdfast`/`wflong`/`rflong`) is already optimal for hub streaming.
+
+---
+
+### 4. Timeout and Error Handling - **CRITICAL BUG FOUND**
+
+**Current timeout implementation**:
+
+| Function | Has Timeout? | Implementation |
+|----------|-------------|----------------|
+| `cmd()` | **YES** | `getct() + clkfreq` (1 sec) |
+| `initCard()` ACMD41 | **YES** | `getct() + clkfreq * 2` (2 sec) |
+| `writeSector()` post-write | **YES** | `getct() + clkfreq` (1 sec) |
+| `readSector()` start-token wait | **NO** ⚠️ | Loops forever! |
+| `readSector()` data transfer | **NO** | REP loop runs to completion |
+| `writeSector()` data transfer | **NO** | REP loop runs to completion |
+
+**THE BUG** (SD_card_driver.spin2 lines 893-898):
+```pasm2
+.startloop
+                drvh      _sck
+                nop
+                drvl      _sck
+                testp     _miso         wc
+  if_c          jmp       #.startloop     ' ← INFINITE LOOP IF CARD HANGS!
+```
+
+This waits for the SD card's start token (MISO goes low). If the card never responds, **the cog hangs forever**.
+
+**Smart Pin + Event solution for timeout**:
+```pasm2
+' Setup timeout event (SE1 = CT comparison)
+GETCT   timeout
+ADD     timeout, ##160_000_000      ' 1 second at 160MHz
+ADDCT1  timeout, #0                 ' Load CT1 comparator
+SETSE1  #%00_110001                 ' SE1 = CT >= CT1
+
+' Setup MISO data-ready event (SE2 = pin IN rise)
+' Note: With SmartPin, IN flag rises when byte received
+SETSE2  #%001 << 6 + miso_pin       ' SE2 = IN rises on miso_pin
+
+' Race between timeout and data
+' NOTE: P2KB confirms no single instruction waits for multiple events.
+'       Must poll both in a loop (from p2kbArchEventSystem "protocol_timeout" pattern):
+.wait_loop:
+        POLLSE1 WC                  ' Timeout?
+  IF_C  JMP     #.timeout_error
+        POLLSE2 WC                  ' Data ready?
+  IF_C  JMP     #.data_ready
+        JMP     #.wait_loop
+
+.timeout_error:
+        ' Handle card timeout - recoverable error
+        ...
+
+.data_ready:
+        RDPIN   data, miso_pin      ' Read received byte
+        ...
+```
+
+**P2KB Confirmation**: The P2 Event System (p2kbArchEventSystem) documents four individual WAITSE instructions (WAITSE1-4), each blocking on exactly ONE event. There is no "wait for any of N events" instruction. Multi-event monitoring requires polling via POLLSE1-4 in a loop. This is a ~4-8 clock overhead per iteration, negligible for timeout monitoring.
+
+**Verdict**: **SMART PINS + EVENTS = ROBUST TIMEOUT** - This is a significant advantage over current code.
+
+---
+
+### 5. Raw Performance Comparison
+
+**Current bit-bang timing** (per bit in transfer loop):
+```pasm2
+                 rcl      result,#1     wc    ' 2 clocks
+                 drvl     _sck                ' 2 clocks
+                 drvc     _mosi               ' 2 clocks
+                 waitx    delay               ' delay clocks (2 for fast mode)
+                 drvh     _sck                ' 2 clocks
+                 waitx    delay               ' delay clocks
+                 testp    _miso         wc    ' 2 clocks
+' Total per bit: 12 + 2*delay clocks
+' At delay=2: 16 clocks/bit = 5 MHz SPI at 80MHz, 10 MHz at 160MHz
+```
+
+**Smart Pin timing** (per byte, not per bit):
+```pasm2
+                REV       data                ' 2 clocks
+                SHL       data, #24           ' 2 clocks
+                WYPIN     data, mosi_pin      ' 2 clocks
+                WYPIN     #16, sck_pin        ' 2 clocks (trigger 8 bits)
+' Wait for hardware to shift (8 * X clocks where X = period)
+                TESTP     miso_pin WC         ' 2 clocks (check IN)
+                RDPIN     data, miso_pin      ' 2 clocks
+                SHR       data, #24           ' 2 clocks
+                REV       data                ' 2 clocks
+' Total per byte: ~16 clocks setup + 8*period hardware
+```
+
+**Throughput comparison** (at 160 MHz sysclk):
+
+| Method | Min Period | SPI Rate | 512-byte Sector |
+|--------|-----------|----------|-----------------|
+| Current bit-bang (delay=2) | 16 clks/bit | 10 MHz | ~410 µs |
+| SmartPin (period=8) | 8 clks/bit | 20 MHz | ~205 µs |
+| SmartPin (period=4) | 4 clks/bit | 40 MHz | ~102 µs |
+| SD card max | - | 25 MHz | - |
+
+**However**: SD card SPI is typically limited to 25 MHz by the card, and many cards work poorly above 10-15 MHz. The bottleneck is the card, not the P2.
+
+**MSB-first overhead**: 4 clocks per byte (2× REV + SHL + SHR). For 512 bytes: 2048 extra clocks ≈ 13µs at 160 MHz. Negligible.
+
+**Verdict**: **PERFORMANCE SIMILAR** for real-world SD card usage. SmartPins could theoretically go faster, but cards are the bottleneck.
+
+---
+
+### Summary Matrix
+
+| Criterion | Current Bit-Bang | Smart Pins | Winner |
+|-----------|-----------------|------------|--------|
+| Clock independence | Requires bit_delay calc | Requires period calc | **Tie** |
+| Pin setup overhead | Per-bit manipulation | One-time setup | **SmartPins** |
+| Streamer integration | Uses FIFO directly | Same FIFO + SP | **Tie** |
+| **Timeout handling** | **Missing in PASM!** | Events enable timeout | **SmartPins** |
+| Raw throughput | ~10 MHz practical | ~25 MHz possible | **Tie** (card bottleneck) |
+| Code complexity | Explicit, understandable | More abstract | **Current** |
+| Proven reliability | Years of use | New implementation | **Current** |
+
+---
+
+### Final Decision
+
+**STATUS: DECIDED** - Option 3 (Hybrid approach)
+
+**Evaluated Options**:
+
+1. **Keep current code + fix timeout bug**
+   - Add timeout check in readSector PASM loop
+   - Requires PASM counter manipulation
+   - Doesn't change fundamental approach
+
+2. **Adopt Smart Pins for command/transfer layer**
+   - Use P_TRANSITION for SCK
+   - Use P_SYNC_TX for MOSI
+   - Use P_SYNC_RX for MISO
+   - Keep direct control of CS
+   - Use events for timeout capability
+   - Keep `wrfast`/`rdfast` for hub streaming
+
+3. **Hybrid approach** ← **SELECTED**
+   - Use current PASM for bulk sector transfers (proven, fast)
+   - Add timeout protection via ADDCT1/POLLCT1
+   - Evaluate Smart Pins for command layer in future phase
+
+**Decision Rationale**:
+
+1. **Proven Code**: The current bit-bang sector transfer is reliable and performant. REP loops with FIFO streaming are already optimal.
+
+2. **Timeout Bug**: The critical bug in `readSector()` can be fixed with simple ADDCT1/POLLCT1 without restructuring (see SPRINT-PLAN-multicog.md Task 2.4).
+
+3. **No Blocking Multi-Event Wait**: P2KB confirms you cannot wait for multiple events in one instruction - polling is required. This reduces the "elegance advantage" of Smart Pins for timeout handling; both approaches need a poll loop.
+
+4. **Risk Mitigation**: Rewriting working SPI code introduces risk for minimal gain. Card speed is the bottleneck, not P2 bit-bang speed.
+
+5. **Future Option**: Smart Pins remain viable for command layer (variable bit counts, more complex error handling) as a Phase 2 optimization if needed.
+
+---
+
+### Implementation Actions
+
+**Immediate (Sprint Task 2.4)**:
+- Add timeout protection to `readSector()` start-token wait
+- Use ADDCT1/POLLCT1 pattern (no Smart Pins needed)
+
+**Deferred (Future)**:
+- Prototype Smart Pin SPI for `cmd()` if command layer becomes problematic
+- Revisit if SD card compatibility issues emerge
+
+---
+
+## TD-003: Streamer Not Applicable for SPI
+
+**Date**: 2026-01-17
+**Status**: DECIDED - Streamer not useful for SPI serialization
+
+### Background
+
+The P2 Streamer provides high-speed DMA-like transfers between hub memory, LUT, and pins. We evaluated whether it could improve SD card SPI transfers.
+
+### Analysis
+
+The Streamer operates in these modes:
+- **Parallel pin output**: 1-32 bits simultaneously to pin groups
+- **Parallel pin input**: Capture pins to hub
+- **LUT-based**: Transform data through LUT
+- **RGB conversion**: Colorspace conversion for video
+
+**SPI requirement**: Serial bit transfer (1 bit per clock), MSB-first, full-duplex.
+
+The Streamer is fundamentally a **parallel** transfer engine. It can't serialize data to a single pin with clock synchronization.
+
+**What the current code already does well**:
+```pasm2
+wrfast    ##$8000_0000,ptr    ' Setup FIFO
+...
+wflong    data                 ' Stream to hub at full speed
+```
+
+This is the optimal use of the Streamer's FIFO for getting data into/out of hub RAM during the bit-serial SPI transfer.
+
+### Decision
+
+**Do not use Streamer for SPI serialization.**
+
+The current approach (inline PASM2 bit-serial with FIFO streaming) is already optimal:
+- Streamer FIFO handles hub memory transfers
+- PASM2 handles bit serialization
+- These are the correct tools for their respective jobs
+
+### Future Consideration
+
+If we ever implement a parallel bus interface (SDIO 4-bit mode), the Streamer would be directly applicable.
+
+---
+
+## TD-004: Communication Error Handling Policy
+
+**Date**: 2026-01-17
+**Status**: DECIDED
+
+### Overview
+
+This defines how the SD card driver handles communication errors, retries, and reports failures to callers. Based on patterns from P2-FLASH-FileSystem for consistency.
+
+---
+
+### 1. Error Code Design
+
+**Convention**: 0 = success, negative values = specific errors
+
+```spin2
+CON { Error Codes }
+  ' Success
+  SUCCESS           = 0
+
+  ' SPI/Communication Errors (-1 to -19)
+  E_TIMEOUT         = -1        ' Card didn't respond in time
+  E_NO_RESPONSE     = -2        ' Card not responding (check wiring)
+  E_BAD_RESPONSE    = -3        ' Unexpected response from card
+  E_CRC_ERROR       = -4        ' Data CRC mismatch
+  E_WRITE_REJECTED  = -5        ' Card rejected write operation
+  E_CARD_BUSY       = -6        ' Card busy, operation couldn't complete
+
+  ' Card/Mount Errors (-20 to -39)
+  E_NOT_MOUNTED     = -20       ' Filesystem not mounted
+  E_INIT_FAILED     = -21       ' Card initialization failed
+  E_NOT_FAT32       = -22       ' Card not formatted as FAT32
+  E_BAD_SECTOR_SIZE = -23       ' Sector size not 512 bytes
+  E_CARD_REMOVED    = -24       ' Card was removed during operation
+
+  ' File Operation Errors (-40 to -59)
+  E_FILE_NOT_FOUND  = -40       ' File doesn't exist
+  E_FILE_EXISTS     = -41       ' File already exists
+  E_NOT_A_FILE      = -42       ' Expected file, found directory
+  E_NOT_A_DIR       = -43       ' Expected directory, found file
+  E_FILE_OPEN       = -44       ' File already open
+  E_FILE_NOT_OPEN   = -45       ' File not open
+  E_END_OF_FILE     = -46       ' Read past end of file
+  E_FILE_READ_ONLY  = -47       ' Can't write to read-only file
+  E_INVALID_PATH    = -48       ' Path syntax error
+  E_PATH_TOO_LONG   = -49       ' Path exceeds maximum length
+
+  ' Resource Errors (-60 to -79)
+  E_DISK_FULL       = -60       ' No free clusters
+  E_DIR_FULL        = -61       ' Directory can't hold more entries
+  E_NO_HANDLE       = -62       ' Out of file handles
+  E_BAD_HANDLE      = -63       ' Invalid handle number
+  E_NO_LOCK         = -64       ' Couldn't allocate hardware lock
+
+  ' Seek Errors (-80 to -89)
+  E_SEEK_PAST_END   = -80       ' Attempted seek beyond file end
+  E_BAD_SEEK_ARG    = -81       ' Invalid seek argument
+```
+
+---
+
+### 2. Per-Cog Error Storage (Thread-Safe)
+
+```spin2
+DAT
+  ' Per-cog error storage for multi-cog safety
+  last_error    LONG    0[8]    ' One slot per possible cog
+
+PUB error() : status
+  '' Returns error code from most recent operation on this cog
+  return LONG[@last_error][COGID()]
+
+PRI set_error(code) : code_out
+  '' Set error code for this cog, return the code (for chained returns)
+  LONG[@last_error][COGID()] := code
+  return code
+```
+
+**Usage pattern**:
+```spin2
+PUB open(filename) : handle
+  if cog_id == -1
+    return set_error(E_NOT_MOUNTED)
+  ' ... operation ...
+  if success
+    return set_error(SUCCESS)
+  else
+    return set_error(E_FILE_NOT_FOUND)
+```
+
+---
+
+### 3. Retry Policy
+
+**Layer 1: SPI Transfer Retries** (handled internally, not exposed)
+
+| Operation | Max Retries | Delay Between | Rationale |
+|-----------|-------------|---------------|-----------|
+| Command response wait | 0 | N/A | Use timeout instead |
+| Start token wait | 0 | N/A | Use timeout instead |
+| Write completion wait | 0 | N/A | Use timeout instead |
+
+**We use timeouts, not retries, at the SPI level.** If a transfer times out, it's reported up - the caller decides whether to retry the higher-level operation.
+
+**Layer 2: Command Retries** (during init only)
+
+| Operation | Max Retries | Delay Between | Rationale |
+|-----------|-------------|---------------|-----------|
+| CMD0 (GO_IDLE) | 5 | 10ms | Card may need multiple attempts |
+| ACMD41 (init) | 200 | 10ms | Spec allows up to 1 second |
+| Normal commands | 0 | N/A | Fail immediately |
+
+**Layer 3: API-Level Retries** (caller's responsibility)
+
+The driver does NOT automatically retry failed operations. The caller decides:
+
+```spin2
+' Caller retry pattern
+retry_count := 3
+repeat
+  status := sd.read(handle, @buffer, 512)
+  if status == sd.SUCCESS
+    quit
+  if --retry_count == 0
+    debug("Read failed after 3 retries: ", sd.string_for_error(sd.error()))
+    quit
+  waitms(100)    ' Brief delay before retry
+```
+
+**Rationale**: The driver can't know if a retry is safe (e.g., was partial data written?). The caller has context to decide.
+
+---
+
+### 4. Timeout Values
+
+```spin2
+CON { Timeout Values }
+  ' All timeouts in clock cycles (multiply by clkfreq for seconds)
+  TIMEOUT_CMD_RESPONSE  = 1     ' 1 second for command response
+  TIMEOUT_READ_TOKEN    = 1     ' 1 second for read start token
+  TIMEOUT_WRITE_BUSY    = 1     ' 1 second for write completion
+  TIMEOUT_INIT          = 2     ' 2 seconds for ACMD41 init loop
+```
+
+**Implementation**:
+```spin2
+t := getct() + clkfreq * TIMEOUT_CMD_RESPONSE
+repeat
+  result := transfer(-1, 8)
+  if result <> $FF
+    quit
+  if getct() - t > 0
+    return set_error(E_TIMEOUT)
+```
+
+---
+
+### 5. Error Reporting to User
+
+**Method 1: Return value**
+```spin2
+PUB read(handle, p_buffer, count) : bytes_read
+  '' Returns bytes read (>= 0) on success, negative error code on failure
+```
+
+**Method 2: Separate error() call**
+```spin2
+bytes := sd.read(handle, @buf, 512)
+if bytes < 0
+  debug("Error: ", sd.string_for_error(sd.error()))
+```
+
+**Method 3: Human-readable strings**
+```spin2
+PUB string_for_error(code) : p_str
+  '' Returns pointer to error description string
+  case code
+    SUCCESS:          return @"Success"
+    E_TIMEOUT:        return @"Timeout: card not responding"
+    E_NOT_MOUNTED:    return @"Filesystem not mounted"
+    E_FILE_NOT_FOUND: return @"File not found"
+    ' ... etc ...
+    other:            return @"Unknown error"
+```
+
+---
+
+### 6. Hard Failure Handling
+
+**Definition**: A hard failure is an unrecoverable error where the card is no longer usable.
+
+**Hard failure conditions**:
+- Card removed during operation
+- Repeated communication failures (card damaged?)
+- Card returns illegal state
+
+**Hard failure response**:
+```spin2
+PRI hard_fail(code) : result
+  '' Mark filesystem as unmounted and return error
+  flags &= !F_MOUNTED           ' Clear mounted flag
+  sec_in_buf := -1              ' Invalidate buffer
+  return set_error(code)
+
+' Usage in low-level code:
+if repeated_timeout_count > 3
+  return hard_fail(E_CARD_REMOVED)
+```
+
+**After hard failure**:
+- All subsequent operations return `E_NOT_MOUNTED`
+- Caller must call `mount()` again to re-initialize
+- Caller should inform user: "SD card error - please reinsert card"
+
+---
+
+### 7. Error Code Ranges Summary
+
+| Range | Category | Examples |
+|-------|----------|----------|
+| 0 | Success | SUCCESS |
+| -1 to -19 | SPI/Communication | E_TIMEOUT, E_CRC_ERROR |
+| -20 to -39 | Card/Mount | E_NOT_MOUNTED, E_NOT_FAT32 |
+| -40 to -59 | File Operations | E_FILE_NOT_FOUND, E_END_OF_FILE |
+| -60 to -79 | Resources | E_DISK_FULL, E_NO_HANDLE |
+| -80 to -89 | Seek | E_SEEK_PAST_END |
+
+---
+
+### 8. Consistency with P2-FLASH-FileSystem
+
+| Aspect | FLASH-FS Pattern | SD Driver (Same) |
+|--------|------------------|------------------|
+| Error code sign | Negative = error | ✓ Same |
+| Per-cog storage | `errorCode LONG 0[8]` | ✓ Same |
+| error() method | Returns last error | ✓ Same |
+| string_for_error() | Human-readable | ✓ Same |
+| Lock cleanup on error | Always release | ✓ Same |
+| Fail-fast validation | Check before lock | ✓ Same |
+
+---
+
+### Action Items for Sprint
+
+1. Add error code CON block to driver
+2. Add `last_error` DAT storage
+3. Add `error()` public method
+4. Add `string_for_error()` public method
+5. Update all functions to use `set_error()` pattern
+6. Implement `hard_fail()` for unrecoverable errors
+7. Document timeout values in CON block
+
+---
+
+## TD-005: (Reserved for next decision)
+
+---
+
+*Document created: 2026-01-17*
