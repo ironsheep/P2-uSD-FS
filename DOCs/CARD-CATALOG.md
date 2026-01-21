@@ -14,6 +14,7 @@ This catalog documents SD cards tested with the P2 SD card driver. Cards are cha
 | Unknown_00000_0.0_0001B9D5_202109 | Gigastone (Shared OEM $9F) | 00000 | ~7 GB | PASS |
 | Unknown_SD16G_2.0_000003FB_202502 | Gigastone (Budget OEM $00) | SD16G | ~14 GB | PASS |
 | SanDisk_SN64G_8.6_7E650771_202211 | SanDisk ($03) | SN64G | ~59 GB | PASS |
+| Phison_SD16G_3.0_01CD5CF5_201808 | PNY (Phison $27) | SD16G | ~14 GB | PARTIAL |
 
 ---
 
@@ -582,6 +583,98 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 
 ---
 
+## Card: PNY 16GB SDHC
+
+**Label:** PNY 16GB microSD HC I
+**Unique ID:** `Phison_SD16G_3.0_01CD5CF5_201808`
+**Test Date:** 2026-01-20
+
+### Hardware Identification
+
+| Field | Value |
+|-------|-------|
+| Brand (Label) | PNY |
+| Manufacturer ID | $27 (Phison) |
+| OEM/Application | $50 $48 ("PH" = Phison) |
+| Product Name | SD16G |
+| Product Revision | 3.0 |
+| Serial Number | $01CD_5CF5 |
+| Manufacturing Date | August 2018 |
+
+### Card Capabilities
+
+| Field | Value |
+|-------|-------|
+| CSD Version | 2.0 |
+| Card Type | SDHC (High Capacity) |
+| Capacity | ~14 GB (14,868 MB) |
+| Total Sectors | 30,449,664 |
+| SD Spec Version | 3.0x |
+| Bus Width Support | 1-bit, 4-bit |
+
+### Operating Conditions
+
+| Field | Value |
+|-------|-------|
+| OCR Register | $C0FF_8000 |
+| Power Status | Ready |
+| Capacity Status | High Capacity (SDHC) |
+| Voltage Support | 2.7V - 3.6V |
+
+### Raw Registers
+
+```
+CID: $27 $50 $48 $53 $44 $31 $36 $47 $30 $01 $CD $5C $F5 $01 $28 $1F
+CSD: $40 $0E $00 $32 $5B $59 $00 $00 $74 $27 $7F $80 $0A $40 $00 $0F
+OCR: $C0FF_8000
+SCR: $02 $35 $80 $00 $01 $00 $00 $00
+```
+
+### Filesystem Formatting
+
+| Field | Value |
+|-------|-------|
+| Formatter | P2FMTER (P2 Flash Filesystem Formatter) |
+| OEM Name | P2FMTER |
+| Volume Label | P2-XFER |
+| Volume Serial | $0852_A9C2 |
+| FS Type | FAT32 |
+| Bytes/Sector | 512 |
+| Sectors/Cluster | 16 (8 KB clusters) |
+| Reserved Sectors | 32 |
+| Number of FATs | 2 |
+| Sectors per FAT | 14,864 |
+| Root Cluster | 2 |
+| Total Sectors | 30,441,472 |
+| Data Region Start | Sector 29,760 |
+| Total Clusters | 1,900,732 |
+
+### Test Results
+
+| Test | Status | Notes |
+|------|--------|-------|
+| Card Init | PASS | Required PNY fixes: 20MHz SPI + CS handling |
+| CID Read | PASS | |
+| CSD Read | PASS | |
+| SCR Read | PASS | |
+| MBR Read | PASS | FAT32 LBA ($0C) partition |
+| VBR Read | PASS | |
+| Mount | PASS | |
+| Unmount | FAIL | Hangs during FSInfo write - under investigation |
+
+### Notes
+
+- **PNY-branded** card using **Phison** controller silicon (MID $27)
+- MID $27 + OID "PH" = Phison controller family (also used by Delkin, HP, Kingston, Lexar older, PNY)
+- **First PNY card to work** with P2 driver after implementing PNY compatibility fixes
+- **Fixes required**: Lower SPI clock to ~20 MHz, proper CS HIGH/LOW handling during speed change
+- **HC I** = SDHC UHS-I interface
+- Older card (manufactured August 2018)
+- Reads work perfectly; writes hang (FSInfo update during unmount)
+- Write issue to be investigated on expendable card
+
+---
+
 ## Template for New Cards
 
 Copy this template when adding a new card:
@@ -673,4 +766,4 @@ SCR: [8 bytes hex]
 
 *Catalog created: 2026-01-20*
 *Last updated: 2026-01-20*
-*Cards cataloged: 6*
+*Cards cataloged: 7*

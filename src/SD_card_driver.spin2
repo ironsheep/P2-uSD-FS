@@ -1461,9 +1461,17 @@ PRI initCard() : result | t, resp, card_version, acmd41_arg                     
 
   ' ============================================
   ' STEP 8: Increase SPI speed for data transfer
+  ' PNY FIX: CS must be HIGH during clock change, then send dummy clocks
   ' ============================================
-  bit_delay := 2                                                                '  fast mode for data transfer
-  debug("    [initCard] Step 8: Switching to fast SPI mode")
+  pinh(cs)                                                                      '  ensure CS HIGH before speed change
+  bit_delay := clkfreq / 40_000_000                                             '  ~20 MHz SPI (conservative for PNY compatibility)
+  if bit_delay < 2
+    bit_delay := 2                                                              '  minimum safe delay
+  debug("    [initCard] Step 8: Switching to ~20MHz SPI, bit_delay=", udec(bit_delay))
+  ' Send dummy clocks with CS HIGH to stabilize new clock rate
+  repeat 8
+    transfer(-1, 8)                                                             '  8 dummy bytes = 64 clocks
+  debug("    [initCard] Dummy clocks sent, CS HIGH")
   debug("    [initCard] === INIT SUCCESS ===")
   return true
 
