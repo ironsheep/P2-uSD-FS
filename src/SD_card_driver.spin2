@@ -123,6 +123,7 @@ DAT '' singleton control - SHARED across all object instances
   fsi_free_count LONG   0               ' Cached free cluster count
   fsi_nxt_free  LONG    0               ' Cached next free cluster hint
   vbr_sec       LONG    0               ' Volume Boot Record sector
+  ocr_value     LONG    0               ' Cached OCR register (from CMD58)
 
   ' ═══════════════════════════════════════════════════════════════════════
   ' PER-COG ERROR STORAGE (for thread-safe error reporting)
@@ -771,6 +772,64 @@ PUB readSectorRaw(sector, p_buffer) : result                                    
   result := true
   debug("  [readSectorRaw] Read sector ", udec(sector))
 
+CON '' ═══════════════════════════════════════════════════════════════════════════
+    '' CARD IDENTIFICATION METHODS (for diagnostic tools)
+    '' These methods provide raw register access for card characterization.
+    '' Call initCardOnly() or mount() before using these methods.
+    '' ═══════════════════════════════════════════════════════════════════════════
+
+PUB readCIDRaw(p_buf) : result                                                  '' read CID register (16 bytes) into buffer
+'' Reads the Card Identification register containing manufacturer, product name,
+'' serial number, and manufacturing date.
+'' @param p_buf - pointer to 16-byte buffer to receive CID data
+'' @return true on success, false on failure
+  result := readCID(p_buf)
+  if result
+    debug("  [readCIDRaw] CID read successfully")
+  else
+    debug("  [readCIDRaw] CID read FAILED")
+
+PUB readCSDRaw(p_buf) : result                                                  '' read CSD register (16 bytes) into buffer
+'' Reads the Card Specific Data register containing capacity, speed, and features.
+'' @param p_buf - pointer to 16-byte buffer to receive CSD data
+'' @return true on success, false on failure
+  result := readCSD(p_buf)
+  if result
+    debug("  [readCSDRaw] CSD read successfully")
+  else
+    debug("  [readCSDRaw] CSD read FAILED")
+
+PUB readSCRRaw(p_buf) : result                                                  '' read SCR register (8 bytes) into buffer
+'' Reads the SD Configuration Register containing SD spec version and bus widths.
+'' @param p_buf - pointer to 8-byte buffer to receive SCR data
+'' @return true on success, false on failure
+  result := readSCR(p_buf)
+  if result
+    debug("  [readSCRRaw] SCR read successfully")
+  else
+    debug("  [readSCRRaw] SCR read FAILED")
+
+PUB getOCR() : ocr                                                              '' get cached OCR register value
+'' Returns the Operating Conditions Register cached during card initialization.
+'' Contains card capacity status (CCS) and voltage range.
+'' @return 32-bit OCR value, or 0 if card not initialized
+  ocr := ocr_value
+  debug("  [getOCR] OCR = $", uhex_long(ocr))
+
+PUB readVBRRaw(p_buf) : result                                                  '' read Volume Boot Record (512 bytes) into buffer
+'' Reads the Volume Boot Record sector containing filesystem parameters.
+'' Card must be mounted for this method to work (VBR location determined at mount).
+'' @param p_buf - pointer to 512-byte buffer to receive VBR data
+'' @return true on success, false if not mounted
+  if not (flags & F_MOUNTED)
+    debug("  [readVBRRaw] FAILED: Card not mounted")
+    return false
+  sec_in_buf := -1                                                              '  force re-read
+  readSector(vbr_sec)
+  bytemove(p_buf, @buf, 512)
+  debug("  [readVBRRaw] VBR read from sector ", udec(vbr_sec))
+  return true
+
 PRI readCSD(p_csd) : result | t, i                                              '' read CSD register using CMD9
 '' Reads the 16-byte CSD register into p_csd buffer
 '' Returns true on success, false on failure
@@ -808,6 +867,121 @@ PRI readCSD(p_csd) : result | t, i                                              
   ' Read 16 bytes of CSD data
   repeat i from 0 to 15
     byte[p_csd + i] := transfer(-1, 8)
+
+  ' Read and discard 2-byte CRC
+  transfer(-1, 16)
+
+  pinh(cs)
+  return true
+
+PRI readCID(p_cid) : result | t, i                                              '' read CID register using CMD10
+'' Reads the 16-byte CID (Card Identification) register into p_cid buffer
+'' Returns true on success, false on failure
+  transfer(-1, 8)
+  pinl(cs)
+  transfer(-1, 8)
+  transfer($40 | 10, 8)                                                         '  CMD10 = SEND_CID
+  transfer(0, 32)                                                               '  argument = 0
+  transfer($1B, 8)                                                              '  CRC for CMD10
+
+  ' Wait for response
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  if result <> $00
+    pinh(cs)
+    return false
+
+  ' Wait for data token ($FE)
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result == $FE
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  ' Read 16 bytes of CID data
+  repeat i from 0 to 15
+    byte[p_cid + i] := transfer(-1, 8)
+
+  ' Read and discard 2-byte CRC
+  transfer(-1, 16)
+
+  pinh(cs)
+  return true
+
+PRI readSCR(p_scr) : result | t, i                                              '' read SCR register using ACMD51
+'' Reads the 8-byte SCR (SD Configuration Register) into p_scr buffer
+'' Requires CMD55 prefix before ACMD51
+'' Returns true on success, false on failure
+
+  ' Send CMD55 (APP_CMD) first
+  transfer(-1, 8)
+  pinl(cs)
+  transfer(-1, 8)
+  transfer($40 | 55, 8)                                                         '  CMD55 = APP_CMD
+  transfer(0, 32)                                                               '  argument = 0
+  transfer($65, 8)                                                              '  CRC for CMD55
+
+  ' Wait for R1 response
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  if result > $01                                                               '  Accept $00 or $01 (idle)
+    pinh(cs)
+    return false
+
+  pinh(cs)                                                                      '  Deselect before ACMD51
+
+  ' Send ACMD51 (SEND_SCR)
+  transfer(-1, 8)
+  pinl(cs)
+  transfer(-1, 8)
+  transfer($40 | 51, 8)                                                         '  ACMD51 = SEND_SCR
+  transfer(0, 32)                                                               '  argument = 0
+  transfer($55, 8)                                                              '  CRC (approximate)
+
+  ' Wait for R1 response
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  if result <> $00
+    pinh(cs)
+    return false
+
+  ' Wait for data token ($FE)
+  t := getct() + clkfreq
+  repeat
+    result := transfer(-1, 8)
+    if result == $FE
+      quit
+    if getct() - t > 0
+      pinh(cs)
+      return false
+
+  ' Read 8 bytes of SCR data
+  repeat i from 0 to 7
+    byte[p_scr + i] := transfer(-1, 8)
 
   ' Read and discard 2-byte CRC
   transfer(-1, 16)
@@ -1273,6 +1447,7 @@ PRI initCard() : result | t, resp, card_version, acmd41_arg                     
   ' ============================================
   debug("    [initCard] Step 7: CMD58 (READ_OCR)...")
   resp := cmd(58, 0)
+  ocr_value := resp                                                             '  Cache OCR for later retrieval
   debug("    [initCard] OCR: $", uhex_long(resp))
   debug("    [initCard]   Bit 31 (ready): ", udec((resp >> 31) & 1))
   debug("    [initCard]   Bit 30 (CCS):   ", udec((resp >> 30) & 1))

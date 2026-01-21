@@ -138,10 +138,11 @@ echo -e "${GREEN}=== Compiling $BASENAME.spin2 ===${NC}"
 
 cd "$TEST_DIR"
 
-# Include path points to src/ for the driver (use relative path from test dir)
+# Include paths: src/ for driver, src/UTILS/ for utilities
 # pnut-ts works more reliably with relative paths
-INCLUDE_PATH="../src/"
-COMPILE_CMD="pnut-ts -d -I $INCLUDE_PATH $BASENAME.spin2"
+SRC_PATH="../src/"
+UTILS_PATH="../src/UTILS/"
+COMPILE_CMD="pnut-ts -d -I $SRC_PATH -I $UTILS_PATH $BASENAME.spin2"
 echo "  Command: $COMPILE_CMD"
 
 if ! $COMPILE_CMD; then

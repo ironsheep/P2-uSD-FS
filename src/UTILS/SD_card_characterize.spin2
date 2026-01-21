@@ -1,0 +1,589 @@
+{{
+┌──────────────────────────────────────────┐
+│ SD Card Characterization Diagnostic      │
+│ Author: Stephen M Moraco                 │
+│ Copyright (c) 2026 Iron Sheep Productions│
+│ See end of file for terms of use.        │
+└──────────────────────────────────────────┘
+
+  Non-destructive diagnostic tool to characterize SD cards.
+  Reads and parses:
+    - CID (Card Identification Register)
+    - CSD (Card Specific Data Register)
+    - SCR (SD Configuration Register)
+    - OCR (Operating Conditions Register)
+    - VBR/BPB (Volume Boot Record / BIOS Parameter Block)
+
+  Output: Formatted debug report suitable for card catalog documentation.
+}}
+
+CON
+  _CLKFREQ = 320_000_000
+
+  ' SD card pins - P2 EC32MB Edge Module
+  CS_PIN   = 60
+  MOSI_PIN = 59
+  MISO_PIN = 58
+  SCK_PIN  = 61
+
+  ' Buffer sizes
+  CID_SIZE = 16
+  CSD_SIZE = 16
+  SCR_SIZE = 8
+  VBR_SIZE = 512
+
+OBJ
+  sd : "SD_card_driver"
+
+DAT
+  ' Register buffers
+  cid_buf       BYTE    0[CID_SIZE]
+  csd_buf       BYTE    0[CSD_SIZE]
+  scr_buf       BYTE    0[SCR_SIZE]
+  vbr_buf       BYTE    0[VBR_SIZE]
+  ocr_val       LONG    0
+
+  ' Extracted CID fields
+  cid_mid       BYTE    0           ' Manufacturer ID
+  cid_oid       WORD    0           ' OEM/Application ID
+  cid_pnm       BYTE    0[6]        ' Product Name (5 chars + null)
+  cid_prv       BYTE    0           ' Product Revision
+  cid_psn       LONG    0           ' Product Serial Number
+  cid_mdt_year  WORD    0           ' Manufacturing Year
+  cid_mdt_month BYTE    0           ' Manufacturing Month
+
+  ' Extracted CSD fields
+  csd_version   BYTE    0           ' CSD structure version
+  csd_capacity  LONG    0           ' Card capacity in MB
+
+  ' Extracted VBR fields
+  vbr_bytes_per_sec   WORD    0
+  vbr_sec_per_clus    BYTE    0
+  vbr_reserved_sec    WORD    0
+  vbr_num_fats        BYTE    0
+  vbr_total_sectors   LONG    0
+  vbr_sec_per_fat     LONG    0
+  vbr_root_cluster    LONG    0
+  vbr_volume_serial   LONG    0
+  vbr_volume_label    BYTE    0[12]
+  vbr_fs_type         BYTE    0[9]
+  vbr_oem_name        BYTE    0[9]
+
+  ' Manufacturer lookup table (ID, Name)
+  ' Each entry: 1 byte ID, followed by null-terminated string
+  mfr_table     BYTE    $01, "Panasonic", 0
+                BYTE    $02, "Toshiba", 0
+                BYTE    $03, "SanDisk", 0
+                BYTE    $12, "Gigastone", 0
+                BYTE    $1B, "Samsung", 0
+                BYTE    $1D, "AData", 0
+                BYTE    $27, "Phison", 0
+                BYTE    $28, "Lexar", 0
+                BYTE    $31, "Silicon Power", 0
+                BYTE    $41, "Kingston", 0
+                BYTE    $45, "SanDisk", 0
+                BYTE    $4D, "SanDisk", 0
+                BYTE    $53, "SanDisk", 0
+                BYTE    $55, "SanDisk", 0
+                BYTE    $5D, "SwissBit", 0
+                BYTE    $6F, "STMicro", 0
+                BYTE    $73, "SanDisk", 0
+                BYTE    $74, "Transcend", 0
+                BYTE    $76, "Patriot", 0
+                BYTE    $82, "Sony", 0
+                BYTE    $89, "Silicon Motion", 0
+                BYTE    $9C, "Barun", 0
+                BYTE    $9E, "GSKILL", 0
+                BYTE    $AD, "Hynix", 0
+                BYTE    $FE, "PNY", 0
+                BYTE    $00                   ' End marker
+
+  ' Unique card ID string buffer
+  card_id_str   BYTE    0[64]
+
+PUB main() | result
+
+  debug("==============================================")
+  debug("  SD Card Characterization Report")
+  debug("==============================================")
+  debug(" ")
+
+  ' Initialize card WITHOUT mounting filesystem
+  ' This keeps SPI pins in our control for direct register access
+  debug("Initializing SD card (no-mount mode)...")
+  result := sd.initCardOnly(CS_PIN, MOSI_PIN, MISO_PIN, SCK_PIN)
+  if not result
+    debug("FATAL: Failed to initialize SD card!")
+    debug("Check card insertion and wiring.")
+    repeat  ' halt
+
+  debug("Card initialized successfully.")
+  debug(" ")
+
+  ' Read all registers (direct SPI access)
+  readAllRegisters()
+
+  ' Parse and display CID
+  parseCID()
+  displayCID()
+
+  ' Parse and display CSD
+  parseCSD()
+  displayCSD()
+
+  ' Display OCR
+  displayOCR()
+
+  ' Parse and display SCR
+  parseSCR()
+  displaySCR()
+
+  ' Display raw registers
+  displayRawRegisters()
+
+  ' Parse and display VBR/BPB (find it from MBR)
+  findAndReadVBR()
+  parseVBR()
+  displayVBR()
+
+  ' Generate and display unique card ID
+  generateCardID()
+  displayCardID()
+
+  debug(" ")
+  debug("==============================================")
+  debug("END_CHARACTERIZATION")
+  debug("==============================================")
+
+  repeat  ' halt
+
+PRI readAllRegisters() | result
+
+  debug("--- Reading Card Registers ---")
+
+  ' Read CID (Card Identification)
+  result := sd.readCIDRaw(@cid_buf)
+  if not result
+    debug("WARNING: Failed to read CID")
+  else
+    debug("  CID: OK")
+
+  ' Read CSD (Card Specific Data)
+  result := sd.readCSDRaw(@csd_buf)
+  if not result
+    debug("WARNING: Failed to read CSD")
+  else
+    debug("  CSD: OK")
+
+  ' Read SCR (SD Configuration Register)
+  result := sd.readSCRRaw(@scr_buf)
+  if not result
+    debug("WARNING: Failed to read SCR")
+  else
+    debug("  SCR: OK")
+
+  ' Get cached OCR (Operating Conditions Register)
+  ocr_val := sd.getOCR()
+  debug("  OCR: OK")
+
+  debug(" ")
+
+PRI findAndReadVBR() | mbr_buf[128], vbr_sector, type_code
+  '' Read MBR to find VBR location, then read VBR
+  '' MBR is at sector 0, VBR location is at offset 0x1C6
+
+  debug("--- Reading Filesystem Info ---")
+
+  ' Read MBR (sector 0)
+  sd.readSectorRaw(0, @mbr_buf)
+
+  ' Get partition type code from MBR at offset 0x1C2
+  type_code := BYTE[@mbr_buf + $1C2]
+  debug("  MBR partition type: $", uhex_byte_(type_code))
+
+  if type_code <> $0B and type_code <> $0C
+    debug("WARNING: Not FAT32 (type $0B or $0C)")
+    return
+
+  ' Get VBR sector from MBR at offset 0x1C6
+  vbr_sector := LONG[@mbr_buf + $1C6]
+  debug("  VBR at sector: ", udec_(vbr_sector))
+
+  ' Read VBR
+  sd.readSectorRaw(vbr_sector, @vbr_buf)
+  debug("  VBR: OK")
+
+  debug(" ")
+
+PRI parseCID() | i
+  '' Parse CID register fields
+  '' CID structure (128 bits = 16 bytes):
+  ''   [127:120] MID - Manufacturer ID (8 bits)
+  ''   [119:104] OID - OEM/Application ID (16 bits, 2 ASCII chars)
+  ''   [103:64]  PNM - Product Name (40 bits, 5 ASCII chars)
+  ''   [63:56]   PRV - Product Revision (8 bits, BCD n.m)
+  ''   [55:24]   PSN - Product Serial Number (32 bits)
+  ''   [23:20]   reserved
+  ''   [19:8]    MDT - Manufacturing Date (12 bits: year[11:4], month[3:0])
+  ''   [7:1]     CRC
+  ''   [0]       always 1
+
+  cid_mid := cid_buf[0]
+
+  cid_oid := (cid_buf[1] << 8) | cid_buf[2]
+
+  repeat i from 0 to 4
+    cid_pnm[i] := cid_buf[3 + i]
+  cid_pnm[5] := 0  ' null terminate
+
+  cid_prv := cid_buf[8]
+
+  cid_psn := (cid_buf[9] << 24) | (cid_buf[10] << 16) | (cid_buf[11] << 8) | cid_buf[12]
+
+  ' MDT is in bytes 13-14, bits [19:8] of original
+  ' Byte 13 has the high nibble of year and byte 14[7:4] has low nibble of year
+  ' Byte 14[3:0] has month
+  cid_mdt_year := 2000 + ((cid_buf[13] & $0F) << 4) + ((cid_buf[14] >> 4) & $0F)
+  cid_mdt_month := cid_buf[14] & $0F
+
+PRI displayCID() | p_mfr
+  debug(" ")
+  debug("--- CARD HARDWARE IDENTIFICATION ---")
+  debug("  Manufacturer ID:    $", uhex_byte_(cid_mid), " (", zstr_(lookupManufacturer(cid_mid)), ")")
+  debug("  OEM/Application:    ", uhex_byte_(cid_oid >> 8), " ", uhex_byte_(cid_oid & $FF))
+  debug("  Product Name:       ", zstr_(@cid_pnm))
+  debug("  Product Revision:   ", udec_(cid_prv >> 4), ".", udec_(cid_prv & $0F))
+  debug("  Serial Number:      $", uhex_long_(cid_psn))
+  if cid_mdt_month < 10
+    debug("  Manufacturing Date: ", udec_(cid_mdt_year), "-0", udec_(cid_mdt_month))
+  else
+    debug("  Manufacturing Date: ", udec_(cid_mdt_year), "-", udec_(cid_mdt_month))
+
+PRI lookupManufacturer(mid) : p_name | p_entry, entry_id
+  '' Look up manufacturer name by ID
+  '' Returns pointer to name string, or "Unknown" if not found
+  p_entry := @mfr_table
+  repeat
+    entry_id := BYTE[p_entry]
+    if entry_id == 0
+      ' End of table, not found
+      return @"Unknown"
+    if entry_id == mid
+      return p_entry + 1  ' Return pointer to name string
+    ' Skip to next entry (past null terminator)
+    p_entry++
+    repeat while BYTE[p_entry] <> 0
+      p_entry++
+    p_entry++  ' Skip the null
+
+PRI parseCSD() | c_size
+  '' Parse CSD register fields
+  '' CSD structure version is in bits [127:126] (byte 0, bits 7:6)
+  csd_version := (csd_buf[0] >> 6) & $03
+
+  if csd_version == 0
+    ' CSD Version 1.0 (SDSC) - complex capacity calculation
+    ' For now, just mark as unknown - SDSC cards are rare now
+    csd_capacity := 0
+  else
+    ' CSD Version 2.0 (SDHC/SDXC)
+    ' C_SIZE is bits [69:48] (22 bits), in bytes 7-9
+    ' Capacity = (C_SIZE + 1) * 512KB
+    c_size := ((csd_buf[7] & $3F) << 16) | (csd_buf[8] << 8) | csd_buf[9]
+    csd_capacity := (c_size + 1) / 2  ' Convert 512KB units to MB
+
+PRI displayCSD() | cap_gb, total_sectors
+  debug(" ")
+  debug("--- CARD CAPABILITIES ---")
+  debug("  CSD Version:        ", udec_(csd_version + 1), ".0")
+
+  if csd_version == 0
+    debug("  Card Type:          SDSC (Standard Capacity)")
+    debug("  Capacity:           (SDSC - see VBR for size)")
+  else
+    debug("  Card Type:          SDHC/SDXC (High/Extended Capacity)")
+    cap_gb := csd_capacity / 1024
+    if cap_gb > 0
+      debug("  Capacity:           ~", udec_(cap_gb), " GB (", udec_(csd_capacity), " MB)")
+    else
+      debug("  Capacity:           ", udec_(csd_capacity), " MB")
+    ' Calculate total sectors from C_SIZE
+    total_sectors := (csd_capacity * 2) * 1024  ' MB * 2048 = sectors
+    debug("  Total Sectors:      ", udec_(total_sectors))
+
+PRI displayOCR() | ccs, voltage
+  debug(" ")
+  debug("--- OPERATING CONDITIONS ---")
+  debug("  OCR Register:       $", uhex_long_(ocr_val))
+
+  ' Bit 31: Card power up status (1 = ready)
+  if (ocr_val >> 31) & 1
+    debug("  Power Status:       Ready")
+  else
+    debug("  Power Status:       Busy")
+
+  ' Bit 30: Card Capacity Status (CCS)
+  ccs := (ocr_val >> 30) & 1
+  if ccs
+    debug("  Capacity Status:    High Capacity (SDHC/SDXC)")
+  else
+    debug("  Capacity Status:    Standard Capacity (SDSC)")
+
+  ' Voltage window (bits 23:15)
+  voltage := (ocr_val >> 15) & $1FF
+  if voltage & $100
+    debug("  Voltage Support:    3.5-3.6V")
+  if voltage & $80
+    debug("  Voltage Support:    3.4-3.5V")
+  if voltage & $40
+    debug("  Voltage Support:    3.3-3.4V")
+  if voltage & $20
+    debug("  Voltage Support:    3.2-3.3V")
+  if voltage & $10
+    debug("  Voltage Support:    3.1-3.2V")
+  if voltage & $08
+    debug("  Voltage Support:    3.0-3.1V")
+  if voltage & $04
+    debug("  Voltage Support:    2.9-3.0V")
+  if voltage & $02
+    debug("  Voltage Support:    2.8-2.9V")
+  if voltage & $01
+    debug("  Voltage Support:    2.7-2.8V")
+
+PRI parseSCR()
+  '' Parse SCR register fields
+  '' SCR structure (64 bits = 8 bytes):
+  ''   [63:60] SCR_STRUCTURE - SCR version (4 bits)
+  ''   [59:56] SD_SPEC - SD spec version (4 bits)
+  ''   [55:52] DATA_STAT_AFTER_ERASE (4 bits)
+  ''   [51:48] SD_SECURITY - security support (4 bits)
+  ''   [47:44] SD_BUS_WIDTHS - supported bus widths (4 bits)
+  ''   [43:40] SD_SPEC3 - SD spec 3.0 support (4 bits)
+  ''   etc...
+  ' Parsing happens in displaySCR for simplicity
+
+PRI displaySCR() | sd_spec, sd_spec3, bus_widths, security
+  debug(" ")
+  debug("--- SD CONFIGURATION ---")
+
+  ' SD_SPEC is bits [59:56] = byte 0, bits 3:0
+  sd_spec := scr_buf[0] & $0F
+
+  ' SD_SPEC3 is bit 47 = byte 2, bit 7
+  sd_spec3 := (scr_buf[2] >> 7) & 1
+
+  ' Determine SD version from SD_SPEC and SD_SPEC3
+  if sd_spec == 0
+    debug("  SD Spec Version:    1.0 or 1.01")
+  elseif sd_spec == 1
+    debug("  SD Spec Version:    1.10")
+  elseif sd_spec == 2
+    if sd_spec3
+      debug("  SD Spec Version:    3.0x")
+    else
+      debug("  SD Spec Version:    2.00")
+  else
+    debug("  SD Spec Version:    Unknown (", udec_(sd_spec), ")")
+
+  ' Bus widths: bits [51:48] = byte 1, bits 3:0
+  bus_widths := scr_buf[1] & $0F
+  if bus_widths & $04
+    debug("  Bus Width Support:  4-bit")
+  if bus_widths & $01
+    debug("  Bus Width Support:  1-bit")
+
+  ' Security: bits [54:52] = byte 0, bits 6:4
+  security := (scr_buf[0] >> 4) & $07
+  case security
+    0: debug("  Security:           No security")
+    1: debug("  Security:           Not used")
+    2: debug("  Security:           SDSC Card")
+    3: debug("  Security:           SDHC Card")
+    4: debug("  Security:           SDXC Card")
+    other: debug("  Security:           Reserved (", udec_(security), ")")
+
+PRI displayRawRegisters() | i
+  debug(" ")
+  debug("--- RAW REGISTERS ---")
+
+  ' CID (16 bytes)
+  debug("  CID: ", uhex_byte_array_(@cid_buf, 16))
+
+  ' CSD (16 bytes)
+  debug("  CSD: ", uhex_byte_array_(@csd_buf, 16))
+
+  ' OCR (4 bytes)
+  debug("  OCR: $", uhex_long_(ocr_val))
+
+  ' SCR (8 bytes)
+  debug("  SCR: ", uhex_byte_array_(@scr_buf, 8))
+
+PRI parseVBR() | i
+  '' Parse VBR/BPB fields
+
+  ' OEM Name at offset 0x03 (8 bytes)
+  bytemove(@vbr_oem_name, @vbr_buf + $03, 8)
+  vbr_oem_name[8] := 0
+
+  ' Bytes per sector at offset 0x0B (16-bit)
+  vbr_bytes_per_sec := WORD[@vbr_buf + $0B]
+
+  ' Sectors per cluster at offset 0x0D (8-bit)
+  vbr_sec_per_clus := vbr_buf[$0D]
+
+  ' Reserved sectors at offset 0x0E (16-bit)
+  vbr_reserved_sec := WORD[@vbr_buf + $0E]
+
+  ' Number of FATs at offset 0x10 (8-bit)
+  vbr_num_fats := vbr_buf[$10]
+
+  ' Total sectors (32-bit) at offset 0x20
+  vbr_total_sectors := LONG[@vbr_buf + $20]
+
+  ' Sectors per FAT (32-bit) at offset 0x24
+  vbr_sec_per_fat := LONG[@vbr_buf + $24]
+
+  ' Root cluster at offset 0x2C (32-bit)
+  vbr_root_cluster := LONG[@vbr_buf + $2C]
+
+  ' Volume serial at offset 0x43 (32-bit)
+  vbr_volume_serial := LONG[@vbr_buf + $43]
+
+  ' Volume label at offset 0x47 (11 bytes)
+  bytemove(@vbr_volume_label, @vbr_buf + $47, 11)
+  vbr_volume_label[11] := 0
+
+  ' FS type string at offset 0x52 (8 bytes)
+  bytemove(@vbr_fs_type, @vbr_buf + $52, 8)
+  vbr_fs_type[8] := 0
+
+PRI displayVBR() | cluster_size, data_region, total_clusters
+  debug(" ")
+  debug("--- FILESYSTEM FORMATTING ---")
+  debug("  OEM Name:           [", zstr_(@vbr_oem_name), "]")
+  debug("  Volume Label:       [", zstr_(@vbr_volume_label), "]")
+  debug("  Volume Serial:      $", uhex_long_(vbr_volume_serial))
+  debug("  FS Type:            [", zstr_(@vbr_fs_type), "]")
+  debug("  Bytes/Sector:       ", udec_(vbr_bytes_per_sec))
+
+  cluster_size := vbr_sec_per_clus * vbr_bytes_per_sec
+  if cluster_size >= 1024
+    debug("  Sectors/Cluster:    ", udec_(vbr_sec_per_clus), " (", udec_(cluster_size / 1024), " KB clusters)")
+  else
+    debug("  Sectors/Cluster:    ", udec_(vbr_sec_per_clus), " (", udec_(cluster_size), " byte clusters)")
+
+  debug("  Reserved Sectors:   ", udec_(vbr_reserved_sec))
+  debug("  Number of FATs:     ", udec_(vbr_num_fats))
+  debug("  Sectors per FAT:    ", udec_(vbr_sec_per_fat))
+  debug("  Root Cluster:       ", udec_(vbr_root_cluster))
+  debug("  Total Sectors:      ", udec_(vbr_total_sectors))
+
+  ' Calculate data region start
+  data_region := vbr_reserved_sec + (vbr_num_fats * vbr_sec_per_fat)
+  debug("  Data Region Start:  Sector ", udec_(data_region))
+
+  ' Calculate total clusters
+  if vbr_sec_per_clus > 0
+    total_clusters := (vbr_total_sectors - data_region) / vbr_sec_per_clus
+    debug("  Total Clusters:     ", udec_(total_clusters))
+
+PRI generateCardID() | p_dst, p_mfr, i, c
+  '' Generate unique card ID string in format:
+  '' {Manufacturer}_{ProductName}_{Revision}_{Serial}_{YYYYMM}
+
+  p_dst := @card_id_str
+
+  ' Manufacturer name (replace spaces with nothing)
+  p_mfr := lookupManufacturer(cid_mid)
+  repeat while (c := BYTE[p_mfr++]) <> 0
+    if c <> " "
+      BYTE[p_dst++] := c
+
+  BYTE[p_dst++] := "_"
+
+  ' Product name (trim spaces)
+  repeat i from 0 to 4
+    c := cid_pnm[i]
+    if c <> " " and c <> 0
+      BYTE[p_dst++] := c
+
+  BYTE[p_dst++] := "_"
+
+  ' Revision (n.m format)
+  BYTE[p_dst++] := (cid_prv >> 4) + "0"
+  BYTE[p_dst++] := "."
+  BYTE[p_dst++] := (cid_prv & $0F) + "0"
+
+  BYTE[p_dst++] := "_"
+
+  ' Serial number (8 hex digits)
+  p_dst := hexLong(p_dst, cid_psn)
+
+  BYTE[p_dst++] := "_"
+
+  ' Manufacturing date (YYYYMM)
+  p_dst := decWord(p_dst, cid_mdt_year)
+  if cid_mdt_month < 10
+    BYTE[p_dst++] := "0"
+  p_dst := decByte(p_dst, cid_mdt_month)
+
+  ' Null terminate
+  BYTE[p_dst] := 0
+
+PRI hexLong(p_dst, val) : p_out | i, nibble
+  '' Convert 32-bit value to 8 hex characters
+  repeat i from 7 to 0
+    nibble := (val >> (i * 4)) & $0F
+    if nibble < 10
+      BYTE[p_dst++] := nibble + "0"
+    else
+      BYTE[p_dst++] := nibble - 10 + "A"
+  return p_dst
+
+PRI decWord(p_dst, val) : p_out | digits[5], i, started
+  '' Convert 16-bit value to decimal string
+  repeat i from 0 to 4
+    digits[i] := val // 10
+    val := val / 10
+  started := false
+  repeat i from 4 to 0
+    if digits[i] <> 0 or started or i == 0
+      BYTE[p_dst++] := digits[i] + "0"
+      started := true
+  return p_dst
+
+PRI decByte(p_dst, val) : p_out | digits[3], i, started
+  '' Convert 8-bit value to decimal string
+  repeat i from 0 to 2
+    digits[i] := val // 10
+    val := val / 10
+  started := false
+  repeat i from 2 to 0
+    if digits[i] <> 0 or started or i == 0
+      BYTE[p_dst++] := digits[i] + "0"
+      started := true
+  return p_dst
+
+PRI displayCardID()
+  debug(" ")
+  debug("==============================================")
+  debug("  Card ID: ", zstr_(@card_id_str))
+  debug("==============================================")
+
+CON {{
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                   TERMS OF USE: MIT License                                                  │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation    │
+│files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,    │
+│modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software│
+│is furnished to do so, subject to the following conditions:                                                                   │
+│                                                                                                                              │
+│The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.│
+│                                                                                                                              │
+│THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE          │
+│WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR         │
+│COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,   │
+│ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+}}
