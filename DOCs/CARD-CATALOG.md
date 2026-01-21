@@ -15,6 +15,11 @@ This catalog documents SD cards tested with the P2 SD card driver. Cards are cha
 | Unknown_SD16G_2.0_000003FB_202502 | Gigastone (Budget OEM $00) | SD16G | ~14 GB | PASS |
 | SanDisk_SN64G_8.6_7E650771_202211 | SanDisk ($03) | SN64G | ~59 GB | PASS |
 | Phison_SD16G_3.0_01CD5CF5_201808 | PNY (Phison $27) | SD16G | ~14 GB | PARTIAL |
+| SanDisk_SU08G_8.0_0AA81F11_201010 | Unknown (claims SanDisk $03) | SU08G | ~7 GB | PASS |
+| Kingston_SD8GB_3.0_43F65DC9_201504 | Kingston ($41) | SD8GB | ~7 GB | PASS |
+| Samsung_GD4QT_3.0_C0305565_201805 | Samsung ($1B) | GD4QT | ~119 GB | PASS |
+| SanDisk_AGGCF_8.0_E05C352B_201707 | SanDisk ($03) | AGGCF | ~119 GB | PASS |
+| SanDisk_SN128_8.0_F79E34F6_201912 | SanDisk ($03) | SN128 | ~119 GB | PASS |
 
 ---
 
@@ -675,6 +680,425 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 
 ---
 
+## Card: "Chinese Made" 8GB SDHC
+
+**Label:** microSD HC 8GB (4) - Chinese text, no brand
+**Unique ID:** `SanDisk_SU08G_8.0_0AA81F11_201010`
+**Test Date:** 2026-01-20
+
+### Hardware Identification
+
+| Field | Value |
+|-------|-------|
+| Brand (Label) | Unknown (Chinese text, no brand) |
+| Manufacturer ID | $03 (claims SanDisk) |
+| OEM/Application | $53 $44 ("SD" = SanDisk) |
+| Product Name | SU08G |
+| Product Revision | 8.0 |
+| Serial Number | $0AA8_1F11 |
+| Manufacturing Date | October 2010 |
+
+### Card Capabilities
+
+| Field | Value |
+|-------|-------|
+| CSD Version | 2.0 |
+| Card Type | SDHC (High Capacity) |
+| Capacity | ~7 GB (7,580 MB) |
+| Total Sectors | 15,523,840 |
+| SD Spec Version | 3.0x |
+| Bus Width Support | 1-bit, 4-bit |
+
+### Operating Conditions
+
+| Field | Value |
+|-------|-------|
+| OCR Register | $C0FF_8000 |
+| Power Status | Ready |
+| Capacity Status | High Capacity (SDHC) |
+| Voltage Support | 2.7V - 3.6V |
+
+### Raw Registers
+
+```
+CID: $03 $53 $44 $53 $55 $30 $38 $47 $80 $0A $A8 $1F $11 $00 $AA $03
+CSD: $40 $0E $00 $32 $5B $59 $00 $00 $3B $37 $7F $80 $0A $40 $40 $AF
+OCR: $C0FF_8000
+SCR: $02 $35 $80 $01 $00 $00 $00 $00
+```
+
+### Filesystem Formatting
+
+| Field | Value |
+|-------|-------|
+| Status | **CORRUPT/UNFORMATTED** |
+| OEM Name | mkdosfs (Linux formatter residue) |
+| Notes | VBR fields contain garbage - needs reformatting |
+
+### Test Results
+
+| Test | Status | Notes |
+|------|--------|-------|
+| Card Init | PASS | |
+| CID Read | PASS | |
+| CSD Read | PASS | |
+| SCR Read | PASS | |
+| MBR Read | PASS | FAT32 LBA ($0C) partition |
+| VBR Read | PASS | But data is corrupt |
+| Mount | N/A | Needs FAT32 format first |
+
+### Notes
+
+- **Unlabeled "Chinese made"** card with speed class 4 marking
+- CID claims **SanDisk** (MID $03, OEM "SD") - suspicious for no-name card
+- Possible scenarios:
+  1. Genuine SanDisk card that was relabeled/repackaged
+  2. Counterfeit card spoofing SanDisk's MID (common with fakes)
+  3. Recycled/refurbished SanDisk flash with new controller
+- **Very old** - manufactured October 2010 (15+ years old)
+- Filesystem corrupt - was formatted with Linux `mkdosfs` at some point
+- Needs FAT32 reformatting before use
+- **(4)** = Speed Class 4 (4 MB/s minimum write speed) - slowest class
+
+---
+
+## Card: Kingston 8GB SDHC
+
+**Label:** Kingston 8GB microSD HC I ui (10) "Taiwan" F(c)o
+**Unique ID:** `Kingston_SD8GB_3.0_43F65DC9_201504`
+**Test Date:** 2026-01-20
+
+### Hardware Identification
+
+| Field | Value |
+|-------|-------|
+| Brand (Label) | Kingston |
+| Manufacturer ID | $41 (Kingston - genuine) |
+| OEM/Application | $34 $32 ("42") |
+| Product Name | SD8GB |
+| Product Revision | 3.0 |
+| Serial Number | $43F6_5DC9 |
+| Manufacturing Date | April 2015 |
+
+### Card Capabilities
+
+| Field | Value |
+|-------|-------|
+| CSD Version | 2.0 |
+| Card Type | SDHC (High Capacity) |
+| Capacity | ~7 GB (7,496 MB) |
+| Total Sectors | 15,351,808 |
+| SD Spec Version | 3.0x |
+| Bus Width Support | 1-bit, 4-bit |
+
+### Operating Conditions
+
+| Field | Value |
+|-------|-------|
+| OCR Register | $C0FF_8000 |
+| Power Status | Ready |
+| Capacity Status | High Capacity (SDHC) |
+| Voltage Support | 2.7V - 3.6V |
+
+### Raw Registers
+
+```
+CID: $41 $34 $32 $53 $44 $38 $47 $42 $30 $43 $F6 $5D $C9 $00 $F4 $A1
+CSD: $40 $0E $00 $32 $5B $59 $00 $00 $3A $8F $7F $80 $0A $40 $00 $87
+OCR: $C0FF_8000
+SCR: $02 $B5 $80 $00 $00 $00 $00 $00
+```
+
+### Filesystem Formatting
+
+| Field | Value |
+|-------|-------|
+| Partition Type | $0B (FAT32 CHS) |
+| OEM Name | SD |
+| Volume Label | (blank) |
+| Volume Serial | $0403_0201 |
+| FS Type | FAT32 |
+| Bytes/Sector | 512 |
+| Sectors/Cluster | 64 (32 KB clusters) |
+| Reserved Sectors | 4,446 |
+| Number of FATs | 2 |
+| Sectors per FAT | 1,873 |
+| Root Cluster | 2 |
+| Total Sectors | 15,343,616 |
+| Data Region Start | Sector 8,192 |
+| Total Clusters | 239,616 |
+
+### Test Results
+
+| Test | Status | Notes |
+|------|--------|-------|
+| Card Init | PASS | |
+| CID Read | PASS | |
+| CSD Read | PASS | |
+| SCR Read | PASS | |
+| MBR Read | PASS | FAT32 CHS ($0B) partition |
+| VBR Read | PASS | |
+| Mount | PASS | |
+
+### Notes
+
+- **Genuine Kingston** card - MID $41 is registered Kingston
+- **HC I** = SDHC UHS-I interface
+- **ui** = UHS-I marking on label
+- **(10)** = Speed Class 10 (10 MB/s minimum write speed)
+- **"Taiwan"** = Country of manufacture
+- **F(c)o** = likely FCC compliance marking
+- Manufactured April 2015 (~10 years old)
+- Kingston is a recommended brand for embedded SPI use
+- Uses FAT32 CHS partition type ($0B) vs LBA ($0C)
+
+---
+
+## Card: Samsung EVO Select 128GB SDXC
+
+**Label:** Samsung EVO Select microSD XC I U3
+**Unique ID:** `Samsung_GD4QT_3.0_C0305565_201805`
+**Test Date:** 2026-01-20
+
+### Hardware Identification
+
+| Field | Value |
+|-------|-------|
+| Brand (Label) | Samsung EVO Select |
+| Manufacturer ID | $1B (Samsung - genuine) |
+| OEM/Application | $53 $4D ("SM" = Samsung) |
+| Product Name | GD4QT |
+| Product Revision | 3.0 |
+| Serial Number | $C030_5565 |
+| Manufacturing Date | May 2018 |
+
+### Card Capabilities
+
+| Field | Value |
+|-------|-------|
+| CSD Version | 2.0 |
+| Card Type | SDXC (Extended Capacity) |
+| Capacity | ~119 GB (122,112 MB) |
+| Total Sectors | 250,085,376 |
+| SD Spec Version | 3.0x |
+| Bus Width Support | 1-bit, 4-bit |
+
+### Operating Conditions
+
+| Field | Value |
+|-------|-------|
+| OCR Register | $C0FF_8000 |
+| Power Status | Ready |
+| Capacity Status | High Capacity (SDHC/SDXC) |
+| Voltage Support | 2.7V - 3.6V |
+
+### Raw Registers
+
+```
+CID: $1B $53 $4D $47 $44 $34 $51 $54 $30 $C0 $30 $55 $65 $01 $25 $E9
+CSD: $40 $0E $00 $32 $5B $59 $00 $03 $B9 $FF $7F $80 $0A $40 $40 $AB
+OCR: $C0FF_8000
+SCR: $02 $C5 $80 $03 $00 $00 $00 $00
+```
+
+### Filesystem Formatting (Factory)
+
+| Field | Value |
+|-------|-------|
+| Partition Type | $07 (exFAT/NTFS) |
+| Factory Format | exFAT (default for 64GB+) |
+
+**Note:** Card ships with exFAT filesystem. Needs FAT32 format for P2 SD driver compatibility.
+
+### Test Results
+
+| Test | Status | Notes |
+|------|--------|-------|
+| Card Init | PASS | Required CMD0 retry (first returned $00) |
+| CID Read | PASS | |
+| CSD Read | PASS | |
+| SCR Read | PASS | |
+| MBR Read | PASS | exFAT partition detected |
+| Mount | N/A | Requires FAT32 format first |
+
+### Notes
+
+- **Genuine Samsung** - MID $1B + OID "SM" confirms authentic Samsung
+- **EVO Select** = Amazon-exclusive variant of EVO Plus line
+- **XC I** = SDXC UHS-I interface (up to 104 MB/s bus speed)
+- **U3** = UHS Speed Class 3 (30 MB/s minimum write speed)
+- Used in DJI Phantom 4 drone - known reliable for video recording
+- CMD0 initially returned $00 on first attempt, succeeded on retry
+- May need brief wake-up time after insertion
+- Factory formatted with exFAT (not FAT32)
+- Needs FAT32 reformat before use with P2 SD driver
+- Largest card in catalog (128GB / ~119GB usable)
+
+---
+
+## Card: SanDisk Extreme PRO 128GB SDXC
+
+**Label:** SanDisk Extreme PRO 128GB microSD XC I V30 U3 A1
+**Unique ID:** `SanDisk_AGGCF_8.0_E05C352B_201707`
+**Test Date:** 2026-01-20
+
+### Hardware Identification
+
+| Field | Value |
+|-------|-------|
+| Brand (Label) | SanDisk Extreme PRO |
+| Manufacturer ID | $03 (SanDisk - genuine) |
+| OEM/Application | $53 $44 ("SD" = SanDisk) |
+| Product Name | AGGCF |
+| Product Revision | 8.0 |
+| Serial Number | $E05C_352B |
+| Manufacturing Date | July 2017 |
+
+### Card Capabilities
+
+| Field | Value |
+|-------|-------|
+| CSD Version | 2.0 |
+| Card Type | SDXC (Extended Capacity) |
+| Capacity | ~119 GB (121,942 MB) |
+| Total Sectors | 249,737,216 |
+| SD Spec Version | 3.0x |
+| Bus Width Support | 1-bit, 4-bit |
+
+### Operating Conditions
+
+| Field | Value |
+|-------|-------|
+| OCR Register | $C0FF_8000 |
+| Power Status | Ready |
+| Capacity Status | High Capacity (SDHC/SDXC) |
+| Voltage Support | 2.7V - 3.6V |
+
+### Raw Registers
+
+```
+CID: $03 $53 $44 $41 $47 $47 $43 $46 $80 $E0 $5C $35 $2B $01 $17 $F9
+CSD: $40 $0E $00 $32 $5B $59 $00 $03 $B8 $AB $7F $80 $0A $40 $40 $79
+OCR: $C0FF_8000
+SCR: $02 $45 $84 $43 $00 $00 $00 $00
+```
+
+### Filesystem Formatting (Factory)
+
+| Field | Value |
+|-------|-------|
+| Partition Type | $07 (exFAT/NTFS) |
+| Factory Format | exFAT (default for 64GB+) |
+
+**Note:** Card ships with exFAT filesystem. Needs FAT32 format for P2 SD driver compatibility.
+
+### Test Results
+
+| Test | Status | Notes |
+|------|--------|-------|
+| Card Init | PASS | |
+| CID Read | PASS | |
+| CSD Read | PASS | |
+| SCR Read | PASS | |
+| MBR Read | PASS | exFAT partition detected |
+| Mount | N/A | Requires FAT32 format first |
+
+### Notes
+
+- **Genuine SanDisk** - MID $03 + OID "SD" confirms authentic SanDisk/Western Digital
+- **Extreme PRO** = SanDisk's premium professional line (highest tier)
+- **XC I** = SDXC UHS-I interface (up to 104 MB/s bus speed)
+- **V30** = Video Speed Class 30 (30 MB/s sustained sequential write)
+- **U3** = UHS Speed Class 3 (30 MB/s minimum write speed)
+- **A1** = Application Performance Class 1 (1500 read IOPS, 500 write IOPS)
+- Product name "AGGCF" = internal SanDisk nomenclature
+- Factory formatted with exFAT (not FAT32)
+- Needs FAT32 reformat before use with P2 SD driver
+- SanDisk recommended for embedded SPI use
+
+---
+
+## Card: SanDisk Nintendo Switch 128GB SDXC
+
+**Label:** SanDisk 128GB Nintendo Switch microSD XC I
+**Unique ID:** `SanDisk_SN128_8.0_F79E34F6_201912`
+**Test Date:** 2026-01-20
+
+### Hardware Identification
+
+| Field | Value |
+|-------|-------|
+| Brand (Label) | SanDisk Nintendo Switch Edition |
+| Manufacturer ID | $03 (SanDisk - genuine) |
+| OEM/Application | $53 $44 ("SD" = SanDisk) |
+| Product Name | SN128 |
+| Product Revision | 8.0 |
+| Serial Number | $F79E_34F6 |
+| Manufacturing Date | December 2019 |
+
+### Card Capabilities
+
+| Field | Value |
+|-------|-------|
+| CSD Version | 2.0 |
+| Card Type | SDXC (Extended Capacity) |
+| Capacity | ~119 GB (121,942 MB) |
+| Total Sectors | 249,737,216 |
+| SD Spec Version | 3.0x |
+| Bus Width Support | 1-bit, 4-bit |
+
+### Operating Conditions
+
+| Field | Value |
+|-------|-------|
+| OCR Register | $C0FF_8000 |
+| Power Status | Ready |
+| Capacity Status | High Capacity (SDHC/SDXC) |
+| Voltage Support | 2.7V - 3.6V |
+
+### Raw Registers
+
+```
+CID: $03 $53 $44 $53 $4E $31 $32 $38 $80 $F7 $9E $34 $F6 $01 $3C $63
+CSD: $40 $0E $00 $32 $DB $79 $00 $03 $B8 $AB $7F $80 $0A $40 $40 $5F
+OCR: $C0FF_8000
+SCR: $02 $45 $84 $87 $00 $00 $00 $00
+```
+
+### Filesystem Formatting (Factory)
+
+| Field | Value |
+|-------|-------|
+| Partition Type | $07 (exFAT/NTFS) |
+| Factory Format | exFAT (default for 64GB+) |
+
+**Note:** Card ships with exFAT filesystem. Needs FAT32 format for P2 SD driver compatibility.
+
+### Test Results
+
+| Test | Status | Notes |
+|------|--------|-------|
+| Card Init | PASS | |
+| CID Read | PASS | |
+| CSD Read | PASS | |
+| SCR Read | PASS | |
+| MBR Read | PASS | exFAT partition detected |
+| Mount | N/A | Requires FAT32 format first |
+
+### Notes
+
+- **Genuine SanDisk** - MID $03 + OID "SD" confirms authentic SanDisk/Western Digital
+- **Nintendo Switch Edition** = Officially licensed Nintendo-branded SanDisk card
+- Product name "SN128" = SanDisk Nintendo Switch 128GB
+- **XC I** = SDXC UHS-I interface (up to 104 MB/s bus speed)
+- Features Nintendo mushroom (Super Mario) branding on label
+- Designed for Nintendo Switch gaming console storage expansion
+- Factory formatted with exFAT (not FAT32)
+- Needs FAT32 reformat before use with P2 SD driver
+- Second SanDisk 128GB card in catalog with different product name (SN128 vs AGGCF)
+
+---
+
 ## Template for New Cards
 
 Copy this template when adding a new card:
@@ -766,4 +1190,4 @@ SCR: [8 bytes hex]
 
 *Catalog created: 2026-01-20*
 *Last updated: 2026-01-20*
-*Cards cataloged: 7*
+*Cards cataloged: 12*
