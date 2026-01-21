@@ -171,59 +171,57 @@ Caller Cog                              Worker Cog
 
 ---
 
-## Decision 5: Keep Bit-Bang PASM2 for SPI (Not SmartPins)
+## Decision 5: Smart Pin SPI Implementation (Revised 2026-01-21)
 
 ### The Question
 Should we use SmartPins (P_SYNC_TX, P_SYNC_RX, P_TRANSITION) for SPI, or keep the existing bit-bang PASM2?
 
-### Deep Analysis Performed
+### Original Analysis (2026-01-17)
 
-We evaluated SmartPins against five criteria:
+We initially evaluated SmartPins and concluded "keep bit-bang" because:
+- No multi-event blocking wait (must poll anyway)
+- Proven reliability of existing code
+- SD card is the bottleneck, not P2 SPI speed
 
-| Criterion | Bit-Bang | SmartPins | Verdict |
-|-----------|----------|-----------|---------|
-| Clock independence | Requires `clkfreq` calc | Requires `clkfreq` calc | **Tie** |
-| Pin setup | Per-bit manipulation | One-time setup | SmartPins |
-| Timeout handling | Need ADDCT1/POLLCT1 | Need POLLSE1/POLLSE2 | **Tie** |
-| Raw throughput | ~10 MHz practical | ~25 MHz possible | **Tie** (card is bottleneck) |
-| Proven reliability | Years of use | New implementation | Bit-bang |
-| Code complexity | Explicit | More abstract | Bit-bang |
+### Revised Decision (2026-01-21)
 
-### The Critical Finding: No Multi-Event Blocking Wait
+After establishing baseline benchmarks and completing card characterization, we're now implementing Smart Pins. The key factors that changed our decision:
 
-We hoped SmartPins + Events would allow elegant timeout handling:
-```pasm2
-' HOPED FOR (does not exist):
-WAITANY SE1, SE2        ' Wait for timeout OR data - doesn't exist!
-```
+| Factor | Original Assessment | New Assessment |
+|--------|---------------------|----------------|
+| **Performance headroom** | "Card is bottleneck" | Benchmarks show 60% efficiency - room for improvement |
+| **Sysclk independence** | "Both need clkfreq calc" | Smart Pins make speed changes trivial |
+| **Baseline established** | None | 1.5 MB/s read, 425 KB/s write measured |
+| **Implementation risk** | High | Mitigated by keeping bit-bang fallback |
 
-**P2 reality**: You can configure SE1-SE4 for different events, but `WAITSE1` only waits for SE1. To monitor multiple events, you must poll:
+### Decision: Implement Smart Pin SPI
 
-```pasm2
-' ACTUAL PATTERN (from P2KB):
-.wait_loop:
-        POLLSE1 WC              ' Check timeout
-  IF_C  JMP #.timeout_error
-        POLLSE2 WC              ' Check data ready
-  IF_C  JMP #.data_ready
-        JMP #.wait_loop
-```
+**Architecture** (from Phase 1 plan):
 
-This is the same polling pattern needed for bit-bang timeout handling. SmartPins don't provide an elegance advantage.
+| Pin | Smart Pin Mode | Purpose |
+|-----|----------------|---------|
+| SCK | P_TRANSITION | Clock generation with precise frequency control |
+| MOSI | P_SYNC_TX | Data output synchronized to SCK |
+| MISO | P_SYNC_RX | Data input synchronized to SCK |
+| CS | GPIO | Unchanged (manual control) |
 
-### The Existing Code Is Optimal
+**MSB-First Handling**: SD cards use MSB-first, but smart pins are LSB-first. Solution: Use `REV` instruction (single-cycle) before TX and after RX.
 
-```pasm2
-' Current sector transfer (proven, fast):
-                rep       #4, #128          ' 128 iterations, 4 instructions
-                ...
-                wflong    result            ' Stream to hub via FIFO
-```
+**Implementation Plan**: See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` for detailed implementation.
 
-The `REP` loop with `WRFAST`/`WFLONG` is already optimal. Rewriting gains nothing and risks introducing bugs.
+### Performance Targets
 
-### Decision
-**Keep existing bit-bang PASM2.** Add timeout protection using `ADDCT1`/`POLLCT1` (see Task 2.4 in sprint plan). Consider SmartPins only if card compatibility issues emerge in the future.
+| Metric | Baseline (bit-bang) | Target (Smart Pin + Multi-Block) |
+|--------|---------------------|----------------------------------|
+| Read 256KB | 1,467 KB/s | 4,000+ KB/s |
+| Write 32KB | 425 KB/s | 1,200+ KB/s |
+| SPI Clock | ~20 MHz | 25-50 MHz |
+
+### Risk Mitigation
+
+- Keep bit-banged `transfer()` as fallback during development
+- Test with all characterized cards (Gigastone, PNY, SanDisk)
+- Use conservative timing initially (pre-edge sampling)
 
 ---
 
@@ -372,6 +370,67 @@ The current `readSector()` has an infinite loop waiting for the start token:
 
 ---
 
+## Decision 9: Multi-Block Operations (CMD18/CMD25)
+
+### The Question
+Should we implement multi-block read/write operations, or continue with single-sector operations?
+
+### Analysis
+
+**Single-sector approach** (current):
+```
+Read 64 sectors:
+  64× CMD17 → R1 → wait token → 512 bytes → CRC → CS high
+  = 64× command overhead
+```
+
+**Multi-block approach**:
+```
+Read 64 sectors:
+  1× CMD18 → R1 → (wait token → 512 bytes → CRC) × 64 → CMD12
+  = 1× command overhead + stop command
+```
+
+### Performance Impact
+
+| Operation | Single-Sector | Multi-Block | Expected Gain |
+|-----------|---------------|-------------|---------------|
+| Read 8 sectors | 8× CMD17 | 1× CMD18 | 10-15% |
+| Read 64 sectors | 64× CMD17 | 1× CMD18 | 15-25% |
+| Write 8 sectors | 8× CMD24 | 1× CMD25 | 20-30% |
+| Write 64 sectors | 64× CMD24 | 1× CMD25 | 30-40% |
+
+Additional benefit: Cards internally optimize for sequential access during multi-block operations.
+
+### Protocol Details
+
+**Multi-Block Read (CMD18)**:
+- Command: `$52` + sector + CRC
+- Each sector: Wait for `$FE` token, read 512 bytes + CRC
+- Stop: Send CMD12 (STOP_TRANSMISSION)
+
+**Multi-Block Write (CMD25)**:
+- Command: `$59` + sector + CRC
+- Each sector: Send `$FC` token (not `$FE`!), 512 bytes + CRC, wait for response
+- Stop: Send `$FD` token (not a command)
+
+### Decision
+**Implement multi-block operations in Phase 1** alongside Smart Pin SPI.
+
+This provides:
+1. Better baseline comparison data (measure gain from each optimization separately)
+2. Compounded performance improvement
+3. Foundation for file-level sequential I/O optimization
+
+### Implementation
+- `readSectors(start, count, p_buffer)` - CMD18 + CMD12
+- `writeSectors(start, count, p_buffer)` - CMD25 + stop token
+- Fall back to single-sector for count=1
+
+See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` Tasks 1.8-1.10 for details.
+
+---
+
 ## Summary: Why This Architecture
 
 | Component | Decision | P2-Specific Reason |
@@ -380,7 +439,8 @@ The current `readSector()` has an infinite loop waiting for the start token:
 | Worker language | Spin2 + inline PASM2 | SD card is bottleneck, not P2 |
 | State sharing | DAT block singleton | Spin2 memory model |
 | Signaling | COGATN | Zero-cost waiting, instant wake |
-| SPI method | Bit-bang with timeouts | No multi-event wait instruction |
+| SPI method | Smart Pins (revised) | Sysclk independence, higher throughput |
+| Multi-block | CMD18/CMD25 | Reduced command overhead |
 | Streamer | Not used | Parallel engine, SPI is serial |
 | Errors | Negative codes, per-cog | Thread-safe multi-cog access |
 | Failures | Timeouts, not retries | Caller has context to decide |

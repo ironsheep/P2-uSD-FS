@@ -370,12 +370,12 @@ PRI set_error(code)
 
 ### Pin Configuration
 
-| Pin | Function | Direction |
-|-----|----------|-----------|
-| 60 | CS (Chip Select) | Output |
-| 59 | MOSI (Data to card) | Output |
-| 58 | MISO (Data from card) | Input |
-| 61 | SCK (Clock) | Output |
+| Pin | Function | Direction | Smart Pin Mode (Phase 1) |
+|-----|----------|-----------|--------------------------|
+| 60 | CS (Chip Select) | Output | GPIO (manual control) |
+| 59 | MOSI (Data to card) | Output | P_SYNC_TX |
+| 58 | MISO (Data from card) | Input | P_SYNC_RX |
+| 61 | SCK (Clock) | Output | P_TRANSITION |
 
 ### Speed Modes
 
@@ -385,7 +385,45 @@ PRI set_error(code)
 | Default Speed | 25 MHz | 3.125 MB/s | After init |
 | High Speed | 50 MHz | 6.25 MB/s | After CMD6 switch |
 
-### Clock Timing
+### SPI Implementation (Phase 1 Enhancement)
+
+**Current**: Bit-banged with inline PASM2
+**Planned**: Smart Pin modes for sysclk-independent timing
+
+| Smart Pin | Mode | Purpose |
+|-----------|------|---------|
+| SCK | P_TRANSITION | Generate precise clock pulses |
+| MOSI | P_SYNC_TX | Transmit synchronized to SCK |
+| MISO | P_SYNC_RX | Receive synchronized to SCK |
+
+**MSB-First Handling**: SD cards use MSB-first; Smart Pins are LSB-first. The `REV` instruction (single-cycle) handles bit reversal.
+
+```spin2
+' Smart Pin speed control (sysclk independent)
+PRI setSPISpeed(freq)
+  period := clkfreq / (freq * 2)
+  wxpin(sck, period)
+```
+
+### Multi-Block Operations (Phase 1 Enhancement)
+
+For sequential sector access, multi-block commands reduce overhead:
+
+| Operation | Single-Block | Multi-Block |
+|-----------|--------------|-------------|
+| Read | CMD17 per sector | CMD18 + CMD12 |
+| Write | CMD24 per sector | CMD25 + $FD token |
+| Overhead | ~10 bytes/sector | ~10 bytes total |
+
+```spin2
+' Multi-block read (CMD18)
+readSectors(start, count, p_buffer)
+
+' Multi-block write (CMD25)
+writeSectors(start, count, p_buffer)
+```
+
+### Clock Timing (Legacy Bit-Bang)
 
 ```spin2
 DAT

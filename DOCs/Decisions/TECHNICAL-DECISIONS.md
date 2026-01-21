@@ -69,7 +69,8 @@ If we ever need to track large numbers of items (e.g., sector allocation bitmap 
 ## TD-002: Smart Pins for SPI - Deep Analysis
 
 **Date**: 2026-01-17
-**Status**: DECIDED - Hybrid approach (Option 3)
+**Revised**: 2026-01-21
+**Status**: DECIDED - Full Smart Pin Implementation (Option 2, revised)
 
 ### Overview
 
@@ -331,51 +332,55 @@ SETSE2  #%001 << 6 + miso_pin       ' SE2 = IN rises on miso_pin
 
 ### Final Decision
 
-**STATUS: DECIDED** - Option 3 (Hybrid approach)
+**STATUS: REVISED** - Option 2 (Full Smart Pin Implementation)
 
-**Evaluated Options**:
+**Original Decision (2026-01-17)**: Hybrid approach - keep bit-bang, fix timeouts only.
 
-1. **Keep current code + fix timeout bug**
-   - Add timeout check in readSector PASM loop
-   - Requires PASM counter manipulation
-   - Doesn't change fundamental approach
+**Revised Decision (2026-01-21)**: Implement full Smart Pin SPI architecture.
 
-2. **Adopt Smart Pins for command/transfer layer**
-   - Use P_TRANSITION for SCK
-   - Use P_SYNC_TX for MOSI
-   - Use P_SYNC_RX for MISO
-   - Keep direct control of CS
-   - Use events for timeout capability
-   - Keep `wrfast`/`rdfast` for hub streaming
+**What Changed**:
 
-3. **Hybrid approach** ← **SELECTED**
-   - Use current PASM for bulk sector transfers (proven, fast)
-   - Add timeout protection via ADDCT1/POLLCT1
-   - Evaluate Smart Pins for command layer in future phase
+After establishing baseline benchmarks (see `DOCs/BENCHMARK-RESULTS.md`), we found:
+- Current implementation achieves only 60% efficiency (1.5 MB/s vs 2.5 MB/s theoretical)
+- Sysclk independence is valuable for users running different clock frequencies
+- Card characterization completed - we have test coverage for implementation changes
 
-**Decision Rationale**:
+**Selected Approach**:
 
-1. **Proven Code**: The current bit-bang sector transfer is reliable and performant. REP loops with FIFO streaming are already optimal.
+| Pin | Smart Pin Mode | Purpose |
+|-----|----------------|---------|
+| SCK | P_TRANSITION | Clock generation with precise frequency control |
+| MOSI | P_SYNC_TX | Data output synchronized to SCK |
+| MISO | P_SYNC_RX | Data input synchronized to SCK |
+| CS | GPIO | Manual control (unchanged) |
 
-2. **Timeout Bug**: The critical bug in `readSector()` can be fixed with simple ADDCT1/POLLCT1 without restructuring (see SPRINT-PLAN-multicog.md Task 2.4).
+**Key Technical Details**:
+- MSB-first handling: Use `REV` instruction before TX, after RX (single-cycle)
+- Keep `wrfast`/`rdfast` for hub streaming (unchanged)
+- Keep bit-bang fallback during development for A/B testing
 
-3. **No Blocking Multi-Event Wait**: P2KB confirms you cannot wait for multiple events in one instruction - polling is required. This reduces the "elegance advantage" of Smart Pins for timeout handling; both approaches need a poll loop.
+**Performance Targets**:
 
-4. **Risk Mitigation**: Rewriting working SPI code introduces risk for minimal gain. Card speed is the bottleneck, not P2 bit-bang speed.
-
-5. **Future Option**: Smart Pins remain viable for command layer (variable bit counts, more complex error handling) as a Phase 2 optimization if needed.
+| Metric | Baseline | Target |
+|--------|----------|--------|
+| Read 256KB | 1,467 KB/s | 4,000+ KB/s |
+| Write 32KB | 425 KB/s | 1,200+ KB/s |
+| SPI Clock | ~20 MHz | 25-50 MHz |
 
 ---
 
 ### Implementation Actions
 
-**Immediate (Sprint Task 2.4)**:
-- Add timeout protection to `readSector()` start-token wait
-- Use ADDCT1/POLLCT1 pattern (no Smart Pins needed)
+**Phase 1 Sprint (In Progress)**:
+- Task 1.1: initSPIPins() - Configure smart pin modes
+- Task 1.2: setSPISpeed() - Sysclk-independent frequency control
+- Task 1.3: sp_transfer() - Smart pin byte/word transfer
+- Task 1.4: sp_readSector() - Optimized 512-byte read
+- Task 1.5: sp_writeSector() - Optimized 512-byte write
+- Task 1.6: Integration with initCard()
+- Task 1.7: Regression testing
 
-**Deferred (Future)**:
-- Prototype Smart Pin SPI for `cmd()` if command layer becomes problematic
-- Revisit if SD card compatibility issues emerge
+See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` for full implementation plan.
 
 ---
 
@@ -678,8 +683,77 @@ if repeated_timeout_count > 3
 
 ---
 
-## TD-005: (Reserved for next decision)
+## TD-005: Multi-Block Operations (CMD18/CMD25)
+
+**Date**: 2026-01-21
+**Status**: DECIDED - Implement in Phase 1
+
+### Background
+
+SD cards support multi-block read (CMD18) and write (CMD25) operations that transfer multiple consecutive sectors with a single command, reducing per-sector overhead.
+
+### Analysis
+
+**Current Single-Sector Approach**:
+```
+Per sector: CMD17 → R1 → wait → 512 bytes → CRC → CS high
+Overhead: ~10 bytes command/response per sector
+```
+
+**Multi-Block Approach**:
+```
+Once: CMD18 → R1
+Per sector: wait → 512 bytes → CRC
+End: CMD12 (stop)
+Overhead: ~10 bytes total (not per-sector)
+```
+
+### Expected Performance Improvement
+
+| Sector Count | Single-Sector Overhead | Multi-Block Overhead | Reduction |
+|--------------|------------------------|----------------------|-----------|
+| 8 sectors | 80 bytes | 20 bytes | 75% |
+| 64 sectors | 640 bytes | 20 bytes | 97% |
+
+At 25 MHz SPI, 640 bytes = ~200µs saved per 64-sector operation.
+
+**Additional Benefits**:
+- Cards internally optimize for sequential access
+- Reduces CPU time spent on command handling
+- Better alignment with card's internal erase block operations
+
+### Protocol Differences
+
+| Aspect | Single Block | Multi-Block Read | Multi-Block Write |
+|--------|--------------|------------------|-------------------|
+| Command | CMD17/CMD24 | CMD18 | CMD25 |
+| Data token | $FE | $FE (each sector) | $FC (each sector) |
+| Stop | Automatic | CMD12 | $FD token |
+| CRC | Required | Required (each) | Required (each) |
+
+**Critical**: Multi-block write uses `$FC` data token, not `$FE`. Stop is `$FD` token, not CMD12.
+
+### Decision
+
+**Implement multi-block operations in Phase 1** alongside Smart Pin SPI to:
+1. Establish baseline improvement from multi-block alone
+2. Measure compounded benefit with Smart Pins
+3. Provide foundation for file-level sequential I/O
+
+### Implementation
+
+```spin2
+readSectors(start, count, p_buffer)   ' CMD18 + CMD12
+writeSectors(start, count, p_buffer)  ' CMD25 + $FD stop token
+```
+
+See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` Tasks 1.8-1.10 for detailed implementation.
+
+---
+
+## TD-006: (Reserved for next decision)
 
 ---
 
 *Document created: 2026-01-17*
+*Last updated: 2026-01-21*

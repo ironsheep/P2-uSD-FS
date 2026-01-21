@@ -294,8 +294,100 @@ After fixes: 628 bytes VAR, ~10.2 KB code
 
 ---
 
+---
+
+## Performance Improvements (Phase 1 Sprint)
+
+### Issue #6: Smart Pin SPI Implementation
+
+**Status**: 🔄 PLANNED (Phase 1)
+**Priority**: HIGH
+**Category**: Performance
+
+**Problem**:
+Current bit-banged SPI implementation:
+- Achieves only ~60% efficiency (1.5 MB/s read vs 2.5 MB/s theoretical)
+- Speed tied to sysclk setting
+- ~20 MHz practical SPI clock
+
+**Solution**:
+Replace bit-banged SPI with P2 Smart Pins:
+
+| Pin | Smart Pin Mode | Purpose |
+|-----|----------------|---------|
+| SCK | P_TRANSITION | Clock generation |
+| MOSI | P_SYNC_TX | Synchronized transmit |
+| MISO | P_SYNC_RX | Synchronized receive |
+| CS | GPIO | Manual control (unchanged) |
+
+**Expected Improvement**:
+| Metric | Current | Target |
+|--------|---------|--------|
+| Read 256KB | 1,467 KB/s | 3,000+ KB/s |
+| Write 32KB | 425 KB/s | 900+ KB/s |
+| SPI Clock | ~20 MHz | 25-50 MHz |
+
+**Implementation**: See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` Tasks 1.1-1.7
+
+---
+
+### Issue #7: Multi-Block Read/Write Operations
+
+**Status**: 🔄 PLANNED (Phase 1)
+**Priority**: HIGH
+**Category**: Performance
+
+**Problem**:
+Current single-sector operations incur command overhead per sector:
+- 8 sectors = 8× CMD17 commands
+- Wastes ~10 bytes overhead per sector
+
+**Solution**:
+Implement multi-block operations:
+- CMD18 (READ_MULTIPLE_BLOCK) + CMD12 (STOP_TRANSMISSION)
+- CMD25 (WRITE_MULTIPLE_BLOCK) + $FD stop token
+
+**New Functions**:
+```spin2
+readSectors(start, count, p_buffer)   ' CMD18 multi-block read
+writeSectors(start, count, p_buffer)  ' CMD25 multi-block write
+```
+
+**Protocol Details**:
+| Aspect | Single Block | Multi-Block |
+|--------|--------------|-------------|
+| Read command | CMD17 | CMD18 |
+| Write command | CMD24 | CMD25 |
+| Write data token | $FE | $FC |
+| Write stop | Automatic | $FD token |
+| Read stop | Automatic | CMD12 |
+
+**Expected Improvement**:
+| Operation | Gain |
+|-----------|------|
+| Read 8 sectors | 10-15% |
+| Read 64 sectors | 15-25% |
+| Write 8 sectors | 20-30% |
+| Write 64 sectors | 30-40% |
+
+**Implementation**: See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` Tasks 1.8-1.10
+
+---
+
+## Implementation Log (continued)
+
+| Date | Issue | Status | Notes |
+|------|-------|--------|-------|
+| 2026-01-21 | Issue #6 Smart Pin SPI | 🔄 | Planned for Phase 1 implementation |
+| 2026-01-21 | Issue #7 Multi-Block | 🔄 | Added to Phase 1 scope |
+| 2026-01-21 | Baseline benchmarks | ✅ | Documented in BENCHMARK-RESULTS.md |
+
+---
+
 ## References
 
 - Microsoft FAT32 File System Specification v1.03
 - SD Physical Layer Simplified Specification v9.10
 - OB4269-FAT32-Compliance-Analysis.md (detailed spec analysis)
+- DOCs/Plans/PHASE1-SMARTPIN-SPI.md (implementation plan)
+- DOCs/BENCHMARK-RESULTS.md (baseline performance data)
