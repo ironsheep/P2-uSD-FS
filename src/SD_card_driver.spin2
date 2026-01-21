@@ -1558,12 +1558,22 @@ PRI readSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr, 
     debug("  [readSector] TIMEOUT waiting for start token")
     sec_in_buf := -1                                                            '  Invalidate buffer on error
 
-PRI writeSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr, t '' write buffer into a sector
+PRI writeSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr, t, resp '' write buffer into a sector
+  '' PNY COMPATIBILITY: This implementation follows strict SPI write protocol:
+  '' 1. CMD24 with sector address
+  '' 2. Data start token (0xFE)
+  '' 3. 512 bytes of data
+  '' 4. 2 CRC bytes (dummy 0xFF since CRC disabled in SPI mode)
+  '' 5. Wait for data-response token (0x05 = accepted)
+  '' 6. Wait for MISO to go HIGH (0xFF = programming complete)
+  '' CRITICAL: CS must stay LOW and clocking must continue during entire busy period!
+
   longmove(@_cs,@cs,4)
   ptr := @buf
   cmd(24,sector << hcs)
-  transfer($FE,8)
+  transfer($FE,8)                                                               '  Data start token
 
+  ' Send 512 bytes using fast PASM bit-banging
   org
                 drvl      _sck
                 rdfast    ##8000_0000,ptr
@@ -1581,18 +1591,40 @@ PRI writeSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr,
                 djnz      loop_ctr,#.write_loop
   end
 
-  t := getct() + clkfreq
-  repeat until (result := transfer(-1,8)) <> $FF
+  ' Send 2 CRC bytes (dummy values - CRC not checked in SPI mode but bytes required)
+  transfer($FF, 8)                                                              '  CRC byte 1
+  transfer($FF, 8)                                                              '  CRC byte 2
+
+  ' Wait for data-response token (should be immediate, within a few bytes)
+  t := getct() + clkfreq / 10                                                   '  100ms timeout for response
+  repeat
+    resp := transfer(-1, 8)
+    if resp <> $FF
+      quit
     if getct() - t > 0
+      debug("  [writeSector] TIMEOUT waiting for data-response")
       pinh(cs)
-      return
-  if result & $1F <> $05
+      return false
+
+  ' Verify data-response token: bits [4:0] should be xxx00101 = $05 (data accepted)
+  if (resp & $1F) <> $05
+    debug("  [writeSector] Data rejected: response=$", uhex_(resp))
     pinh(cs)
-    return
-  repeat until transfer(-1,8)
+    return false
+
+  ' Wait for card to finish programming (busy period)
+  ' Card holds MISO LOW during internal flash write, releases to HIGH (0xFF) when done
+  ' CRITICAL for PNY: Keep CS LOW and keep clocking until we see stable 0xFF!
+  t := getct() + clkfreq / 2                                                    '  500ms timeout per block (generous)
+  repeat
+    resp := transfer(-1, 8)                                                     '  Clock 8 bits while reading MISO
+    if resp == $FF                                                              '  Card released MISO = programming complete
+      quit
     if getct() - t > 0
+      debug("  [writeSector] TIMEOUT waiting for programming complete")
       pinh(cs)
-      return
+      return false
+
   pinh(cs)
   return true
 

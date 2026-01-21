@@ -133,12 +133,25 @@ Even with a robust driver, some consumer SD cards remain flaky in SPI.
 
 When hardening the driver for PNY compatibility:
 
+**Initialization (completed 2026-01-20):**
+- [x] Review SPI clock change sequence (CS handling) - Fixed: CS HIGH before speed change
+- [x] Lower SPI clock to ≤20 MHz - Fixed: bit_delay = clkfreq / 40_000_000
+- [x] Add dummy bytes after speed change - Fixed: 8 dummy bytes (64 clocks)
+
+**Initialization (remaining):**
 - [ ] Review CMD0/CMD8/ACMD41 sequence
-- [ ] Review SPI clock change sequence (CS handling)
 - [ ] Review R1/data token parsing (bit alignment tolerance)
 - [ ] Increase ACMD41 timeout to 1 second
-- [ ] Add dummy byte after CS re-assertion
 - [ ] Consider brand detection via CID for speed limiting
+
+**Write Operations (new - 2026-01-20):**
+- [ ] Review writeSector() busy-wait implementation
+- [ ] Verify data-response token (0x05) is read correctly
+- [ ] Ensure CS stays LOW during entire busy-wait period
+- [ ] Ensure continuous clocking during busy-wait (no SCK stops)
+- [ ] Verify busy polling checks for 0xFF bytes (not just MISO high)
+- [ ] Add reasonable per-block timeout (300-500ms, not 10+ seconds)
+- [ ] Consider CMD13 (SEND_STATUS) on timeout for diagnostics
 
 ---
 
@@ -226,6 +239,102 @@ Our bit-level polling for the 0xFE token start is already more forgiving than R1
 
 This guards against treating noise or mis-clocked bits as a data token, which can be more likely at very high SPI rates.
 
+---
+
+## Write Operation Analysis (2026-01-20)
+
+**Key finding**: PNY cards are almost certainly not "really" taking 10–11 seconds to program a 512-byte sector; that symptom almost always indicates the host's write-busy handling is off and the card is stuck waiting for something, or you are stuck waiting on the wrong condition.
+
+For SPI-mode writes, the two fragile parts are:
+1. The **busy-wait on MISO**
+2. The exact handling of **CS and clocks after the data-response token**
+
+### How SPI-Mode Write Busy Should Behave
+
+For a single-block write (CMD24) in SPI mode, the sequence is:
+
+1. Send CMD24, get R1 = 0x00
+2. Send a few 0xFF "gap" bytes
+3. Send data token 0xFE, then 512 data bytes, then 2 CRC bytes
+4. Card replies with a **data response**:
+   - Lower 5 bits are meaningful: `0b00101` = "data accepted", others are errors
+   - You typically see `0x05` as the token value
+5. Immediately after that, the card:
+   - Drives **MISO low** and stays low while it internally programs the flash ("busy" state)
+   - When done, it releases MISO, which then idles high (you read 0xFF bytes)
+6. The host is supposed to:
+   - Keep **CS asserted low** while waiting for the busy period to end
+   - Clock dummy 0xFF bytes and watch for the first 0xFF response, which means "ready"
+   - Only then deassert CS or issue the next command
+
+**Critical**: If CS is deasserted too early, or you change the SPI clock or mode during busy, some cards will get confused and you can end up in situations that look like multi-second "hangs."
+
+### Likely Failure Modes for 10-11 Second Write Delays
+
+Given our earlier init design and that PNY is more timing-sensitive than other brands, these are the most probable causes:
+
+#### 1. Busy Polling on the Wrong Condition
+
+- If your code checks only for "MISO goes high once" instead of "start seeing stable 0xFF bytes," noise or bit-misalignment could fool it, and then a later part of your stack might time out at 10–11 seconds
+- If you accidentally **stop clocking SCK while "waiting,"** the card can remain busy indefinitely from the host's perspective, because it only communicates via returned bits when you clock it
+
+#### 2. Releasing CS or Changing SPI Clock While Busy
+
+- Some controllers (PNY is notorious) expect CS to remain low and clocking to continue until they release busy
+- If your driver deasserts CS right after the 0x05 token and then changes SPI speed or mode, the card may abort or repeat internal housekeeping, making subsequent commands appear extremely slow or require re-init
+
+#### 3. Not Consuming All Response Bits or Misaligning After Data-Response Token
+
+- If the response is read with a bit-level routine that doesn't end exactly on a byte boundary, the next "busy" polling may be bit-shifted and never see 0xFF, so you spin until a long upper-level timeout
+
+### Concrete Fixes for Write Operations
+
+#### During the Write Sequence
+
+1. After sending CRC, clock exactly 8 bits and read the data-response byte
+2. Verify `(resp & 0x1F) == 0x05` (data accepted); if not, flag an error immediately
+3. **Do not** change SPI speed, mode, or CS state at this point
+
+#### Busy Wait Loop
+
+1. Keep CS low
+2. In a tight loop, send 0xFF and read a byte; repeat until the byte equals 0xFF or a reasonable timeout (tens to hundreds of ms per block, **not seconds**)
+3. Only when you see 0xFF, consider the card ready and then you may:
+   - Either deassert CS, or
+   - Proceed to the next command directly
+
+#### Timeouts
+
+- Use a per-block busy timeout on the order of **300–500 ms**; if exceeded:
+  - Deassert CS
+  - Maybe send CMD13 (SEND_STATUS) to see if the card is in an error state
+- **Do not** just keep clocking for 10+ seconds, or you hide the underlying failure
+
+#### Multi-Block Writes (CMD25)
+
+If using multi-block writes:
+- The same pattern applies, but each data block has its own data-response and busy period
+- After the STOP_TRAN token, there is also a final busy period; you must wait for 0xFF again before issuing any other command
+
+### Why This Affects PNY Specifically
+
+PNY (or, more accurately, the Phison and other controllers they often use) tend to be less tolerant of:
+- Changing clock or CS at arbitrary points
+- Slightly off-spec busy handling (e.g., letting CS float, or not clocking enough during busy)
+
+Many other brands "just happen to work" even if the driver's write-busy handling is sloppy, which is why you are only noticing this with PNY.
+
+### What to Examine in the Driver
+
+To diagnose and fix the write delays, examine:
+1. How the data-response token (0x05) is read
+2. How busy/ready is polled (what value is checked, how long, what happens with CS and clock)
+3. Whether CS or clock changes occur between write and busy-wait completion
+
+Fixing these should collapse 10–11 second delays down to the expected few-tens-of-milliseconds level even on PNY cards.
+
+---
+
 ### Prioritized Fix Plan
 
 In order of impact vs. effort:
@@ -249,5 +358,5 @@ In order of impact vs. effort:
 ---
 
 *Research compiled: 2026-01-18*
-*Updated: 2026-01-18 with driver-specific analysis*
+*Updated: 2026-01-20 with write operation analysis*
 *For use in: Future driver hardening sprint*
