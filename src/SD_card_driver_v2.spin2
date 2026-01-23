@@ -43,6 +43,10 @@ CON '' command codes for worker cog
   CMD_FREESPACE = 15        ' Get free space
   CMD_SYNC      = 16        ' Flush buffers
   CMD_MOVEFILE  = 17        ' Move file: param0=name, param1=dest folder
+  CMD_READ_SECTORS  = 18    ' Raw multi-block read: param0=start_sector, param1=count, param2=buffer ptr
+  CMD_WRITE_SECTORS = 19    ' Raw multi-block write: param0=start_sector, param1=count, param2=buffer ptr
+  CMD_READ_SECTOR_RAW  = 20 ' Raw single sector read: param0=sector, param1=buffer ptr
+  CMD_WRITE_SECTOR_RAW = 21 ' Raw single sector write: param0=sector, param1=buffer ptr
 
 CON '' error codes
   SUCCESS           = 0
@@ -52,6 +56,7 @@ CON '' error codes
   E_CRC_ERROR       = -4        ' Data CRC mismatch
   E_WRITE_REJECTED  = -5        ' Card rejected write operation
   E_CARD_BUSY       = -6        ' Card busy
+  E_IO_ERROR        = -7        ' General I/O error during read/write
   E_NOT_MOUNTED     = -20       ' Filesystem not mounted
   E_INIT_FAILED     = -21       ' Card initialization failed
   E_NOT_FAT32       = -22       ' Card not formatted as FAT32
@@ -76,6 +81,27 @@ CON '' streamer configuration (compile-time constants for bulk sector transfers)
   ' $81 = X_ALT_ON (MSB-first, bit 7) + X_WRITE_ON/X_PINS_ON (bit 0)
   STREAM_RX_BASE = $C081_0000   ' 1-pin input to hub, MSB-first (flash_loader wmode)
   STREAM_TX_BASE = $8081_0000   ' hub to 1-pin output, MSB-first (flash_loader rmode)
+
+CON '' SD card command codes and tokens for multi-block operations
+  ' ═══════════════════════════════════════════════════════════════════════════
+  ' SD SPI Commands for multi-block operations (reference: SD Physical Layer Spec)
+  ' ═══════════════════════════════════════════════════════════════════════════
+  CMD12  = 12                   ' STOP_TRANSMISSION - terminates multi-block read/write
+  CMD18  = 18                   ' READ_MULTIPLE_BLOCK - read consecutive sectors
+  CMD25  = 25                   ' WRITE_MULTIPLE_BLOCK - write consecutive sectors
+
+  ' ═══════════════════════════════════════════════════════════════════════════
+  ' SD SPI Data Tokens (reference: SD Physical Layer Spec section 7.3.3)
+  ' ═══════════════════════════════════════════════════════════════════════════
+  TOKEN_START_BLOCK      = $FE ' Start token for single-block read/write and multi-block read
+  TOKEN_START_MULTI_WRITE = $FC ' Start token for each block in multi-block WRITE
+  TOKEN_STOP_TRAN        = $FD ' Stop token to terminate multi-block WRITE (not CMD12!)
+
+  ' Data Response Token format (after each block write): xxx0sss1
+  ' sss = status: 010 = accepted, 101 = CRC error, 110 = write error
+  DATA_ACCEPTED          = $05 ' Lower 5 bits = xxx00101 = data accepted
+  DATA_CRC_ERROR         = $0B ' Lower 5 bits = xxx01011 = CRC error
+  DATA_WRITE_ERROR       = $0D ' Lower 5 bits = xxx01101 = write error
 
 DAT '' singleton control - SHARED across all object instances
   ' ═══════════════════════════════════════════════════════════════════════
@@ -317,6 +343,29 @@ PRI fs_worker() | cur_cmd                                                       
 
       CMD_READDIR:
         pb_status := do_readdir(pb_param0)
+
+      CMD_READ_SECTORS:
+        pb_data0 := readSectors(pb_param0, pb_param1, pb_param2)
+        pb_status := SUCCESS
+
+      CMD_WRITE_SECTORS:
+        pb_data0 := writeSectors(pb_param0, pb_param1, pb_param2)
+        pb_status := SUCCESS
+
+      CMD_READ_SECTOR_RAW:
+        sec_in_buf := -1                                                        ' Force re-read
+        if readSector(pb_param0) == 0                                           ' readSector returns 0 on success, -1 on error
+          bytemove(pb_param1, @buf, 512)
+          pb_status := SUCCESS
+        else
+          pb_status := E_IO_ERROR
+
+      CMD_WRITE_SECTOR_RAW:
+        bytemove(@buf, pb_param1, 512)
+        if writeSector(pb_param0)                                               ' writeSector returns true on success
+          pb_status := SUCCESS
+        else
+          pb_status := E_IO_ERROR
 
       other:
         debug("  [fs_worker] Unknown command: ", udec_(cur_cmd))
@@ -778,8 +827,12 @@ PUB writeSectorRaw(sector, p_buffer) : result                                   
 '' Low-level sector write for formatting/partitioning. Bypasses filesystem.
 '' @param sector - absolute LBA sector number
 '' @param p_buffer - pointer to 512 bytes of data to write
-  bytemove(@buf, p_buffer, 512)
-  result := writeSector(sector)
+  ' Use worker cog if running, otherwise call directly (for initCardOnly case)
+  if cog_id <> -1
+    result := send_command(CMD_WRITE_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
+  else
+    bytemove(@buf, p_buffer, 512)
+    result := writeSector(sector)                                               ' writeSector returns true on success
   if result
     debug("  [writeSectorRaw] Wrote sector ", udec(sector))
   else
@@ -789,11 +842,39 @@ PUB readSectorRaw(sector, p_buffer) : result                                    
 '' Low-level sector read for verification. Bypasses filesystem.
 '' @param sector - absolute LBA sector number
 '' @param p_buffer - pointer to 512-byte buffer to receive data
-  sec_in_buf := -1                                                              '  force re-read
-  readSector(sector)
-  bytemove(p_buffer, @buf, 512)
-  result := true
+  ' Use worker cog if running, otherwise call directly (for initCardOnly case)
+  if cog_id <> -1
+    result := send_command(CMD_READ_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
+  else
+    sec_in_buf := -1                                                            ' Force re-read
+    result := readSector(sector) == 0
+    if result
+      bytemove(p_buffer, @buf, 512)
   debug("  [readSectorRaw] Read sector ", udec(sector))
+
+PUB readSectorsRaw(start_sector, count, p_buffer) : result                      '' read multiple consecutive sectors
+'' Multi-block sector read using CMD18 for improved throughput.
+'' More efficient than calling readSectorRaw() in a loop.
+'' @param start_sector - first sector to read (absolute LBA)
+'' @param count - number of sectors to read
+'' @param p_buffer - pointer to buffer (must be count * 512 bytes)
+'' @return number of sectors successfully read
+  if send_command(CMD_READ_SECTORS, start_sector, count, p_buffer, 0) == SUCCESS
+    result := pb_data0
+  else
+    result := 0
+
+PUB writeSectorsRaw(start_sector, count, p_buffer) : result                     '' write multiple consecutive sectors
+'' Multi-block sector write using CMD25 for improved throughput.
+'' More efficient than calling writeSectorRaw() in a loop.
+'' @param start_sector - first sector to write (absolute LBA)
+'' @param count - number of sectors to write
+'' @param p_buffer - pointer to buffer with data (must be count * 512 bytes)
+'' @return number of sectors successfully written
+  if send_command(CMD_WRITE_SECTORS, start_sector, count, p_buffer, 0) == SUCCESS
+    result := pb_data0
+  else
+    result := 0
 
 CON '' ═══════════════════════════════════════════════════════════════════════════
     '' CARD IDENTIFICATION METHODS (for diagnostic tools)
@@ -1751,7 +1832,7 @@ PRI cmd(op,parm) : result | t                                                   
       return false
   if op == 8 or op == 58                                                        '  read 32-bit reply for cmd8 and cmd58
     result := sp_transfer(-1,32)                                                '  (memory card interface condition and operation conditions register
-  if op <> 17 and op <> 24 and op <> 55                                         '  keep cs asserted if readSector, writeSector, or application command
+  if op <> 17 and op <> 24 and op <> CMD18 and op <> CMD25 and op <> 55         '  keep cs asserted for sector read/write and application commands
     pinh(cs)                                                                    '  CS HIGH = deselected (standard active-LOW)
 
 PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf, align_delay  '' read a sector into buffer using P2 streamer
@@ -1851,6 +1932,84 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   pinh(cs)                                                                      ' Deselect card
   result := 0
 
+PRI readSectors(start_sector, count, p_buffer) : sectors_read | _sck, _miso, p_buf, stream_mode, clk_count, xfrq, init_phase, align_delay, i, resp
+  '' Read multiple consecutive sectors using CMD18 (READ_MULTIPLE_BLOCK)
+  '' Returns: number of sectors successfully read (0 on error)
+  ''
+  '' Parameters:
+  ''   start_sector: first sector to read
+  ''   count: number of sectors to read (0 returns immediately, 1+ uses CMD18)
+  ''   p_buffer: pointer to buffer for data (must be at least count * 512 bytes)
+  ''
+  '' Multi-block reads are more efficient than individual readSector() calls because:
+  '' - Only one CMD18 command instead of N CMD17 commands
+  '' - No inter-sector gaps from CS deassert/reassert
+  '' - Card can pre-fetch ahead for sequential access
+  ''
+  '' Protocol: CMD18 -> (wait $FE -> read 512 bytes -> CRC) x N -> CMD12
+
+  if count == 0
+    return 0
+
+  ' Setup variables for streamer
+  _sck := sck
+  _miso := miso
+  stream_mode := STREAM_RX_BASE | (_miso << 17) | (512 * 8)                     ' RX mode + MISO pin + 4096 bits
+  clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
+  xfrq := $4000_0000 / spi_period                                               ' One sample per full clock period
+  init_phase := $4000_0000                                                      ' Sample mid-bit for stability
+  align_delay := spi_period                                                     ' Wait one half-period before streamer
+
+  ' Send CMD18 (READ_MULTIPLE_BLOCK) with starting sector
+  ' Note: cmd() handles CS assertion and returns R1 response
+  resp := cmd(CMD18, start_sector << hcs)
+  if resp <> $00
+    debug("  [readSectors] CMD18 failed, R1=$", uhex_byte_(resp))
+    pinh(cs)
+    return 0
+
+  ' Read each sector
+  sectors_read := 0
+  repeat count
+    p_buf := p_buffer + (sectors_read * 512)                                    ' Calculate buffer position
+
+    ' Wait for data token ($FE) for this sector
+    if waitDataToken() < 0
+      debug("  [readSectors] No data token for sector ", udec_(start_sector + sectors_read))
+      quit                                                                      ' Exit loop on error
+
+    ' Disable MISO smart pin before streamer capture
+    pinclear(_miso)
+    pinf(_miso)
+
+    ' Streamer bulk transfer: 512 bytes from MISO to hub
+    org
+          setxfrq xfrq
+          wrfast  #0, p_buf
+          wypin   clk_count, _sck
+          waitx   align_delay
+          xinit   stream_mode, init_phase
+          waitxfi
+    end
+
+    ' Re-enable MISO smart pin for CRC reads
+    wrpin(_miso, spi_rx_mode)
+    wxpin(_miso, %1_00111)
+    pinh(_miso)
+
+    ' Read and discard 2 CRC bytes
+    sp_transfer_8($FF)
+    sp_transfer_8($FF)
+
+    sectors_read++
+
+  ' Send CMD12 to stop transmission
+  if sendStopTransmission() < 0
+    debug("  [readSectors] CMD12 failed")
+    ' Still return sectors_read - we got the data even if stop failed
+
+  pinh(cs)                                                                      ' Deselect card
+
 PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, t, resp '' write buffer into a sector using P2 streamer
   '' Write a sector using P2 streamer for bulk 512-byte transfer (hardware DMA)
   '' Reference: flash_loader.spin2 pattern for SPI writes
@@ -1945,6 +2104,189 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
 
   pinh(cs)
   return true
+
+PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, resp
+  '' Write multiple consecutive sectors using CMD25 (WRITE_MULTIPLE_BLOCK)
+  '' Returns: number of sectors successfully written (0 on error)
+  ''
+  '' Parameters:
+  ''   start_sector: first sector to write
+  ''   count: number of sectors to write (0 returns immediately, 1+ uses CMD25)
+  ''   p_buffer: pointer to buffer with data (must be at least count * 512 bytes)
+  ''
+  '' Multi-block writes are more efficient than individual writeSector() calls because:
+  '' - Only one CMD25 command instead of N CMD24 commands
+  '' - Card can optimize internal flash writes for sequential access
+  '' - Reduced overhead from CS cycling and command processing
+  ''
+  '' CRITICAL: Multi-block write uses different tokens than single-block!
+  '' - Each data block uses $FC (not $FE) as start token
+  '' - Transmission ends with $FD stop token (not CMD12!)
+  ''
+  '' Protocol: CMD25 -> ($FC + 512 bytes + CRC + wait busy) x N -> $FD -> wait busy
+
+  if count == 0
+    return 0
+
+  ' Setup variables for streamer
+  _sck := sck
+  _mosi := mosi
+  stream_mode := STREAM_TX_BASE | (_mosi << 17) | (512 * 8)                     ' TX mode + MOSI pin + 4096 bits
+  clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
+  xfrq := $4000_0000 / spi_period                                               ' One output per full clock period
+
+  ' Send CMD25 (WRITE_MULTIPLE_BLOCK) with starting sector
+  ' Note: cmd() handles CS assertion and returns R1 response
+  resp := cmd(CMD25, start_sector << hcs)
+  if resp <> $00
+    debug("  [writeSectors] CMD25 failed, R1=$", uhex_byte_(resp))
+    pinh(cs)
+    return 0
+
+  ' Write each sector
+  sectors_written := 0
+  repeat count
+    p_buf := p_buffer + (sectors_written * 512)                                 ' Calculate buffer position
+
+    ' Send multi-block write start token ($FC, NOT $FE!)
+    sp_transfer_8(TOKEN_START_MULTI_WRITE)                                      ' $FC
+
+    ' Disable MOSI smart pin before streamer TX
+    pinclear(_mosi)
+    pinl(_mosi)
+
+    ' Streamer bulk transfer: 512 bytes from hub to MOSI
+    org
+          setxfrq xfrq
+          rdfast  #0, p_buf
+          xinit   stream_mode, #0
+          wypin   clk_count, _sck
+          waitxfi
+    end
+
+    ' Re-enable MOSI smart pin for CRC and response
+    wrpin(_mosi, spi_tx_mode)
+    wxpin(_mosi, %1_00111)
+    pinh(_mosi)
+
+    ' Send 2 CRC bytes (dummy, CRC disabled in SPI mode)
+    sp_transfer_8($FF)
+    sp_transfer_8($FF)
+
+    ' Wait for data response token
+    resp := waitDataResponse()
+    if resp < 0
+      debug("  [writeSectors] No data response for sector ", udec_(start_sector + sectors_written))
+      quit
+    if (resp & $0F) <> DATA_ACCEPTED
+      debug("  [writeSectors] Data rejected for sector ", udec_(start_sector + sectors_written), " resp=$", uhex_byte_(resp))
+      quit
+
+    ' Wait for card to finish programming this block
+    if waitBusyComplete() < 0
+      debug("  [writeSectors] Busy timeout for sector ", udec_(start_sector + sectors_written))
+      quit
+
+    sectors_written++
+
+  ' Send stop token ($FD) to terminate multi-block write (NOT CMD12!)
+  sp_transfer_8(TOKEN_STOP_TRAN)                                                ' $FD
+
+  ' Wait for card to finish any final programming
+  if waitBusyComplete() < 0
+    debug("  [writeSectors] Final busy timeout")
+    ' Still return sectors_written - data may have been written
+
+  pinh(cs)                                                                      ' Deselect card
+
+' ════════════════════════════════════════════════════════════════════════════════
+' MULTI-BLOCK HELPER FUNCTIONS
+' These factor out common patterns used by readSectors() and writeSectors()
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI waitR1Response() : result | t, resp                                         '' wait for R1 response (non-$FF byte)
+  '' Polls for R1 response after sending a command
+  '' Returns: R1 response byte on success, -1 on timeout
+  '' Timeout: 100ms (per SD spec NCR = 0-8 bytes, but we allow more for slow cards)
+  t := getct() + clkfreq / 10                                                   ' 100ms timeout
+  repeat
+    resp := sp_transfer_8($FF)
+    if resp <> $FF
+      return resp                                                               ' Got response
+    if getct() - t > 0
+      debug("  [waitR1Response] TIMEOUT")
+      return -1
+
+PRI waitDataToken() : result | t, resp                                          '' wait for data start token ($FE)
+  '' Polls for $FE data token before sector data
+  '' Returns: 0 on success (got $FE), -1 on timeout or error token
+  '' Error tokens: $01-$0F indicate read errors
+  '' Timeout: 1 second (some cards are slow to start read)
+  t := getct() + clkfreq                                                        ' 1 second timeout
+  repeat
+    resp := sp_transfer_8($FF)
+    if resp == TOKEN_START_BLOCK                                                ' $FE = data coming
+      return 0                                                                  ' Success
+    if resp <> $FF                                                              ' Error token (not $FF, not $FE)
+      debug("  [waitDataToken] ERROR token: $", uhex_byte_(resp))
+      return -1
+    if getct() - t > 0
+      debug("  [waitDataToken] TIMEOUT")
+      return -1
+
+PRI waitDataResponse() : result | t, resp                                       '' wait for data response token after write
+  '' Polls for data response token after sending a data block
+  '' Returns: response status on success, -1 on timeout
+  '' Response format: xxx0sss1 where sss = 010 (accepted), 101 (CRC err), 110 (write err)
+  '' Timeout: 100ms
+  t := getct() + clkfreq / 10                                                   ' 100ms timeout
+  repeat
+    resp := sp_transfer_8($FF)
+    if resp <> $FF
+      ' Got response - check if it's a valid data response token (bit 0 = 1, bit 4 = 0)
+      if (resp & $11) == $01                                                    ' Valid data response format
+        return resp & $1F                                                       ' Return lower 5 bits
+      ' Not a valid response format, keep polling (might be noise)
+    if getct() - t > 0
+      debug("  [waitDataResponse] TIMEOUT")
+      return -1
+
+PRI waitBusyComplete() : result | t, resp                                       '' wait for card to finish programming
+  '' Polls until MISO returns $FF (card no longer busy)
+  '' Returns: 0 on success, -1 on timeout
+  '' Timeout: 500ms (per SD spec, write can take up to 250ms typical, 500ms worst case)
+  '' CRITICAL: Must keep clocking and CS LOW during busy period!
+  t := getct() + clkfreq / 2                                                    ' 500ms timeout
+  repeat
+    resp := sp_transfer_8($FF)
+    if resp == $FF                                                              ' Card released MISO = done
+      return 0
+    if getct() - t > 0
+      debug("  [waitBusyComplete] TIMEOUT - card still busy")
+      return -1
+
+PRI sendStopTransmission() : result | resp                                      '' send CMD12 to stop multi-block operation
+  '' Sends CMD12 (STOP_TRANSMISSION) to terminate multi-block read/write
+  '' Returns: 0 on success, -1 on error
+  '' Note: CMD12 has a "stuff byte" before the response - we handle this by polling
+  sp_transfer_8($40 | CMD12)                                                    ' Command byte: 0x40 | 12 = 0x4C
+  sp_transfer_8($00)                                                            ' Argument bytes (ignored for CMD12)
+  sp_transfer_8($00)
+  sp_transfer_8($00)
+  sp_transfer_8($00)
+  sp_transfer_8($61)                                                            ' CRC7 + stop bit for CMD12
+  sp_transfer_8($FF)                                                            ' Stuff byte (required by spec)
+
+  ' Wait for R1b response (R1 followed by busy)
+  resp := waitR1Response()
+  if resp < 0
+    return -1
+  if resp <> $00
+    debug("  [sendStopTransmission] R1 error: $", uhex_byte_(resp))
+    return -1
+
+  ' Wait for busy to complete (card may still be finishing last block)
+  result := waitBusyComplete()
 
 PRI transfer(data,bits) : result | _cs, _mosi, _miso, _sck, delay               '' transfer data to/from SD card
   longmove(@_cs,@cs,4)
