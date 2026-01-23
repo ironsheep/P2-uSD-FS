@@ -70,15 +70,12 @@ CON '' worker cog stack size
 
 CON '' streamer configuration (compile-time constants for bulk sector transfers)
   ' Reference: flash_loader.spin2 pattern, P2 Silicon Doc streamer section
-  ' Streamer modes for SPI sector I/O:
-  ' X_1P_1DAC1_WFBYTE = capture 1 pin to WFBYTE (RX to hub)
-  ' X_RFBYTE_1P_1DAC1 = RFBYTE to 1 pin output (TX from hub)
-  ' X_WRITE_ON = enable WRFAST for capture modes
-  ' X_PINS_ON = enable pin output for transmit modes
-  ' X_ALT_ON = MSB-first bit order (required for SPI)
-  ' Pin field: bits [22:17] = pin number, added at runtime
-  STREAM_RX_BASE = X_1P_1DAC1_WFBYTE | X_WRITE_ON | X_ALT_ON   ' RX mode
-  STREAM_TX_BASE = X_RFBYTE_1P_1DAC1 | X_PINS_ON | X_ALT_ON    ' TX mode
+  ' Using explicit hex values from working flash_loader code:
+  ' Mode word: [31:28]=mode [27:24]=options [23:17]=pin [16:0]=count
+  ' $C0 = 1-pin input to WFBYTE (RX), $80 = RFBYTE to 1-pin output (TX)
+  ' $81 = X_ALT_ON (MSB-first, bit 7) + X_WRITE_ON/X_PINS_ON (bit 0)
+  STREAM_RX_BASE = $C081_0000   ' 1-pin input to hub, MSB-first (flash_loader wmode)
+  STREAM_TX_BASE = $8081_0000   ' hub to 1-pin output, MSB-first (flash_loader rmode)
 
 DAT '' singleton control - SHARED across all object instances
   ' ═══════════════════════════════════════════════════════════════════════
@@ -1757,7 +1754,7 @@ PRI cmd(op,parm) : result | t                                                   
   if op <> 17 and op <> 24 and op <> 55                                         '  keep cs asserted if readSector, writeSector, or application command
     pinh(cs)                                                                    '  CS HIGH = deselected (standard active-LOW)
 
-PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf  '' read a sector into buffer using P2 streamer
+PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf, align_delay  '' read a sector into buffer using P2 streamer
   '' Returns 0 on success, -1 on timeout/error
   '' Uses P2 streamer for bulk 512-byte transfer (hardware DMA)
   '' Reference: flash_loader.spin2 pattern for SPI reads
@@ -1798,10 +1795,18 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   ' ════════════════════════════════════════════════════════════════════════════
   ' STREAMER BULK TRANSFER: Receive 512 bytes from MISO to hub buffer
   ' Pattern: SETXFRQ -> WRFAST -> WYPIN(clk) -> WAITX -> XINIT -> WAITXFI
+  ' CRITICAL: Must disable MISO smart pin before streamer capture!
   ' ════════════════════════════════════════════════════════════════════════════
   _sck := sck
   _miso := miso
   p_buf := @buf
+
+  ' CRITICAL FIX: Disable MISO smart pin before streamer capture
+  ' The smart pin interferes with streamer's direct pin reading
+  ' Reference: flash_loader.spin2 does NOT configure smart pin on MISO during reads
+  ' Verified fix: 2026-01-23 in SD_streamer_lut_test.spin2
+  pinclear(_miso)                                                               ' Clear smart pin mode
+  pinf(_miso)                                                                   ' Float pin (input mode)
   ' Mode word format: base_mode | (pin << 17) | bit_count
   ' For 512 bytes: 512 * 8 = 4096 bits = $1000
   stream_mode := STREAM_RX_BASE | (_miso << 17) | (512 * 8)                     ' RX mode + MISO pin + bit count
@@ -1814,24 +1819,30 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   ' BUG FIX: Previous code had << 1 which DOUBLED the rate, sampling twice per bit!
   xfrq := $4000_0000 / spi_period                                               ' One sample per full clock period
 
-  ' Phase alignment: pre-load NCO so first sample occurs 1 sysclock after xinit
-  ' Without this, first sample would be delayed by a full period, missing bit 0
-  ' init_phase = $8000_0000 - xfrq means: after 1 sysclock, phase crosses $8000_0000
-  init_phase := $8000_0000 - xfrq                                               ' Pre-load for immediate first sample
+  ' Phase alignment: sample in middle of each bit for stability
+  ' After wypin starts clock: first rising edge at T=spi_period
+  ' With waitx spi_period, xinit happens at T=spi_period (first rising edge)
+  ' init_phase=$4000_0000 causes first sample ~7 sysclocks later (middle of bit 0)
+  ' This is more stable than sampling at bit edges
+  init_phase := $4000_0000                                                      ' Sample mid-bit for stability
+  align_delay := spi_period                                                     ' Wait one half-period before streamer
 
   ' ════════════════════════════════════════════════════════════════════════════
-  ' STREAMER BULK TRANSFER: 512 bytes via hardware DMA
-  ' Sequence: SETXFRQ -> WRFAST -> WYPIN(clk) -> WAITX #3 -> XINIT -> WAITXFI
-  ' The waitx #3 aligns clock rising edge with first streamer sample
+  ' STREAMER BULK TRANSFER: 512 bytes from MISO to hub via DMA
   ' ════════════════════════════════════════════════════════════════════════════
   org
-        setxfrq xfrq                             ' Set streamer bit rate
-        wrfast  #0, p_buf                        ' Setup WRFAST to hub buffer
-        wypin   clk_count, _sck                  ' Start clock transitions
-        waitx   #3                               ' Align clock with sampling (2+3=5 cycles)
-        xinit   stream_mode, init_phase          ' Start streamer with phase offset
-        waitxfi                                  ' Wait for streamer to complete
+        setxfrq xfrq                              ' Set streamer NCO rate
+        wrfast  #0, p_buf                         ' Setup WRFAST to hub buffer
+        wypin   clk_count, _sck                   ' Start clock transitions
+        waitx   align_delay                       ' Wait one half-period to align with first rising edge
+        xinit   stream_mode, init_phase           ' Start streamer with phase offset
+        waitxfi                                   ' Wait for streamer to complete
   end
+
+  ' Re-enable MISO smart pin for CRC reads (sp_transfer_8 needs it)
+  wrpin(_miso, spi_rx_mode)                                                     ' P_SYNC_RX | P_PLUS3_B
+  wxpin(_miso, %1_00111)                                                        ' On-edge sample, 8 bits
+  pinh(_miso)                                                                   ' DIRH - enable smart pin
 
   ' Read and discard 2 CRC bytes (required by protocol)
   sp_transfer_8($FF)
@@ -1856,6 +1867,11 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
   _sck := sck
   _mosi := mosi
   p_buf := @buf
+
+  ' Invalidate sector cache if we're writing the cached sector
+  if sector == sec_in_buf
+    sec_in_buf := -1
+
   cmd(24, sector << hcs)
   sp_transfer_8($FE)                                                            ' Data start token
 
@@ -1872,6 +1888,12 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
   ' Same formula as readSector: one bit per full clock period
   xfrq := $4000_0000 / spi_period                                               ' One output per full clock period
 
+  ' CRITICAL FIX: Disable MOSI smart pin before streamer TX
+  ' The smart pin configuration interferes with streamer's direct pin driving
+  ' Same pattern as MISO disable in readSector()
+  pinclear(_mosi)                                                               ' Clear smart pin mode
+  pinl(_mosi)                                                                   ' Drive pin low (output mode)
+
   ' For TX: xinit BEFORE wypin (data leads clock) - per flash_loader pattern
   ' This ensures data is stable before rising edge when slave samples
   org
@@ -1881,6 +1903,11 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
         wypin   clk_count, _sck                   ' Then start clock transitions
         waitxfi                                   ' Wait for streamer to complete
   end
+
+  ' Re-enable MOSI smart pin for CRC and response byte transfers (sp_transfer_8 needs it)
+  wrpin(_mosi, spi_tx_mode)                                                     ' P_SYNC_TX | P_OE | P_PLUS2_B
+  wxpin(_mosi, %1_00111)                                                        ' Start-stop mode, 8 bits
+  pinh(_mosi)                                                                   ' DIRH - enable smart pin
 
   ' Send 2 CRC bytes (dummy values - CRC not checked in SPI mode but bytes required)
   sp_transfer_8($FF)                                                            ' CRC byte 1

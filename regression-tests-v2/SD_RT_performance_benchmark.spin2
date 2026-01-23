@@ -1,0 +1,448 @@
+'' =================================================================================================
+''
+''   File....... SD_RT_performance_benchmark.spin2
+''   Purpose.... Performance benchmark for SD card driver - establishes baseline measurements
+''   Author..... Stephen M Moraco
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... JAN 2026
+''   Updated.... 21 JAN 2026
+''
+'' =================================================================================================
+''
+'' This benchmark measures SD card driver performance to establish baselines before optimization.
+'' Run this test on each card to build a performance catalog.
+''
+'' Measurements:
+''   - Mount/unmount timing
+''   - Raw sector read/write (hardware baseline)
+''   - Filesystem read/write (real-world performance)
+''   - File open/close overhead
+''
+'' Test sizes based on embedded use cases:
+''   Write: 512B (log entry), 4KB (config), 32KB (data batch)
+''   Read:  4KB (config), 32KB (icon), 128KB (small image), 256KB (display image)
+''
+'' =================================================================================================
+
+CON
+
+    _CLKFREQ        = 320_000_000
+
+    ' Pin configuration for P2 Edge with SD card
+    SD_CS   = 60
+    SD_MOSI = 59
+    SD_MISO = 58
+    SD_SCK  = 61
+
+    ' Test parameters
+    ITERATIONS      = 10                ' Number of iterations for min/avg/max
+
+    ' Test sizes (in bytes)
+    SIZE_512B       = 512               ' Single log entry
+    SIZE_4KB        = 4096              ' Config file
+    SIZE_32KB       = 32768             ' Icon / small data batch
+    SIZE_128KB      = 131072            ' Small display image
+    SIZE_256KB      = 262144            ' Larger display image
+
+    ' Buffer size - must accommodate largest test
+    BUFFER_SIZE     = 262144 + 512      ' 256KB + margin
+
+OBJ
+    sd    : "SD_card_driver_v2"
+
+DAT
+
+' Test filenames
+testFile        BYTE    "PERFTEST.BIN", 0
+
+' Large buffer for read/write tests (256KB)
+testBuffer      BYTE    0[BUFFER_SIZE]
+
+' Statistics arrays (for ITERATIONS measurements)
+timings         LONG    0[ITERATIONS]
+
+' Card identification buffer
+cid_buf         BYTE    0[16]
+
+' Known card names for display
+card_gigastone32    BYTE    "Gigastone 32GB (Transcend)", 0
+card_pny16          BYTE    "PNY 16GB (Phison)", 0
+card_sandisk_pro    BYTE    "SanDisk Extreme PRO 128GB", 0
+card_sandisk_ext    BYTE    "SanDisk Extreme 64GB", 0
+card_sandisk_switch BYTE    "SanDisk Nintendo 128GB", 0
+card_sandisk_other  BYTE    "SanDisk (unknown model)", 0
+card_kingston       BYTE    "Kingston 8GB", 0
+card_samsung        BYTE    "Samsung EVO Select 128GB", 0
+card_gigastone64    BYTE    "Gigastone Camera Plus 64GB", 0
+card_lexar64        BYTE    "Lexar 64GB", 0
+card_unknown        BYTE    "Unknown Card", 0
+
+' Product name patterns (5 chars from CID bytes 3-7)
+pnm_00000           BYTE    "00000", 0       ' Gigastone 32GB (also 8GB High Endurance)
+pnm_SD16G           BYTE    "SD16G", 0       ' PNY 16GB or Gigastone 16GB High Endurance
+pnm_AGGCF           BYTE    "AGGCF", 0       ' SanDisk Extreme PRO 128GB
+pnm_SN64G           BYTE    "SN64G", 0       ' SanDisk Extreme 64GB
+pnm_SN128           BYTE    "SN128", 0       ' SanDisk Nintendo 128GB
+pnm_SD8GB           BYTE    "SD8GB", 0       ' Kingston 8GB
+pnm_GD4QT           BYTE    "GD4QT", 0       ' Samsung EVO Select 128GB
+pnm_ASTC            BYTE    "ASTC", 0, 0     ' Gigastone Camera Plus 64GB
+pnm_MSSD0           BYTE    "MSSD0", 0       ' Lexar 64GB
+
+' Identified card name (set by identifyCard)
+card_name_ptr       LONG    0
+
+PUB go() | result
+
+    debug(" ")
+    debug("======================================================")
+    debug("  SD Card Performance Benchmark v1.0")
+    debug("======================================================")
+    debug(" ")
+    debug("SysClk: ", udec(clkfreq / 1_000_000), " MHz")
+    debug("Iterations per test: ", udec(ITERATIONS))
+    debug(" ")
+
+    ' Identify card BEFORE mount (reads CID directly)
+    debug("------------------------------------------------------")
+    debug("  CARD IDENTIFICATION")
+    debug("------------------------------------------------------")
+    result := identifyCard()
+    if result == false
+        debug("ERROR: Could not identify SD card!")
+        debug("END_SESSION")
+        return
+    debug("  Card: ", zstr_(card_name_ptr))
+    showCID()
+    debug(" ")
+
+    ' Release pins from main cog before mount starts worker cog
+    ' (P2 pins are OR'd when multiple cogs drive them)
+    pinfloat(SD_CS)
+    pinfloat(SD_MOSI)
+    pinfloat(SD_MISO)
+    pinfloat(SD_SCK)
+
+    ' Mount the card (timing benchmark)
+    result := runMountBenchmark()
+    if result == false
+        debug("ERROR: Could not mount SD card!")
+        debug("END_SESSION")
+        return
+
+    ' Show volume info from mounted filesystem
+    showVolumeInfo()
+
+    ' Run filesystem benchmarks (these go through worker cog correctly)
+    debug(" ")
+    debug("------------------------------------------------------")
+    debug("  FILESYSTEM OPERATIONS (real-world performance)")
+    debug("------------------------------------------------------")
+    runFilesystemBenchmarks()
+
+    ' NOTE: Raw sector operations skipped - they require direct SPI access
+    ' which conflicts with worker cog architecture after mount().
+    ' Filesystem operations provide the meaningful real-world measurements.
+
+    ' Unmount with timing
+    debug(" ")
+    debug("------------------------------------------------------")
+    debug("  UNMOUNT TIMING")
+    debug("------------------------------------------------------")
+    runUnmountBenchmark()
+
+    debug(" ")
+    debug("======================================================")
+    debug("  Benchmark Complete")
+    debug("======================================================")
+    debug("END_SESSION")
+
+
+PRI runMountBenchmark() : result | start_ct, elapsed_ct, elapsed_us
+
+    debug("MOUNT:")
+    start_ct := getct()
+    result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    elapsed_ct := getct() - start_ct
+
+    elapsed_us := elapsed_ct / (clkfreq / 1_000_000)
+    debug("  Mount time: ", udec(elapsed_us / 1000), ".", udec_((elapsed_us // 1000) / 100), " ms")
+
+
+PRI runUnmountBenchmark() | start_ct, elapsed_ct, elapsed_ms
+
+    debug("UNMOUNT:")
+    start_ct := getct()
+    sd.unmount()
+    elapsed_ct := getct() - start_ct
+
+    elapsed_ms := elapsed_ct / (clkfreq / 1000)
+    debug("  Unmount time: ", udec(elapsed_ms), " ms")
+    if elapsed_ms > 1000
+        debug("  WARNING: Unmount > 1 second (FSInfo scan issue)")
+
+
+PRI identifyCard() : result | mid, pnm[2]
+    '' Initialize card and identify it by reading CID before mount.
+    '' Sets card_name_ptr to appropriate card name string.
+    '' Returns true if card identified (even if unknown), false if init failed.
+
+    ' Initialize card (does NOT start worker cog)
+    result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result == false
+        debug("  initCardOnly FAILED")
+        return false
+
+    ' Read CID register
+    result := sd.readCIDRaw(@cid_buf)
+    if result == false
+        debug("  readCIDRaw FAILED")
+        return false
+
+    ' Extract MID (byte 0) and product name (bytes 3-7)
+    mid := cid_buf[0]
+    bytemove(@pnm, @cid_buf + 3, 5)
+    pnm.byte[5] := 0  ' null terminate
+
+    ' Match against known cards by MID and product name
+    if mid == $74 and strcomp(@pnm, @pnm_00000)
+        card_name_ptr := @card_gigastone32
+    elseif mid == $27 and strcomp(@pnm, @pnm_SD16G)
+        card_name_ptr := @card_pny16
+    elseif mid == $03 and strcomp(@pnm, @pnm_AGGCF)
+        card_name_ptr := @card_sandisk_pro
+    elseif mid == $03 and strcomp(@pnm, @pnm_SN64G)
+        card_name_ptr := @card_sandisk_ext
+    elseif mid == $03 and strcomp(@pnm, @pnm_SN128)
+        card_name_ptr := @card_sandisk_switch
+    elseif mid == $41 and strcomp(@pnm, @pnm_SD8GB)
+        card_name_ptr := @card_kingston
+    elseif mid == $1B and strcomp(@pnm, @pnm_GD4QT)
+        card_name_ptr := @card_samsung
+    elseif mid == $12 and strcomp(@pnm, @pnm_ASTC)
+        card_name_ptr := @card_gigastone64
+    elseif mid == $AD and strcomp(@pnm, @pnm_MSSD0)
+        card_name_ptr := @card_lexar64
+    elseif mid == $03
+        card_name_ptr := @card_sandisk_other  ' Unknown SanDisk model
+    else
+        card_name_ptr := @card_unknown
+
+    return true
+
+
+PRI showCID() | i
+    '' Display the CID register bytes
+    debug("  CID: ", uhex_byte_(cid_buf[0]), " ", uhex_byte_(cid_buf[1]), " ", uhex_byte_(cid_buf[2]), " ", uhex_byte_(cid_buf[3]), " ", uhex_byte_(cid_buf[4]), " ", uhex_byte_(cid_buf[5]), " ", uhex_byte_(cid_buf[6]), " ", uhex_byte_(cid_buf[7]))
+    debug("       ", uhex_byte_(cid_buf[8]), " ", uhex_byte_(cid_buf[9]), " ", uhex_byte_(cid_buf[10]), " ", uhex_byte_(cid_buf[11]), " ", uhex_byte_(cid_buf[12]), " ", uhex_byte_(cid_buf[13]), " ", uhex_byte_(cid_buf[14]), " ", uhex_byte_(cid_buf[15]))
+
+
+PRI showVolumeInfo() | free_sectors, free_mb
+    '' Display volume information from mounted filesystem
+
+    debug("  Volume Label: ", zstr_(sd.volumeLabel()))
+
+    ' Get free space (this goes through worker cog correctly)
+    free_sectors := sd.freeSpace()
+    free_mb := free_sectors / 2048                                ' sectors to MB
+    debug("  Free Space: ", udec(free_mb), " MB (", udec(free_sectors), " sectors)")
+
+    debug(" ")
+
+
+PRI runFilesystemBenchmarks()
+
+    ' Delete test file if exists
+    sd.deleteFile(@testFile)
+
+    ' File open/close overhead
+    debug(" ")
+    debug("File Open/Close Overhead:")
+    runFileOpenCloseTest()
+
+    ' Small write tests (embedded logging use case)
+    debug(" ")
+    debug("Write 512B - Log Entry (", udec(ITERATIONS), " iterations):")
+    runFileWriteTest(SIZE_512B)
+
+    debug(" ")
+    debug("Write 4KB - Config Save (", udec(ITERATIONS), " iterations):")
+    runFileWriteTest(SIZE_4KB)
+
+    debug(" ")
+    debug("Write 32KB - Data Batch (", udec(ITERATIONS), " iterations):")
+    runFileWriteTest(SIZE_32KB)
+
+    ' Read tests (display/config use cases)
+    debug(" ")
+    debug("Read 4KB - Config Load (", udec(ITERATIONS), " iterations):")
+    runFileReadTest(SIZE_4KB)
+
+    debug(" ")
+    debug("Read 32KB - Icon/Small Image (", udec(ITERATIONS), " iterations):")
+    runFileReadTest(SIZE_32KB)
+
+    debug(" ")
+    debug("Read 128KB - Display Image (", udec(ITERATIONS), " iterations):")
+    runFileReadTest(SIZE_128KB)
+
+    debug(" ")
+    debug("Read 256KB - Large Image (", udec(ITERATIONS), " iterations):")
+    runFileReadTest(SIZE_256KB)
+
+    ' Cleanup
+    sd.deleteFile(@testFile)
+
+
+PRI runFileOpenCloseTest() | iter, start_ct, elapsed_ct, open_min, open_max, open_total, close_min, close_max, close_total, open_avg, close_avg
+
+    ' First create a small test file
+    if sd.newFile(@testFile)
+        fillBuffer(1024, $AA)
+        sd.write(@testBuffer, 1024)
+        sd.closeFile()
+
+    open_min := $7FFF_FFFF
+    open_max := 0
+    open_total := 0
+    close_min := $7FFF_FFFF
+    close_max := 0
+    close_total := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        ' Measure open
+        start_ct := getct()
+        sd.openFile(@testFile)
+        elapsed_ct := getct() - start_ct
+        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+        open_total += timings[iter]
+        if timings[iter] < open_min
+            open_min := timings[iter]
+        if timings[iter] > open_max
+            open_max := timings[iter]
+
+        ' Measure close
+        start_ct := getct()
+        sd.closeFile()
+        elapsed_ct := getct() - start_ct
+        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+        close_total += timings[iter]
+        if timings[iter] < close_min
+            close_min := timings[iter]
+        if timings[iter] > close_max
+            close_max := timings[iter]
+
+    open_avg := open_total / ITERATIONS
+    close_avg := close_total / ITERATIONS
+
+    debug("  Open:  Min: ", udec(open_min), " us  Avg: ", udec(open_avg), " us  Max: ", udec(open_max), " us")
+    debug("  Close: Min: ", udec(close_min), " us  Avg: ", udec(close_avg), " us  Max: ", udec(close_max), " us")
+
+
+PRI runFileWriteTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps
+
+    fillBuffer(size, $5A)
+
+    min_us := $7FFF_FFFF
+    max_us := 0
+    total_us := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        ' Delete and recreate file each iteration
+        sd.deleteFile(@testFile)
+
+        if sd.newFile(@testFile)
+            start_ct := getct()
+            sd.write(@testBuffer, size)
+            sd.closeFile()
+            elapsed_ct := getct() - start_ct
+
+            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+            total_us += timings[iter]
+            if timings[iter] < min_us
+                min_us := timings[iter]
+            if timings[iter] > max_us
+                max_us := timings[iter]
+
+    avg_us := total_us / ITERATIONS
+
+    if avg_us > 0
+        kbps := (size * 1000) / avg_us
+    else
+        kbps := 0
+
+    debug("  Min: ", udec(min_us), " us  Avg: ", udec(avg_us), " us  Max: ", udec(max_us), " us")
+    debug("  Throughput: ", udec(kbps), " KB/s")
+
+
+PRI runFileReadTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, bytesRead
+
+    ' First create a file of the required size
+    sd.deleteFile(@testFile)
+    if sd.newFile(@testFile)
+        fillBuffer(size, $A5)
+        sd.write(@testBuffer, size)
+        sd.closeFile()
+
+    min_us := $7FFF_FFFF
+    max_us := 0
+    total_us := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        if sd.openFile(@testFile)
+            start_ct := getct()
+            bytesRead := sd.read(@testBuffer, size)
+            elapsed_ct := getct() - start_ct
+            sd.closeFile()
+
+            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+            total_us += timings[iter]
+            if timings[iter] < min_us
+                min_us := timings[iter]
+            if timings[iter] > max_us
+                max_us := timings[iter]
+
+    avg_us := total_us / ITERATIONS
+
+    if avg_us > 0
+        kbps := (size * 1000) / avg_us
+    else
+        kbps := 0
+
+    debug("  Min: ", udec(min_us), " us  Avg: ", udec(avg_us), " us  Max: ", udec(max_us), " us")
+    debug("  Throughput: ", udec(kbps), " KB/s")
+
+
+PRI fillBuffer(size, value) | idx
+
+    bytefill(@testBuffer, value, size)
+
+
+con { license }
+
+{{
+  =================================================================================================
+
+  Terms of Use: MIT License
+
+  Copyright (c) 2026 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  =================================================================================================
+}}

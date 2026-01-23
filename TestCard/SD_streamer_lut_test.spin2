@@ -1,0 +1,300 @@
+'' =================================================================================================
+''
+''   File....... SD_streamer_lut_test.spin2
+''   Purpose.... Prove streamer mechanism using LUT buffer (single cog, no cog switching)
+''   Author..... Claude + Stephen M Moraco
+''   Started.... JAN 2026
+''
+'' =================================================================================================
+''
+''   This test isolates the streamer mechanism:
+''   - Single cog (no pin configuration conflicts)
+''   - Streamer writes to LUT (512 longs = 2KB = 4 sectors)
+''   - Debug displays LUT contents directly
+''
+''   Approach:
+''   1. Initialize card and smart pins (bit-bang for init, then smart pins for fast mode)
+''   2. Send CMD17 via smart pin byte transfers
+''   3. Wait for $FE token
+''   4. Use streamer to capture 512 bytes into LUT
+''   5. Debug display LUT contents to verify data
+''
+'' =================================================================================================
+
+CON
+
+    _CLKFREQ        = 320_000_000
+
+    ' P2 Edge module SD slot
+    SD_CS   = 60
+    SD_MOSI = 59
+    SD_MISO = 58
+    SD_SCK  = 61
+
+    ' Test sector (known pattern from SD_write_test_patterns.spin2)
+    TEST_SECTOR     = 100_000
+
+    ' SPI timing
+    SPI_HALF_PERIOD = 7             ' ~22.8 MHz at 320 MHz sysclk
+
+    ' Streamer mode for LUT write
+    ' For LUT, we need a different approach - streamer writes to hub via WFBYTE
+    ' But we can use SETQ2+RDLUT to copy from hub to LUT, or write directly
+    ' Actually, streamer X_1P_1DAC1_WFBYTE writes to hub FIFO (WRFAST destination)
+    ' To write to LUT, we'd use different streamer modes or copy after
+
+    ' Let's use hub buffer first, then copy to LUT, or just verify in hub
+    ' Simpler: just use hub buffer and debug display it
+
+OBJ
+    sd : "SD_card_driver_v2"
+
+VAR
+    LONG    guard_before[4]         ' Guard zone before buffer
+    BYTE    sector_buf[512]
+    LONG    guard_after[4]          ' Guard zone after buffer
+
+PUB go() | result, i, _cs, _mosi, _miso, _sck, p_buf, stream_mode, clk_count, xfrq, init_phase, data, timeout, fifo_ptr
+
+    debug(" ")
+    debug("======================================================")
+    debug("  Streamer LUT Test - Single Cog")
+    debug("======================================================")
+    debug(" ")
+
+    ' Initialize card using v2 driver
+    debug("Step 1: Initialize card...")
+    result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result == false
+        debug("ERROR: Card init failed!")
+        debug("END_SESSION")
+        return
+    debug("  Card initialized, smart pins configured")
+    debug(" ")
+
+    ' Fill buffer and guard zones with known patterns
+    longfill(@guard_before, $DEAD_BEEF, 4)
+    bytefill(@sector_buf, $AA, 512)
+    longfill(@guard_after, $CAFE_BABE, 4)
+    debug("Step 2: Buffer filled with $AA")
+    debug("  Guard zones set: BEFORE=$DEAD_BEEF, AFTER=$CAFE_BABE")
+    debug("  Buffer at $", uhex_long_(@sector_buf))
+    debug("  Guard before at $", uhex_long_(@guard_before))
+    debug("  Guard after at $", uhex_long_(@guard_after))
+    debug(" ")
+
+    ' Setup local variables for inline PASM
+    _cs := SD_CS
+    _mosi := SD_MOSI
+    _miso := SD_MISO
+    _sck := SD_SCK
+    p_buf := @sector_buf
+
+    debug("Step 3: Sending CMD17 for sector ", udec_(TEST_SECTOR), "...")
+
+    ' Assert CS
+    pinl(_cs)
+
+    ' Send CMD17 using smart pin transfers
+    sendByte(_sck, _mosi, _miso, $51)                   ' 0x40 | 17
+    sendByte(_sck, _mosi, _miso, (TEST_SECTOR >> 24) & $FF)
+    sendByte(_sck, _mosi, _miso, (TEST_SECTOR >> 16) & $FF)
+    sendByte(_sck, _mosi, _miso, (TEST_SECTOR >> 8) & $FF)
+    sendByte(_sck, _mosi, _miso, TEST_SECTOR & $FF)
+    sendByte(_sck, _mosi, _miso, $FF)                   ' CRC dummy
+
+    ' Wait for R1 response
+    timeout := getct() + clkfreq
+    repeat
+        data := recvByte(_sck, _mosi, _miso)
+        if data <> $FF
+            quit
+        if getct() - timeout > 0
+            debug("ERROR: Timeout waiting for R1")
+            pinh(_cs)
+            debug("END_SESSION")
+            return
+
+    debug("  R1 response: $", uhex_byte_(data))
+    if data <> $00
+        debug("ERROR: R1 indicates error")
+        pinh(_cs)
+        debug("END_SESSION")
+        return
+
+    ' Wait for $FE data token
+    debug("  Waiting for $FE token...")
+    timeout := getct() + clkfreq
+    repeat
+        data := recvByte(_sck, _mosi, _miso)
+        if data == $FE
+            quit
+        if data <> $FF
+            debug("ERROR: Got error token $", uhex_byte_(data))
+            pinh(_cs)
+            debug("END_SESSION")
+            return
+        if getct() - timeout > 0
+            debug("ERROR: Timeout waiting for $FE")
+            pinh(_cs)
+            debug("END_SESSION")
+            return
+
+    debug("  Got $FE token - starting streamer transfer")
+
+    ' ════════════════════════════════════════════════════════════════════════════
+    ' STREAMER TRANSFER - This is what we're testing
+    ' ════════════════════════════════════════════════════════════════════════════
+
+    ' NOTE: NOT disabling MISO smart pin - streamer may work with it active
+    ' Per P2KB: "Smart Pins MUST start before XINIT"
+    debug("  MISO smart pin left ACTIVE (P2KB: pins must start before XINIT)")
+
+    ' Calculate NCO frequency: xfrq = $4000_0000 / spi_half_period
+    xfrq := $4000_0000 / SPI_HALF_PERIOD
+    debug("  xfrq = $", uhex_long_(xfrq))
+
+    ' Streamer mode: X_1P_1DAC1_WFBYTE + X_WRITE_ON + X_ALT_ON + pin + bit_count
+    ' X_1P_1DAC1_WFBYTE = $C000_0000 (1 pin input -> WFBYTE)
+    ' X_WRITE_ON        = $0080_0000 (enable WRFAST writes - CRITICAL!)
+    ' X_ALT_ON          = $0001_0000 (MSB first for SPI)
+    stream_mode := $C081_0000 | (_miso << 17) | (512 * 8)
+    debug("  stream_mode = $", uhex_long_(stream_mode), " (with X_WRITE_ON + X_ALT_ON)")
+
+    ' Clock count: 512 bytes * 8 bits * 2 transitions = 8192
+    clk_count := 512 * 8 * 2
+
+    ' Initial phase = 0 (per P2KB example: xinit wmode, #0)
+    init_phase := 0
+    debug("  init_phase = $", uhex_long_(init_phase), " (0 per P2KB example)")
+    debug("  p_buf = $", uhex_long_(p_buf))
+    debug("  clk_count = ", udec_(clk_count))
+
+    ' CRITICAL FIX: Disable MISO smart pin before streamer capture
+    ' The smart pin configuration interferes with streamer's direct pin reading
+    ' Reference: flash_loader.spin2 does NOT configure smart pin on spi_do during reads
+    debug("  Disabling MISO smart pin before streamer...")
+    pinclear(_miso)                           ' Clear smart pin mode
+    pinf(_miso)                               ' Float pin (input mode)
+
+    ' Execute streamer transfer via inline PASM
+    org
+          setxfrq xfrq                              ' Set NCO rate
+          wrfast  #0, p_buf                         ' Setup FIFO to hub buffer
+          wypin   clk_count, _sck                   ' Start clock transitions
+          waitx   #7                                ' Alignment delay (scaled for wxpin #7)
+          xinit   stream_mode, init_phase           ' Start streamer
+          waitxfi                                   ' Wait for completion
+          getptr  fifo_ptr                          ' Get final FIFO pointer
+    end
+
+    debug("  Streamer transfer complete")
+    debug("  FIFO pointer after: $", uhex_long_(fifo_ptr))
+    debug("  Expected end addr:  $", uhex_long_(p_buf + 512))
+
+    ' Skip CRC reads - smart pin was cleared, need to just deselect
+    ' TODO: Properly handle CRC after verifying data capture works
+    pinh(_cs)
+    debug("  Card deselected (CRC skipped)")
+
+    ' ════════════════════════════════════════════════════════════════════════════
+    ' VERIFY DATA
+    ' ════════════════════════════════════════════════════════════════════════════
+
+    debug(" ")
+    debug("Step 4: Examining captured data...")
+    debug(" ")
+    debug("First 64 bytes:")
+    debug("  ", uhex_byte_array_(@sector_buf[0], 16))
+    debug("  ", uhex_byte_array_(@sector_buf[16], 16))
+    debug("  ", uhex_byte_array_(@sector_buf[32], 16))
+    debug("  ", uhex_byte_array_(@sector_buf[48], 16))
+
+    debug(" ")
+    debug("Last 64 bytes:")
+    debug("  ", uhex_byte_array_(@sector_buf[448], 16))
+    debug("  ", uhex_byte_array_(@sector_buf[464], 16))
+    debug("  ", uhex_byte_array_(@sector_buf[480], 16))
+    debug("  ", uhex_byte_array_(@sector_buf[496], 16))
+
+    ' Check guard zones - did data go somewhere else?
+    debug(" ")
+    debug("Guard zone analysis:")
+    debug("  Before buffer: $", uhex_long_(guard_before[0]), " $", uhex_long_(guard_before[1]), " $", uhex_long_(guard_before[2]), " $", uhex_long_(guard_before[3]))
+    debug("  After buffer:  $", uhex_long_(guard_after[0]), " $", uhex_long_(guard_after[1]), " $", uhex_long_(guard_after[2]), " $", uhex_long_(guard_after[3]))
+
+    if guard_before[0] <> $DEAD_BEEF or guard_before[3] <> $DEAD_BEEF
+        debug("  !! GUARD BEFORE modified - data went BEFORE buffer!")
+    if guard_after[0] <> $CAFE_BABE or guard_after[3] <> $CAFE_BABE
+        debug("  !! GUARD AFTER modified - data went PAST buffer!")
+
+    ' Check if buffer was modified
+    debug(" ")
+    if sector_buf[0] == $AA and sector_buf[511] == $AA
+        debug("PROBLEM: Buffer unchanged - streamer didn't write!")
+    elseif sector_buf[0] == $AA
+        debug("PROBLEM: Start unchanged, end modified")
+    elseif sector_buf[511] == $AA
+        debug("PROBLEM: End unchanged, start modified")
+    else
+        debug("OK: Buffer was modified")
+
+    ' Check expected pattern for sector 100000
+    ' Expected: A0 A0 A0 A0 DE AD BE EF at start
+    debug(" ")
+    debug("Expected: $A0 $A0 $A0 $A0 $DE $AD $BE $EF")
+    debug("Actual:   $", uhex_byte_(sector_buf[0]), " $", uhex_byte_(sector_buf[1]), " $", uhex_byte_(sector_buf[2]), " $", uhex_byte_(sector_buf[3]), " $", uhex_byte_(sector_buf[4]), " $", uhex_byte_(sector_buf[5]), " $", uhex_byte_(sector_buf[6]), " $", uhex_byte_(sector_buf[7]))
+
+    if sector_buf[0] == $A0 and sector_buf[4] == $DE and sector_buf[5] == $AD
+        debug(" ")
+        debug("*** SUCCESS: Streamer captured correct data! ***")
+    else
+        debug(" ")
+        debug("*** MISMATCH: Data incorrect ***")
+
+    debug(" ")
+    debug("======================================================")
+    debug("END_SESSION")
+
+
+PRI sendByte(sck_pin, mosi_pin, miso_pin, value) : result | tx_data, rx_data
+    '' Send one byte via smart pins, return received byte
+
+    tx_data := value
+    rx_data := 0
+
+    org
+          ' Prepare TX: shift to MSB position, reverse for MSB-first SPI
+          shl     tx_data, #24
+          rev     tx_data
+
+          ' Configure and send on MOSI
+          wxpin   #$27, mosi_pin                    ' 8 bits, start-stop
+          wypin   tx_data, mosi_pin
+          drvl    mosi_pin                          ' Enable
+
+          ' Configure MISO for receive
+          wxpin   #$27, miso_pin                    ' 8 bits
+          akpin   miso_pin                          ' Clear pending
+          dirh    miso_pin                          ' Enable
+
+          ' Generate 16 clock transitions (8 bits)
+          wypin   #16, sck_pin
+
+          ' Wait for receive complete
+.wait     testp   miso_pin                  wz
+    if_nz jmp     #.wait
+
+          ' Read received data
+          rdpin   rx_data, miso_pin
+          rev     rx_data
+          zerox   rx_data, #7
+    end
+
+    result := rx_data
+
+
+PRI recvByte(sck_pin, mosi_pin, miso_pin) : value
+    '' Receive one byte (send $FF)
+    value := sendByte(sck_pin, mosi_pin, miso_pin, $FF)
+

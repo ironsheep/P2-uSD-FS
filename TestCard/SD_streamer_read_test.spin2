@@ -1,0 +1,162 @@
+'' =================================================================================================
+''
+''   File....... SD_streamer_read_test.spin2
+''   Purpose.... Test streamer-based sector reads using known test patterns
+''   Author..... Claude + Stephen M Moraco
+''   Started.... JAN 2026
+''
+'' =================================================================================================
+''
+''   This utility tests the streamer-based readSector() by reading sectors with known patterns.
+''   Uses the v2 driver (with streamer) via initCardOnly() - NO filesystem mount needed.
+''
+''   Expected patterns at test sectors (written by SD_write_test_patterns.spin2):
+''     Sector 100000: Pattern A ($A0) - Sequential bytes with boundary markers
+''     Sector 100001: Pattern B ($B0) - Alternating AA 55 with boundary markers
+''     Sector 100002: Pattern C ($C0) - All FF (except markers)
+''     Sector 100003: Pattern D ($D0) - All 00 (except markers)
+''     Sector 100004: Pattern E ($E0) - Incrementing with sector offset
+''
+''   Each sector has:
+''     - Head marker (bytes 0-7): sector#, sector#, pattern, pattern, DE AD BE EF
+''     - Tail marker (bytes 504-511): CA FE BA BE, pattern, pattern, sector#, sector#
+''
+'' =================================================================================================
+
+CON
+
+    _CLKFREQ        = 320_000_000
+
+    ' Pin configuration - uncomment ONE set:
+
+    ' P2 Edge module SD slot (active)
+    SD_CS   = 60
+    SD_MOSI = 59
+    SD_MISO = 58
+    SD_SCK  = 61
+
+    ' LA-instrumented card (P18-21)
+    'SD_CS   = 20
+    'SD_MOSI = 19
+    'SD_MISO = 18
+    'SD_SCK  = 21
+
+    ' Test sector numbers (must match SD_write_test_patterns.spin2)
+    TEST_SECTOR_A   = 100_000   ' Sequential pattern ($A0)
+    TEST_SECTOR_B   = 100_001   ' Alternating AA/55 ($B0)
+    TEST_SECTOR_C   = 100_002   ' All FF ($C0)
+    TEST_SECTOR_D   = 100_003   ' All 00 ($D0)
+    TEST_SECTOR_E   = 100_004   ' Incrementing with offset ($E0)
+
+OBJ
+    sd : "SD_card_driver_v2"
+
+VAR
+    BYTE    read_buf[512]
+
+PUB go() | result, sector, errors
+
+    debug(" ")
+    debug("======================================================")
+    debug("  SD Streamer Read Test (v2 driver)")
+    debug("======================================================")
+    debug(" ")
+
+    ' Initialize card only (no filesystem mount - we're doing raw sector access)
+    debug("Initializing SD card (v2 driver)...")
+    result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result == false
+        debug("ERROR: Card init failed!")
+        debug("END_SESSION")
+        return
+
+    debug("Card initialized successfully")
+    debug(" ")
+
+    ' ========================================
+    ' Test: Read all pattern sectors
+    ' ========================================
+    debug("--- Testing Streamer Reads ---")
+    debug(" ")
+
+    errors := 0
+
+    ' Read and verify Pattern A
+    debug("Reading sector ", udec_(TEST_SECTOR_A), " (expect pattern $A0)...")
+    if not verifyPattern(TEST_SECTOR_A, $A0)
+        errors++
+
+    ' Read and verify Pattern B
+    debug("Reading sector ", udec_(TEST_SECTOR_B), " (expect pattern $B0)...")
+    if not verifyPattern(TEST_SECTOR_B, $B0)
+        errors++
+
+    ' Read and verify Pattern C
+    debug("Reading sector ", udec_(TEST_SECTOR_C), " (expect pattern $C0)...")
+    if not verifyPattern(TEST_SECTOR_C, $C0)
+        errors++
+
+    ' Read and verify Pattern D
+    debug("Reading sector ", udec_(TEST_SECTOR_D), " (expect pattern $D0)...")
+    if not verifyPattern(TEST_SECTOR_D, $D0)
+        errors++
+
+    ' Read and verify Pattern E
+    debug("Reading sector ", udec_(TEST_SECTOR_E), " (expect pattern $E0)...")
+    if not verifyPattern(TEST_SECTOR_E, $E0)
+        errors++
+
+    debug(" ")
+    debug("======================================================")
+    if errors == 0
+        debug("  SUCCESS: All 5 sectors verified correctly!")
+        debug("  Streamer-based reads are working!")
+    else
+        debug("  FAILED: ", udec_(errors), " sector(s) had errors")
+    debug("======================================================")
+    debug(" ")
+    debug("END_SESSION")
+
+PRI verifyPattern(sector, expectedPattern) : success | secLow
+    '' Read sector using streamer and verify boundary markers match expected pattern
+    '' Returns true if verified OK, false if mismatch
+
+    success := true
+    secLow := sector & $FF
+
+    sd.readSectorRaw(sector, @read_buf)
+
+    ' Check head marker
+    debug("  Head: $", uhex_byte_(read_buf[0]), " $", uhex_byte_(read_buf[2]), " $", uhex_byte_(read_buf[4]), uhex_byte_(read_buf[5]), uhex_byte_(read_buf[6]), uhex_byte_(read_buf[7]))
+
+    if read_buf[0] <> secLow or read_buf[1] <> secLow
+        debug("  ERROR: Sector ID mismatch! Expected $", uhex_byte_(secLow), ", got $", uhex_byte_(read_buf[0]))
+        success := false
+
+    if read_buf[2] <> expectedPattern or read_buf[3] <> expectedPattern
+        debug("  ERROR: Pattern ID mismatch! Expected $", uhex_byte_(expectedPattern), ", got $", uhex_byte_(read_buf[2]))
+        success := false
+
+    if read_buf[4] <> $DE or read_buf[5] <> $AD or read_buf[6] <> $BE or read_buf[7] <> $EF
+        debug("  ERROR: Head magic mismatch! Expected DEADBEEF, got $", uhex_byte_(read_buf[4]), uhex_byte_(read_buf[5]), uhex_byte_(read_buf[6]), uhex_byte_(read_buf[7]))
+        success := false
+
+    ' Check tail marker
+    debug("  Tail: $", uhex_byte_(read_buf[504]), uhex_byte_(read_buf[505]), uhex_byte_(read_buf[506]), uhex_byte_(read_buf[507]), " $", uhex_byte_(read_buf[508]), " $", uhex_byte_(read_buf[510]))
+
+    if read_buf[504] <> $CA or read_buf[505] <> $FE or read_buf[506] <> $BA or read_buf[507] <> $BE
+        debug("  ERROR: Tail magic mismatch! Expected CAFEBABE")
+        success := false
+
+    if read_buf[508] <> expectedPattern or read_buf[509] <> expectedPattern
+        debug("  ERROR: Tail pattern mismatch!")
+        success := false
+
+    if read_buf[510] <> secLow or read_buf[511] <> secLow
+        debug("  ERROR: Tail sector ID mismatch!")
+        success := false
+
+    if success
+        debug("  VERIFIED OK")
+    else
+        debug("  VERIFICATION FAILED")
