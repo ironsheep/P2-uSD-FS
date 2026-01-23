@@ -68,6 +68,18 @@ CON '' error codes
 CON '' worker cog stack size
   STACK_SIZE = 128              ' 128 longs = 512 bytes
 
+CON '' streamer configuration (compile-time constants for bulk sector transfers)
+  ' Reference: flash_loader.spin2 pattern, P2 Silicon Doc streamer section
+  ' Streamer modes for SPI sector I/O:
+  ' X_1P_1DAC1_WFBYTE = capture 1 pin to WFBYTE (RX to hub)
+  ' X_RFBYTE_1P_1DAC1 = RFBYTE to 1 pin output (TX from hub)
+  ' X_WRITE_ON = enable WRFAST for capture modes
+  ' X_PINS_ON = enable pin output for transmit modes
+  ' X_ALT_ON = MSB-first bit order (required for SPI)
+  ' Pin field: bits [22:17] = pin number, added at runtime
+  STREAM_RX_BASE = X_1P_1DAC1_WFBYTE | X_WRITE_ON | X_ALT_ON   ' RX mode
+  STREAM_TX_BASE = X_RFBYTE_1P_1DAC1 | X_PINS_ON | X_ALT_ON    ' TX mode
+
 DAT '' singleton control - SHARED across all object instances
   ' ═══════════════════════════════════════════════════════════════════════
   ' SINGLETON CONTROL - Must be initialized to "not started" state
@@ -100,6 +112,20 @@ DAT '' singleton control - SHARED across all object instances
   mosi          LONG    0               ' Master out, slave in pin
   miso          LONG    0               ' Master in, slave out pin
   sck           LONG    0               ' Serial clock pin
+
+  ' ═══════════════════════════════════════════════════════════════════════
+  ' SMART PIN SPI CONFIGURATION (Phase 1 Performance Sprint)
+  ' P_TRANSITION for clock, P_SYNC_TX for transmit, P_SYNC_RX for receive
+  ' B-input offset links MOSI/MISO to SCK for synchronized operation
+  ' ═══════════════════════════════════════════════════════════════════════
+  spi_clk_mode  LONG    0               ' P_PULSE | P_OE for SCK
+  spi_tx_mode   LONG    0               ' P_SYNC_TX | P_OE for MOSI
+  spi_rx_mode   LONG    0               ' P_SYNC_RX for MISO
+  spi_period    LONG    0               ' Current SPI half-period (for sysclk-independent timing)
+  spi_freq      LONG    0               ' Actual achieved SPI frequency (Hz)
+  spi_event     LONG    0               ' Event config for waitse1 (%01_000000 | sck)
+  use_smartpin  LONG    0               ' 0 = bit-bang (fallback), 1 = smart pin mode
+  sp_debug_ctr  LONG    0               ' Debug counter for sp_transfer_8
 
   ' ═══════════════════════════════════════════════════════════════════════
   ' FILESYSTEM STATE (moved from VAR)
@@ -1319,6 +1345,220 @@ PRI clus2sec(cluster) :result                                                   
   return (cluster - 2) * sec_per_clus + root_sec
 
 CON     '' low-level SPI routines
+
+PRI initSPIPins()                                                               '' configure smart pins for SPI operation
+  '' Initialize Smart Pins for high-speed SPI communication (configure ONCE).
+  '' Pattern from working isp_tile_sensor.spin2:
+  '' - DIRL -> WRPIN -> WXPIN -> DIRH (no WYPIN during config)
+  '' - Smart pins stay enabled, WYPIN triggers transfers
+  ''
+  '' SCK uses P_PULSE for clock generation (X = period | low_time<<16)
+  '' MOSI uses P_SYNC_TX for synchronized transmit (clocked by SCK)
+  '' MISO uses P_SYNC_RX for synchronized receive (clocked by SCK)
+  '' CS remains standard GPIO (manual control)
+
+  ' Smart pin mode configuration using compiler constants
+  ' P_TRANSITION: clock generation with X = half-period (transitions toggle output)
+  ' P_SYNC_TX: synchronized serial transmit (clocked by B-input)
+  ' P_SYNC_RX: synchronized serial receive (clocked by B-input)
+  ' P_PLUS2_B, P_PLUS3_B: B-input pin selector for clock source
+  ' Reference: ManAtWork SpiFlash.spin2 (OBEX 2872) - working smart pin SPI
+  ' CRITICAL: Do NOT use P_INVERT_OUTPUT for SD card SPI mode 0!
+  ' ManAtWork's flash uses different polarity. SD cards need clock idle LOW.
+  spi_clk_mode := P_TRANSITION | P_OE                                           ' Transition mode, idle LOW for SPI mode 0
+  spi_tx_mode := P_SYNC_TX | P_OE | P_PLUS2_B                                   ' Sync TX, clock from pin+2 (SCK)
+  spi_rx_mode := P_SYNC_RX | P_PLUS3_B                                          ' Sync RX, clock from pin+3 (SCK)
+
+  debug("    [initSPIPins] Setting up smart pins (ManAtWork pattern)...")
+  debug("    [initSPIPins] Mode values:")
+  debug("    [initSPIPins]   spi_clk_mode=$", uhex_long(spi_clk_mode), " (P_TRANSITION | P_OE, idle LOW)")
+  debug("    [initSPIPins]   spi_tx_mode=$", uhex_long(spi_tx_mode), " (P_SYNC_TX | P_OE | P_PLUS2_B)")
+  debug("    [initSPIPins]   spi_rx_mode=$", uhex_long(spi_rx_mode), " (P_SYNC_RX | P_PLUS3_B)")
+  debug("    [initSPIPins]   SCK=P", udec_(sck), " MOSI=P", udec_(mosi), " MISO=P", udec_(miso))
+
+  ' ════════════════════════════════════════════════════════════════════
+  ' CS PIN: Standard GPIO (unchanged from bit-bang)
+  ' CS is manually controlled - LOW = selected, HIGH = deselected
+  ' ════════════════════════════════════════════════════════════════════
+  pinh(cs)                                                                      ' Start deselected
+
+  ' ════════════════════════════════════════════════════════════════════
+  ' SCK PIN: P_TRANSITION mode for clock generation
+  ' X register: half-period in clocks (time between transitions)
+  ' Y register: Number of transitions (2 per bit) - loaded via WYPIN per transfer
+  ' Configure with FLTL -> WRPIN, then WXPIN/DRVL in setSPISpeed()
+  ' ════════════════════════════════════════════════════════════════════
+  pinfloat(sck)                                                                 ' FLTL - reset smart pin
+  wrpin(sck, spi_clk_mode)                                                      ' P_TRANSITION | P_OE | P_INVERT_OUTPUT
+  ' X register (half-period) will be set by setSPISpeed()
+  debug("    [initSPIPins]   SCK configured: P_TRANSITION | P_OE (awaiting setSPISpeed)")
+
+  ' ════════════════════════════════════════════════════════════════════
+  ' MOSI PIN: P_SYNC_TX mode for synchronized transmit
+  ' B-input set via P_PLUS2_B (clock from SCK which is 2 pins higher)
+  ' X register: %M_NNNNN where M=mode (1=start/stop), N=bits-1
+  ' Y register: Data to transmit - loaded via WYPIN per transfer
+  ' Configure with DIRL -> WRPIN -> WXPIN -> DIRH (no WYPIN yet)
+  ' ════════════════════════════════════════════════════════════════════
+  pinfloat(mosi)                                                                ' DIRL - reset smart pin
+  wrpin(mosi, spi_tx_mode)                                                      ' P_SYNC_TX | P_OE | P_PLUS2_B
+  wxpin(mosi, %1_00111)                                                         ' Start-stop mode, 8 bits default
+  pinh(mosi)                                                                    ' DIRH - enable smart pin
+  debug("    [initSPIPins]   MOSI configured: P_SYNC_TX | P_PLUS2_B (enabled)")
+
+  ' ════════════════════════════════════════════════════════════════════
+  ' MISO PIN: P_SYNC_RX mode for synchronized receive
+  ' B-input set via P_PLUS3_B (clock from SCK which is 3 pins higher)
+  ' X register: %M_NNNNN where M=mode (1=post-edge for SPI mode 0), N=bits-1
+  ' Z register: Received data - read via RDPIN per transfer
+  ' Configure with DIRL -> WRPIN -> WXPIN -> DIRH (no WYPIN needed)
+  ' ════════════════════════════════════════════════════════════════════
+  pinfloat(miso)                                                                ' DIRL - reset smart pin
+  wrpin(miso, spi_rx_mode)                                                      ' P_SYNC_RX | P_PLUS3_B
+  wxpin(miso, %1_00111)                                                         ' On-edge sample (SPI mode 0), 8 bits
+  pinh(miso)                                                                    ' DIRH - enable smart pin
+  debug("    [initSPIPins]   MISO configured: P_SYNC_RX | P_PLUS3_B (enabled)")
+
+  ' Configure event SE1 for efficient waiting on SCK completion
+  ' Event format: D[5:0]=pin, D[7:6]=%01 for positive edge on IN
+  ' This allows waitse1 instead of polling testp loop
+  spi_event := %01_000000 | sck
+  configureEvent(spi_event)
+  debug("    [initSPIPins]   Event SE1 configured for SCK pin ", udec_(sck))
+
+  ' Mark smart pin mode as active
+  use_smartpin := 1
+  debug("    [initSPIPins] Smart pins configured and enabled")
+
+PRI configureEvent(event_config) | ev                                           '' configure SE1 event for waitse1
+  '' Helper to configure SE1 event from a computed value
+  '' Event format: D[5:0]=pin, D[7:6]=%01 for positive edge on IN
+  ev := event_config
+  org
+        setse1  ev
+  end
+
+PRI setSPISpeed(freq) | half_period, actual_freq                                '' set SPI clock frequency
+  '' Configure SPI clock speed for sysclk-independent operation.
+  '' Using P_TRANSITION mode: X = half-period (time between transitions)
+  '' Reference: ManAtWork SpiFlash.spin2
+  ''
+  '' Formula: half_period = clkfreq / (freq * 2)
+  '' For 400 kHz: half_period = 320M / 800k = 400 clocks
+  '' For 25 MHz: half_period = 320M / 50M = 6.4 -> minimum 4
+  ''
+  '' @param freq - Target SPI frequency in Hz (e.g., 400_000 or 25_000_000)
+
+  ' Calculate half-period (time between transitions) in system clocks
+  ' Use ceiling division to ensure we never exceed target frequency
+  ' Formula: ceil(a/b) = (a + b - 1) / b
+  half_period := (clkfreq + (freq * 2) - 1) / (freq * 2)
+
+  ' Guard against too-small period (ManAtWork uses minimum of 4)
+  if half_period < 4
+    half_period := 4
+    debug("    [setSPISpeed] WARNING: Half-period clamped to minimum (4)")
+
+  ' Calculate actual achieved frequency for debugging
+  actual_freq := clkfreq / (half_period * 2)
+
+  ' Store in DAT variables for debugging/monitoring
+  spi_period := half_period
+  spi_freq := actual_freq
+
+  ' Configure SCK smart pin X register and enable with DRVL
+  wxpin(sck, half_period)                                                       ' Set transition period
+  pinl(sck)                                                                     ' DRVL enables smart pin (ManAtWork pattern)
+
+  debug("    [setSPISpeed] Target=", udec_(freq/1000), " kHz, Actual=", udec_(actual_freq/1000), " kHz")
+  debug("    [setSPISpeed] Half-period=", udec_(half_period), " clocks")
+
+PRI sp_transfer(data, bits) : result                                            '' smart pin SPI transfer (variable bits)
+  '' For now, only support 8-bit and 32-bit transfers
+  if bits == 8
+    result := sp_transfer_8(data)
+  elseif bits == 32
+    result := sp_transfer_32(data)
+  else
+    ' Fallback to bit-bang for unsupported sizes
+    result := transfer(data, bits)
+
+PRI sp_transfer_8(data) : result | _sck, _mosi, _miso, tx_data, raw_result      '' 8-bit smart pin SPI transfer
+  '' Full-duplex 8-bit SPI transfer using smart pins
+  '' Reference: ManAtWork SpiFlash.spin2 (OBEX 2872)
+  '' TX: shl #24, rev, wypin data, 16 transitions
+  '' RX: wait on MISO IN flag, rdpin, rev, zerox #7
+  _sck := sck
+  _mosi := mosi
+  _miso := miso
+  tx_data := data
+  org
+        ' Prepare TX data: shift to MSB position and reverse for LSB-first transmission
+        shl     tx_data, #24                    ' Move byte to bits [31:24]
+        rev     tx_data                         ' Reverse for MSB-first SPI
+
+        ' Configure MOSI for 8-bit start-stop mode and load data
+        wxpin   #$27, _mosi                     ' 8 bits, start-stop mode (%1_00111)
+        wypin   tx_data, _mosi
+        drvl    _mosi                           ' Enable TX smart pin
+
+        ' Configure MISO for 8-bit receive
+        ' Note: wrpin already set from initSPIPins - don't use dirl which clears it!
+        wxpin   #$27, _miso                     ' 8 bits, start-stop mode
+        akpin   _miso                           ' Clear any pending IN flag
+        dirh    _miso                           ' Enable smart pin
+
+        ' Start clock: 16 transitions = 8 clock cycles
+        wypin   #16, _sck
+        nop
+
+        ' Wait for MISO receive complete (not clock!)
+.waitRx testp   _miso                   wz      ' IN=1 when receive complete
+  if_nz jmp     #.waitRx
+
+        ' Read received data - keep raw value for debug
+        rdpin   raw_result, _miso
+        mov     result, raw_result
+        rev     result                          ' Reverse for MSB-first
+        zerox   result, #7                      ' Limit to 8 bits
+  end
+  ' Debug: show raw rdpin value and pin info occasionally
+  if sp_debug_ctr < 5
+    debug("    [sp_transfer_8] pins: miso=", udec_(_miso), " sck=", udec_(_sck), " raw=", uhex_long_(raw_result), " final=", uhex_byte_(result))
+    sp_debug_ctr++
+
+PRI sp_transfer_32(data) : result | _sck, _mosi, _miso, tx_data                 '' 32-bit smart pin SPI transfer
+  '' Full-duplex 32-bit SPI transfer using smart pins
+  _sck := sck
+  _mosi := mosi
+  _miso := miso
+  tx_data := data
+  org
+        ' Prepare TX data: reverse for LSB-first transmission
+        rev     tx_data                         ' Reverse for MSB-first SPI
+
+        ' Configure MOSI for 32-bit start-stop mode and load data
+        wxpin   #$3F, _mosi                     ' 32 bits, start-stop mode (%1_11111)
+        wypin   tx_data, _mosi
+        drvl    _mosi                           ' Enable TX smart pin
+
+        ' Configure MISO for 32-bit receive
+        wxpin   #$3F, _miso                     ' 32 bits, start-stop mode
+        drvl    _miso                           ' Enable RX smart pin
+
+        ' Start clock: 64 transitions = 32 clock cycles
+        wypin   #64, _sck
+        nop
+
+        ' Wait for MISO receive complete
+.waitRx testp   _miso                   wz      ' IN=1 when receive complete
+  if_nz jmp     #.waitRx
+
+        ' Read received data
+        rdpin   result, _miso
+        rev     result                          ' Reverse for MSB-first
+  end
+
 PRI initCard() : result | t, resp, card_version, acmd41_arg                     '' intialize SD card
   debug("    [initCard] Starting card init...")
   debug("    [initCard] Reference: SPI_SD_Implementation_Reference.md")
@@ -1360,6 +1600,19 @@ PRI initCard() : result | t, resp, card_version, acmd41_arg                     
     waitus(10)
 
   debug("    [initCard] MISO after recovery flush: ", udec_(pinr(miso)), " (should be 1)")
+
+  ' ============================================
+  ' STEP 3.5: Initialize smart pins for SPI
+  ' ============================================
+  debug("    [initCard] Step 3.5: Initializing smart pins (ManAtWork pattern)...")
+  initSPIPins()
+  setSPISpeed(400_000)                                                          ' 400 kHz for init
+  waitus(100)                                                                   ' Let smart pins settle
+
+  ' Send dummy clocks using smart pins
+  repeat 10
+    sp_transfer_8($FF)
+  debug("    [initCard] Dummy clocks sent via smart pins")
 
   ' ============================================
   ' STEP 4: CMD0 - GO_IDLE_STATE
@@ -1466,141 +1719,177 @@ PRI initCard() : result | t, resp, card_version, acmd41_arg                     
   ' PNY FIX: CS must be HIGH during clock change, then send dummy clocks
   ' ============================================
   pinh(cs)                                                                      '  ensure CS HIGH before speed change
-  bit_delay := clkfreq / 40_000_000                                             '  ~20 MHz SPI (conservative for PNY compatibility)
-  if bit_delay < 2
-    bit_delay := 2                                                              '  minimum safe delay
-  debug("    [initCard] Step 8: Switching to ~20MHz SPI, bit_delay=", udec(bit_delay))
+  setSPISpeed(25_000_000)                                                       '  25 MHz SPI for high-speed data transfer
+  debug("    [initCard] Step 8: Switched to 25 MHz SPI via smart pins")
   ' Send dummy clocks with CS HIGH to stabilize new clock rate
   repeat 8
-    transfer(-1, 8)                                                             '  8 dummy bytes = 64 clocks
+    sp_transfer(-1, 8)                                                          '  8 dummy bytes = 64 clocks (using smart pins)
   debug("    [initCard] Dummy clocks sent, CS HIGH")
   debug("    [initCard] === INIT SUCCESS ===")
   return true
 
 
-PRI cmd(op,parm) : result | t                                                   '' send a SPI command
+PRI cmd(op,parm) : result | t                                                   '' send a SPI command (using smart pins)
   if op == 0
     debug("      [cmd] CS before assert: ", udec_(pinr(cs)))
-  transfer(-1,8)                                                                '  required for certain cards (my 512MB card fails if not present)
+  sp_transfer(-1,8)                                                             '  required for certain cards (my 512MB card fails if not present)
   pinl(cs)                                                                      '  CS LOW = selected (standard active-LOW)
   if op == 0
     debug("      [cmd] CS after pinl: ", udec_(pinr(cs)), " MISO=", udec_(pinr(miso)))
-  transfer(-1,8)                                                                '  required for certain cards (my 512MB and 32GB cards fail if not present)
-  transfer($40 | op,8)
-  transfer(parm,32)
+  sp_transfer(-1,8)                                                             '  required for certain cards (my 512MB and 32GB cards fail if not present)
+  sp_transfer($40 | op,8)
+  sp_transfer(parm,32)
   if op == 0
-    transfer($95,8)                                                             '  send CRC for cmd(0,0)
+    sp_transfer($95,8)                                                          '  send CRC for cmd(0,0)
     debug("      [cmd] After CMD0 sent, MISO=", udec_(pinr(miso)))
   else
-    transfer($87,8)                                                             '  send CRC for cmd(8,$1AA)
+    sp_transfer($87,8)                                                          '  send CRC for cmd(8,$1AA)
   t := getct() + clkfreq
   repeat
-    result := transfer(-1,8)                                                    '  read 1st byte of reply
+    result := sp_transfer(-1,8)                                                 '  read 1st byte of reply
     if result <> $FF
       quit
     if getct() - t > 0                                                          '  check timeout
       pinh(cs)                                                                  '  CS HIGH = deselected (standard active-LOW)
       return false
   if op == 8 or op == 58                                                        '  read 32-bit reply for cmd8 and cmd58
-    result := transfer(-1,32)                                                   '  (memory card interface condition and operation conditions register
+    result := sp_transfer(-1,32)                                                '  (memory card interface condition and operation conditions register
   if op <> 17 and op <> 24 and op <> 55                                         '  keep cs asserted if readSector, writeSector, or application command
     pinh(cs)                                                                    '  CS HIGH = deselected (standard active-LOW)
 
-PRI readSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr, timeout  '' read a sector into buffer
-  '' Returns 0 on success, -1 on timeout
+PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf  '' read a sector into buffer using P2 streamer
+  '' Returns 0 on success, -1 on timeout/error
+  '' Uses P2 streamer for bulk 512-byte transfer (hardware DMA)
+  '' Reference: flash_loader.spin2 pattern for SPI reads
+  ''
+  '' Protocol:
+  '' 1. CMD17 (READ_SINGLE_BLOCK) with sector address
+  '' 2. Wait for $FE start token (polled via sp_transfer_8)
+  '' 3. Receive 512 bytes via streamer (MISO -> hub)
+  '' 4. Receive 2 CRC bytes (discarded)
+  '' 5. Deselect card
+
   if sector == sec_in_buf
-    return
+    return 0
   sec_in_buf := sector
-  longmove(@_cs,@cs,4)
-  ptr := @buf
-  cmd(17,sector << hcs)
-  timeout := getct() + clkfreq                                                  '  1 second timeout
 
+  ' Send CMD17 (READ_SINGLE_BLOCK)
+  cmd(17, sector << hcs)
+
+  ' Wait for start token ($FE) - use sp_transfer_8 for token polling
+  timeout := getct() + clkfreq                                                  ' 1 second timeout
+  loop_ctr := 0
+  repeat
+    data := sp_transfer_8($FF)
+    loop_ctr++
+    if data == $FE
+      quit                                                                      ' Got start token
+    if data <> $FF
+      debug("  [readSector] ERROR: got $", uhex_byte_(data), " instead of $FF or $FE")
+      pinh(cs)
+      sec_in_buf := -1
+      return -1
+    if getct() - timeout > 0
+      debug("  [readSector] TIMEOUT waiting for start token")
+      pinh(cs)
+      sec_in_buf := -1
+      return -1
+
+  ' ════════════════════════════════════════════════════════════════════════════
+  ' STREAMER BULK TRANSFER: Receive 512 bytes from MISO to hub buffer
+  ' Pattern: SETXFRQ -> WRFAST -> WYPIN(clk) -> WAITX -> XINIT -> WAITXFI
+  ' ════════════════════════════════════════════════════════════════════════════
+  _sck := sck
+  _miso := miso
+  p_buf := @buf
+  ' Mode word format: base_mode | (pin << 17) | bit_count
+  ' For 512 bytes: 512 * 8 = 4096 bits = $1000
+  stream_mode := STREAM_RX_BASE | (_miso << 17) | (512 * 8)                     ' RX mode + MISO pin + bit count
+  clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
+
+  ' Calculate streamer NCO frequency to match SPI clock
+  ' NCO adds xfrq to phase accumulator each sysclock; sample occurs on MSB 0->1 transition
+  ' Full SPI bit period = 2 * spi_period sysclocks
+  ' xfrq = $8000_0000 / (full_period) = $8000_0000 / (2 * spi_period) = $4000_0000 / spi_period
+  ' BUG FIX: Previous code had << 1 which DOUBLED the rate, sampling twice per bit!
+  xfrq := $4000_0000 / spi_period                                               ' One sample per full clock period
+
+  ' Phase alignment: pre-load NCO so first sample occurs 1 sysclock after xinit
+  ' Without this, first sample would be delayed by a full period, missing bit 0
+  ' init_phase = $8000_0000 - xfrq means: after 1 sysclock, phase crosses $8000_0000
+  init_phase := $8000_0000 - xfrq                                               ' Pre-load for immediate first sample
+
+  ' ════════════════════════════════════════════════════════════════════════════
+  ' STREAMER BULK TRANSFER: 512 bytes via hardware DMA
+  ' Sequence: SETXFRQ -> WRFAST -> WYPIN(clk) -> WAITX #3 -> XINIT -> WAITXFI
+  ' The waitx #3 aligns clock rising edge with first streamer sample
+  ' ════════════════════════════════════════════════════════════════════════════
   org
-                drvl      _sck
-                wrfast    ##$8000_0000,ptr
-                mov       loop_ctr,#512/4
-                addct1    timeout, #0                                           '  Arm CT1 with timeout value
-.startloop
-                drvh      _sck
-                nop
-                drvl      _sck
-                testp     _miso                         wc                      '  C set if MISO high
-                pollct1   wz                                                    '  Z set if timeout elapsed
-  if_z          jmp       #.timeout_exit                                        '  Exit on timeout
-  if_c          jmp       #.startloop                                           '  Loop if MISO still high (no start token)
-                jmp       #.start_ok                                            '  Got start token
-.timeout_exit
-                neg       result, #1                                            '  result := -1 (timeout error)
-                jmp       #.done
-.start_ok
-                outh      _sck
-.read_loop
-                rep       @.end_rep,#32
-                 drvl     _sck
-                 rcl      data,#1
-                 drvh     _sck
-                 testp    _miso                         wc
-.end_rep
-                rcl       data,#1
-                movbyts   data,#%%0123
-                wflong    data
-                djnz      loop_ctr,#.read_loop
-                rep       @.rend15,#16
-                 drvl     _sck
-                 nop
-                 drvh     _sck
-                 nop
-.rend15
-                mov       result, #0                                            '  result := 0 (success)
-.done
+        setxfrq xfrq                             ' Set streamer bit rate
+        wrfast  #0, p_buf                        ' Setup WRFAST to hub buffer
+        wypin   clk_count, _sck                  ' Start clock transitions
+        waitx   #3                               ' Align clock with sampling (2+3=5 cycles)
+        xinit   stream_mode, init_phase          ' Start streamer with phase offset
+        waitxfi                                  ' Wait for streamer to complete
   end
-  pinh(cs)
-  if result < 0
-    debug("  [readSector] TIMEOUT waiting for start token")
-    sec_in_buf := -1                                                            '  Invalidate buffer on error
 
-PRI writeSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr, t, resp '' write buffer into a sector
+  ' Read and discard 2 CRC bytes (required by protocol)
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
+
+  pinh(cs)                                                                      ' Deselect card
+  result := 0
+
+PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, t, resp '' write buffer into a sector using P2 streamer
+  '' Write a sector using P2 streamer for bulk 512-byte transfer (hardware DMA)
+  '' Reference: flash_loader.spin2 pattern for SPI writes
+  ''
   '' PNY COMPATIBILITY: This implementation follows strict SPI write protocol:
   '' 1. CMD24 with sector address
-  '' 2. Data start token (0xFE)
-  '' 3. 512 bytes of data
-  '' 4. 2 CRC bytes (dummy 0xFF since CRC disabled in SPI mode)
-  '' 5. Wait for data-response token (0x05 = accepted)
-  '' 6. Wait for MISO to go HIGH (0xFF = programming complete)
+  '' 2. Data start token ($FE)
+  '' 3. 512 bytes of data via streamer (hub -> MOSI)
+  '' 4. 2 CRC bytes (dummy $FF since CRC disabled in SPI mode)
+  '' 5. Wait for data-response token ($x5 = accepted)
+  '' 6. Wait for MISO to go HIGH ($FF = programming complete)
   '' CRITICAL: CS must stay LOW and clocking must continue during entire busy period!
 
-  longmove(@_cs,@cs,4)
-  ptr := @buf
-  cmd(24,sector << hcs)
-  transfer($FE,8)                                                               '  Data start token
+  _sck := sck
+  _mosi := mosi
+  p_buf := @buf
+  cmd(24, sector << hcs)
+  sp_transfer_8($FE)                                                            ' Data start token
 
-  ' Send 512 bytes using fast PASM bit-banging
+  ' ════════════════════════════════════════════════════════════════════════════
+  ' STREAMER BULK TRANSFER: Send 512 bytes from hub buffer to MOSI
+  ' Pattern: SETXFRQ -> RDFAST -> XINIT -> WYPIN(clk) -> WAITXFI
+  ' ════════════════════════════════════════════════════════════════════════════
+  ' Mode word format: base_mode | (pin << 17) | bit_count
+  ' For 512 bytes: 512 * 8 = 4096 bits = $1000
+  stream_mode := STREAM_TX_BASE | (_mosi << 17) | (512 * 8)                     ' TX mode + MOSI pin + bit count
+  clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
+
+  ' Calculate streamer NCO frequency to match SPI clock
+  ' Same formula as readSector: one bit per full clock period
+  xfrq := $4000_0000 / spi_period                                               ' One output per full clock period
+
+  ' For TX: xinit BEFORE wypin (data leads clock) - per flash_loader pattern
+  ' This ensures data is stable before rising edge when slave samples
   org
-                drvl      _sck
-                rdfast    ##8000_0000,ptr
-                mov       loop_ctr,#512/4
-.write_loop
-                rflong    data
-                movbyts   data,#%%0123
-                rep       @.end_rep,#32
-                 rol      data,#1                       wc
-                 drvl     _sck
-                 drvc     _mosi
-                 drvh     _sck
-.end_rep
-                drvh      _mosi
-                djnz      loop_ctr,#.write_loop
+        setxfrq xfrq                              ' Set streamer bit rate
+        rdfast  #0, p_buf                         ' Setup RDFAST from hub buffer
+        xinit   stream_mode, #0                   ' Start streamer output first
+        wypin   clk_count, _sck                   ' Then start clock transitions
+        waitxfi                                   ' Wait for streamer to complete
   end
 
   ' Send 2 CRC bytes (dummy values - CRC not checked in SPI mode but bytes required)
-  transfer($FF, 8)                                                              '  CRC byte 1
-  transfer($FF, 8)                                                              '  CRC byte 2
+  sp_transfer_8($FF)                                                            ' CRC byte 1
+  sp_transfer_8($FF)                                                            ' CRC byte 2
 
   ' Wait for data-response token (should be immediate, within a few bytes)
-  t := getct() + clkfreq / 10                                                   '  100ms timeout for response
+  t := getct() + clkfreq / 10                                                   ' 100ms timeout for response
   repeat
-    resp := transfer(-1, 8)
+    resp := sp_transfer_8($FF)
     if resp <> $FF
       quit
     if getct() - t > 0
@@ -1615,12 +1904,12 @@ PRI writeSector(sector) : result | _cs, _mosi, _miso, _sck, data, loop_ctr, ptr,
     return false
 
   ' Wait for card to finish programming (busy period)
-  ' Card holds MISO LOW during internal flash write, releases to HIGH (0xFF) when done
-  ' CRITICAL for PNY: Keep CS LOW and keep clocking until we see stable 0xFF!
-  t := getct() + clkfreq / 2                                                    '  500ms timeout per block (generous)
+  ' Card holds MISO LOW during internal flash write, releases to HIGH ($FF) when done
+  ' CRITICAL for PNY: Keep CS LOW and keep clocking until we see stable $FF!
+  t := getct() + clkfreq / 2                                                    ' 500ms timeout per block (generous)
   repeat
-    resp := transfer(-1, 8)                                                     '  Clock 8 bits while reading MISO
-    if resp == $FF                                                              '  Card released MISO = programming complete
+    resp := sp_transfer_8($FF)                                                  ' Clock 8 bits while reading MISO
+    if resp == $FF                                                              ' Card released MISO = programming complete
       quit
     if getct() - t > 0
       debug("  [writeSector] TIMEOUT waiting for programming complete")
