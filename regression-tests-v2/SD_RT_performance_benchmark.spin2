@@ -16,6 +16,7 @@
 '' Measurements:
 ''   - Mount/unmount timing
 ''   - Raw sector read/write (hardware baseline)
+''   - Multi-sector read/write (CMD18/CMD25 bulk transfers)
 ''   - Filesystem read/write (real-world performance)
 ''   - File open/close overhead
 ''
@@ -47,6 +48,13 @@ CON
 
     ' Buffer size - must accommodate largest test
     BUFFER_SIZE     = 262144 + 512      ' 256KB + margin
+
+    ' Multi-sector test parameters
+    SECTOR_SIZE     = 512
+    MULTI_8         = 8                 ' 4KB
+    MULTI_32        = 32                ' 16KB
+    MULTI_64        = 64                ' 32KB
+    TEST_SECTOR     = 200_000           ' Safe test sector (not in filesystem area)
 
 OBJ
     sd    : "SD_card_driver_v2"
@@ -109,11 +117,11 @@ PUB go() | result
     debug("------------------------------------------------------")
     result := identifyCard()
     if result == false
-        debug("ERROR: Could not identify SD card!")
-        debug("END_SESSION")
-        return
-    debug("  Card: ", zstr_(card_name_ptr))
-    showCID()
+        debug("  WARNING: Could not read CID, continuing with unknown card")
+        card_name_ptr := @card_unknown
+    else
+        debug("  Card: ", zstr_(card_name_ptr))
+        showCID()
     debug(" ")
 
     ' Release pins from main cog before mount starts worker cog
@@ -132,6 +140,13 @@ PUB go() | result
 
     ' Show volume info from mounted filesystem
     showVolumeInfo()
+
+    ' Run multi-sector benchmarks (CMD18/CMD25 bulk transfers)
+    debug(" ")
+    debug("------------------------------------------------------")
+    debug("  MULTI-SECTOR OPERATIONS (CMD18/CMD25 bulk transfers)")
+    debug("------------------------------------------------------")
+    runMultiSectorBenchmarks()
 
     ' Run filesystem benchmarks (these go through worker cog correctly)
     debug(" ")
@@ -416,6 +431,135 @@ PRI runFileReadTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us
 PRI fillBuffer(size, value) | idx
 
     bytefill(@testBuffer, value, size)
+
+
+' ════════════════════════════════════════════════════════════════════════════════
+' MULTI-SECTOR BENCHMARKS (CMD18/CMD25)
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI runMultiSectorBenchmarks()
+    '' Run all multi-sector benchmark tests
+
+    debug(" ")
+    debug("Multi-Sector Write (CMD25):")
+    runMultiWriteTest(MULTI_8)
+    runMultiWriteTest(MULTI_32)
+    runMultiWriteTest(MULTI_64)
+
+    debug(" ")
+    debug("Multi-Sector Read (CMD18):")
+    runMultiReadTest(MULTI_8)
+    runMultiReadTest(MULTI_32)
+    runMultiReadTest(MULTI_64)
+
+    debug(" ")
+    debug("Single vs Multi-Sector Comparison (64 sectors):")
+    runComparisonTest(MULTI_64)
+
+
+PRI runMultiWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, written
+
+    size := count * SECTOR_SIZE
+    fillBuffer(size, $5A)
+
+    min_us := $7FFF_FFFF
+    max_us := 0
+    total_us := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        start_ct := getct()
+        written := sd.writeSectorsRaw(TEST_SECTOR, count, @testBuffer)
+        elapsed_ct := getct() - start_ct
+
+        if written == count
+            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+            total_us += timings[iter]
+            if timings[iter] < min_us
+                min_us := timings[iter]
+            if timings[iter] > max_us
+                max_us := timings[iter]
+        else
+            debug("  ERROR: writeSectorsRaw returned ", udec(written), " (expected ", udec(count), ")")
+            return
+
+    avg_us := total_us / ITERATIONS
+
+    if avg_us > 0
+        kbps := (size * 1000) / avg_us
+    else
+        kbps := 0
+
+    debug("  ", udec(count), " sectors (", udec(size / 1024), "KB): Avg ", udec(avg_us), " us = ", udec(kbps), " KB/s")
+
+
+PRI runMultiReadTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, readCt
+
+    size := count * SECTOR_SIZE
+
+    ' First write test data so we have something to read
+    fillBuffer(size, $A5)
+    sd.writeSectorsRaw(TEST_SECTOR, count, @testBuffer)
+
+    min_us := $7FFF_FFFF
+    max_us := 0
+    total_us := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        start_ct := getct()
+        readCt := sd.readSectorsRaw(TEST_SECTOR, count, @testBuffer)
+        elapsed_ct := getct() - start_ct
+
+        if readCt == count
+            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+            total_us += timings[iter]
+            if timings[iter] < min_us
+                min_us := timings[iter]
+            if timings[iter] > max_us
+                max_us := timings[iter]
+        else
+            debug("  ERROR: readSectorsRaw returned ", udec(readCt), " (expected ", udec(count), ")")
+            return
+
+    avg_us := total_us / ITERATIONS
+
+    if avg_us > 0
+        kbps := (size * 1000) / avg_us
+    else
+        kbps := 0
+
+    debug("  ", udec(count), " sectors (", udec(size / 1024), "KB): Avg ", udec(avg_us), " us = ", udec(kbps), " KB/s")
+
+
+PRI runComparisonTest(count) | i, start_ct, elapsed_ct, single_us, multi_us, size, improvement
+
+    size := count * SECTOR_SIZE
+
+    ' First write test data
+    fillBuffer(size, $CC)
+    sd.writeSectorsRaw(TEST_SECTOR, count, @testBuffer)
+
+    ' Time single-sector reads (N individual calls)
+    start_ct := getct()
+    repeat i from 0 to count - 1
+        sd.readSectorRaw(TEST_SECTOR + i, @testBuffer + (i * SECTOR_SIZE))
+    elapsed_ct := getct() - start_ct
+    single_us := elapsed_ct / (clkfreq / 1_000_000)
+
+    ' Time multi-sector read (one CMD18 call)
+    start_ct := getct()
+    sd.readSectorsRaw(TEST_SECTOR, count, @testBuffer)
+    elapsed_ct := getct() - start_ct
+    multi_us := elapsed_ct / (clkfreq / 1_000_000)
+
+    ' Calculate improvement
+    if multi_us > 0
+        improvement := ((single_us - multi_us) * 100) / single_us
+    else
+        improvement := 0
+
+    debug("  Single-sector (", udec(count), "x CMD17): ", udec(single_us), " us")
+    debug("  Multi-sector  (1x CMD18):    ", udec(multi_us), " us")
+    debug("  Improvement: ", udec(improvement), "%")
 
 
 con { license }
