@@ -17,11 +17,6 @@
 ''     4. Edge cases: count=1 (fallback), count=0 (immediate return)
 ''     5. Large transfer: 64 sectors (32KB) round-trip
 ''
-''   KNOWN ISSUE: There are intermittent failures related to state transitions between
-''   single-block and multi-block operations. The core multi-block functionality (Test 5)
-''   consistently works. A warmup multi-block read is performed before tests to minimize
-''   the intermittent issues.
-''
 ''   Test Sectors: 200000+ (safe area for all card sizes)
 ''
 '' =================================================================================================
@@ -79,11 +74,6 @@ PUB go() | result
 
     debug("Card mounted successfully")
     debug(" ")
-
-    ' WORKAROUND: First multi-block read/write has a timing issue.
-    ' Perform a warmup multi-block read (CMD18) to initialize state.
-    debug("Warmup: Multi-block read of 1 sector...")
-    sd.readSectorsRaw(0, 1, @read_buf)
 
     ' ========================================
     ' TEST 1: Round-trip multi-block

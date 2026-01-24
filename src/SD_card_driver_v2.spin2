@@ -472,6 +472,14 @@ PRI do_mount() : result | reserved                                              
     if date_stamp == 0
       setdate(2009,01,27,07,00,00)
     flags |= F_MOUNTED
+
+    ' WORKAROUND: Multi-block operations (CMD18/CMD25) require a warmup operation
+    ' after mount to initialize internal state. Without this, the first multi-block
+    ' write followed by multi-block read can return corrupted data.
+    ' A single-sector multi-block read (count=1) exercises the CMD18 path.
+    readSectors(0, 1, @buf)
+    sec_in_buf := -1                                                            ' Clear cache
+
     return SUCCESS
   else
     debug("  [do_mount] FAIL: initCard() returned false")
