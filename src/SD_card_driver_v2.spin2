@@ -484,9 +484,10 @@ PRI do_unmount() : result                                                       
   debug("  [do_unmount] Card unmounted cleanly")
   return SUCCESS
 
-PRI do_open(name_ptr) : result                                                  '' Internal open file operation
+PRI do_open(name_ptr) : result | search_result                                  '' Internal open file operation
   do_close()
-  if searchDirectory(name_ptr)
+  search_result := searchDirectory(name_ptr)
+  if search_result
     if attributes() & %0001_1110 == 0
       flags |= F_OPEN
       return SUCCESS
@@ -496,6 +497,7 @@ PRI do_close()                                                                  
   '' Close the file and write changed data to the card
   if flags & F_NEWDATA
     writeSector(n_sec)
+  '
   if flags & (F_NEWDIR | F_NEWDATA)
     readSector(entry_address >> 9)
     bytemove(@buf + entry_address & 511, @entry_buffer, 32)
@@ -507,7 +509,9 @@ PRI do_close()                                                                  
 PRI do_read(p_buffer, count) : bytes_read | delta                               '' Internal read operation
   if (flags & F_OPEN) and not (attributes() & %0001_1110)
     count <#= (fileSize() - file_idx)
+    debug("  [do_read] Reading sector ", udec_(n_sec), " sec_in_buf=", udec_(sec_in_buf))
     readSector(n_sec)
+    debug("  [do_read] After read buf[0..3]=", uhex_byte_(buf[0]), " ", uhex_byte_(buf[1]), " ", uhex_byte_(buf[2]), " ", uhex_byte_(buf[3]))
     repeat while count > 0
       delta := (512 - (file_idx & 511)) <# count
       bytemove(p_buffer, @buf + (file_idx & 511), delta)
@@ -636,16 +640,18 @@ PRI do_delete(name_ptr) : result | cluster, p_cluster, fat_sector               
   buf[entry_address & 511] := $E5
   writeSector(entry_address >> 9)
 
+  ' Only deallocate clusters if file has data (cluster >= 2)
   p_cluster := firstCluster()
-  repeat
-    cluster := long[readFAT(p_cluster)]
-    long[@buf + p_cluster << 2 & 511] := 0
-    if cluster >> 7 - p_cluster >> 7 <> 0
-      fat_sector := p_cluster >> 7
-      writeSector(fat_sector + fat_sec)
-      writeSector(fat_sector + fat2_sec)
-    p_cluster := cluster
-  until cluster >= $0FFF_FFF8
+  if p_cluster >= 2
+    repeat
+      cluster := long[readFAT(p_cluster)]
+      long[@buf + p_cluster << 2 & 511] := 0
+      if cluster >> 7 - p_cluster >> 7 <> 0
+        fat_sector := p_cluster >> 7
+        writeSector(fat_sector + fat_sec)
+        writeSector(fat_sector + fat2_sec)
+      p_cluster := cluster
+    until cluster >= $0FFF_FFF8
   return SUCCESS
 
 PRI do_chdir(name_ptr) : result                                                 '' Internal change directory operation
@@ -777,10 +783,16 @@ PUB initCardOnly(_cs, _mosi, _miso, _sck) : result                              
   pinh(sck)
 
   debug("  [initCardOnly] Pins: CS=P", udec_(cs), " MOSI=P", udec_(mosi), " MISO=P", udec_(miso), " SCK=P", udec_(sck))
-  closeFile()
+  closeFile()                                                                   ' Will return error since worker not running - that's OK
   sec_in_buf := -1
   result := initCard()
   if result
+    ' WORKAROUND: The first streamer operation after card init has a subtle timing issue.
+    ' A warm-up read of sector 0 ensures the streamer RX path is exercised, which also
+    ' properly initializes state needed for subsequent streamer TX (write) operations.
+    ' Without this, the first writeSector() may silently fail to write data.
+    readSector(0)
+    sec_in_buf := -1                                                            ' Clear cache so user's first read isn't cached
     debug("  [initCardOnly] Card initialized successfully")
   else
     debug("  [initCardOnly] Card initialization failed")
@@ -1370,9 +1382,11 @@ PRI readFat(cluster) : result | contents, p_contents                            
   result := @buf + (cluster << 2) & 511
 
 PRI allocateCluster(cluster) : result | fat_idx, buf_idx, high_bits             '' searches FAT for an empty cluster, allocates cluster, returns cluster number
-  fat_idx := 0                                                                  '   if cluster parameter <> 0, writes newly allocated cluster number in parameter cell
+  fat_idx := 8                                                                  ' Start at cluster 2 (skip reserved 0,1)
+  readSector(fat_sec)                                                           ' Pre-load first FAT sector
+  '   if cluster parameter <> 0, writes newly allocated cluster number in parameter cell
   repeat
-    if fat_idx & 511 == 0                                                       '  if lower nine bits of index are clear
+    if fat_idx & 511 == 0 and fat_idx > 0                                       '  if at sector boundary (but not first iteration)
       readSector(fat_sec + fat_idx >> 9)                                        '   load next sector of FAT
     buf_idx := fat_idx & 511
     result := long[@buf + buf_idx]                                              '  read a cluster cell
@@ -2105,7 +2119,7 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
   pinh(cs)
   return true
 
-PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, resp
+PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, settle_delay, resp
   '' Write multiple consecutive sectors using CMD25 (WRITE_MULTIPLE_BLOCK)
   '' Returns: number of sectors successfully written (0 on error)
   ''
@@ -2134,6 +2148,7 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
   stream_mode := STREAM_TX_BASE | (_mosi << 17) | (512 * 8)                     ' TX mode + MOSI pin + 4096 bits
   clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
   xfrq := $4000_0000 / spi_period                                               ' One output per full clock period
+  settle_delay := spi_period                                                    ' Stabilization delay after pin transition
 
   ' Send CMD25 (WRITE_MULTIPLE_BLOCK) with starting sector
   ' Note: cmd() handles CS assertion and returns R1 response
@@ -2152,13 +2167,18 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
     sp_transfer_8(TOKEN_START_MULTI_WRITE)                                      ' $FC
 
     ' Disable MOSI smart pin before streamer TX
-    pinclear(_mosi)
-    pinl(_mosi)
+    ' CRITICAL: Must ensure clean transition from smart pin mode to streamer mode
+    pinclear(_mosi)                                                               ' Clear smart pin mode
+    pinl(_mosi)                                                                   ' Drive low directly
+    wypin(0, sck)                                                                 ' Clear any pending clock counts
 
     ' Streamer bulk transfer: 512 bytes from hub to MOSI
+    ' CRITICAL: settle_delay ensures MOSI pin and clock are stable after
+    ' pinclear/pinl transition - prevents bit corruption on subsequent blocks
     org
           setxfrq xfrq
           rdfast  #0, p_buf
+          waitx   settle_delay                    ' Stabilize after pinclear/pinl/wypin(0)
           xinit   stream_mode, #0
           wypin   clk_count, _sck
           waitxfi
