@@ -48,7 +48,7 @@ CON
 
 OBJ
 
-    sd : "SD_card_driver"
+    sd : "SD_card_driver"                  ' Use bit-bang driver for formatting
 
 VAR
 

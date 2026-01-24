@@ -225,38 +225,71 @@ After establishing baseline benchmarks and completing card characterization, we'
 
 ---
 
-## Decision 6: Streamer Not Applicable for SPI
+## Decision 6: Streamer for SPI Bulk Transfers (REVISED 2026-01-23)
 
 ### The Question
 Can the P2 Streamer (DMA-like engine) improve SD card transfers?
 
-### Why It Doesn't Apply
+### Previous Assessment (INCORRECT)
 
-The Streamer is a **parallel** transfer engine:
-- Drives 1-32 pins simultaneously
-- Captures parallel pin groups to hub
-- Great for video, parallel buses, memory interfaces
+We initially concluded "Streamer Not Applicable for SPI" based on the assumption that the streamer only handles parallel transfers. This was wrong.
 
-SPI is **serial**:
-- 1 bit per clock on MOSI/MISO
-- Requires bit-by-bit serialization
+### Revised Assessment: Streamer IS Applicable
 
-The Streamer cannot serialize data to a single pin with clock synchronization.
+**The P2 streamer CAN operate in serial mode**, handling 1-bit input or output with its internal NCO providing precise timing. Combined with a smart pin clock generator, this creates a **hardware SPI engine** capable of bulk transfers with zero CPU involvement.
 
-### What We Already Use
+**Reference Implementation**: `flash_loader.spin2` by Chip Gracey demonstrates this pattern successfully for SPI flash programming and reading.
 
-The current code already uses the Streamer's **FIFO** capability optimally:
+### How It Works
 
-```pasm2
-wrfast  ##$8000_0000, ptr       ' Setup hub write FIFO
-...
-wflong  data                     ' Stream 32 bits to hub (single instruction)
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   Streamer + Smart Pin for SPI                    │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Smart Pin (P_TRANSITION mode)                                   │
+│    - Generates SPI clock at programmed frequency                 │
+│    - wxpin sets period, wypin sets transition count              │
+│                                                                  │
+│  Streamer (X_1P_1DAC1_WFBYTE or X_RFBYTE_1P_1DAC1)               │
+│    - Operates at NCO-controlled rate (setxfrq)                   │
+│    - Reads MISO pin bit-by-bit, assembles bytes to hub           │
+│    - Or reads hub bytes, outputs to MOSI pin bit-by-bit          │
+│                                                                  │
+│  Synchronization                                                 │
+│    - NCO rate matches SPI bit rate                               │
+│    - Small alignment delay positions samples correctly           │
+│    - READ: wypin → waitx → xinit (clock before data)             │
+│    - WRITE: xinit → wypin (data before clock)                    │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-This is the correct use: FIFO streams data to/from hub while PASM2 handles bit serialization.
+### NCO Calculation
 
-### Decision
-**Do not use Streamer for SPI.** Current FIFO usage (`wrfast`/`rdfast`/`wflong`/`rflong`) is already optimal. Streamer would only apply if we implemented SDIO 4-bit parallel mode (not planned).
+```spin2
+' For smart pin clock with wxpin #N (N sysclks per transition):
+' SPI clock = sysclk / (2N)
+' Streamer NCO = $4000_0000 / N
+
+' Example at 320 MHz sysclk, 22.9 MHz SPI:
+' wxpin #7 → NCO = $4000_0000 / 7 = $0924_9249
+```
+
+### Decision (Revised)
+
+**USE the Streamer for sector read/write operations.** This provides:
+
+1. **Zero CPU involvement** during 512-byte transfers
+2. **Maximum throughput** - limited only by SPI clock speed
+3. **DMA-like operation** - data streams directly to/from hub
+
+**Critical Implementation Notes:**
+- For READS: Disable MISO smart pin before streamer capture (avoids interference)
+- For READS: Clock starts first, then streamer (wypin → waitx → xinit)
+- For WRITES: Streamer starts first, then clock (xinit → wypin)
+
+**Full Details**: See `DOCs/Decisions/STREAMER-SPI-TIMING.md` for complete timing analysis, NCO calculations, and implementation patterns.
 
 ---
 

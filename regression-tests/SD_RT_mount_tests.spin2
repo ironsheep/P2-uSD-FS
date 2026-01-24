@@ -14,7 +14,7 @@ CON
 
      _CLKFREQ        = 320_000_000
 
-     ' Pin configuration for P2 Edge with SD card
+     ' Pin configuration for P2 Edge module SD slot
      SD_CS   = 60
      SD_MOSI = 59
      SD_MISO = 58
@@ -48,8 +48,7 @@ PUB go() | result, pLabel, freeSpace
 
     utils.startTest(@"closeFile() before mount")
     sd.closeFile()  ' Should not crash
-    debug("  closeFile(): completed without crash")
-    debug("   -> pass")
+    utils.evaluateBool(true, @"closeFile() completed without crash", true)
 
     utils.startTest(@"freeSpace() before mount")
     freeSpace := sd.freeSpace()

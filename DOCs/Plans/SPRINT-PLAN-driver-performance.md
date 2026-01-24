@@ -8,6 +8,21 @@
 
 ---
 
+## Progress Journal
+
+### 2026-01-23: Phase 1 Core Complete
+- **Verified**: Streamer-based 512-byte DMA sector reads working on P2 Edge card
+- **Commit**: "Add streamer-based readSector with correct NCO phase alignment"
+- **Evidence**: All 17 mount tests pass with streamer DMA
+- **Key fixes applied**:
+  - xfrq calculation: `$4000_0000/spi_period` (was incorrectly doubled)
+  - init_phase offset: `$8000_0000 - xfrq` for immediate first sample
+  - Correct sequence: wypin(clk) -> waitx #3 -> xinit(mode, init_phase)
+- **Hardware**: P2 Edge card socket (pins 58-61)
+- **Next**: Full regression test suite to verify complete system
+
+---
+
 ## Overview
 
 This plan consolidates all performance and feature enhancements into a phased approach. Each phase builds on the previous, allowing incremental testing and validation.
@@ -90,37 +105,44 @@ X := clkfreq / (target_spi_freq * 2)
 
 ### Tasks
 
-- [ ] **1.1** Create smart pin initialization for SPI
+- [x] **1.1** Create smart pin initialization for SPI ✓ COMPLETE
   - Configure SCK as P_TRANSITION
   - Configure MOSI as P_SYNC_TX with SCK as B-input
   - Configure MISO as P_SYNC_RX with SCK as B-input
   - CS remains standard GPIO
 
-- [ ] **1.2** Implement `smartpin_transfer()` function
-  - Handle MSB-first requirement (REV instruction)
-  - Support 8-bit and 32-bit transfers
+- [x] **1.2** Implement `smartpin_transfer()` function ✓ COMPLETE
+  - `sp_transfer_8()` - smart pin byte transfer
+  - Handle MSB-first via smart pin configuration
   - Return received data for reads
 
-- [ ] **1.3** Implement `smartpin_readSector()`
-  - 512-byte bulk read using smart pins
-  - Wait for data token (0xFE)
+- [x] **1.3** Implement `smartpin_readSector()` ✓ COMPLETE (P2 Edge verified)
+  - 512-byte bulk read using streamer DMA
+  - Wait for data token (0xFE) via sp_transfer_8
+  - Streamer: WRFAST + XINIT with correct NCO phase alignment
   - Handle CRC bytes
 
-- [ ] **1.4** Implement `smartpin_writeSector()`
-  - Send data token, 512 bytes, CRC
+- [x] **1.4** Implement `smartpin_writeSector()` ✓ COMPLETE (needs verification)
+  - Send data token, 512 bytes via streamer, CRC
   - Wait for data response (0x05)
-  - Wait for busy complete (0xFF)
+  - Wait for busy complete (0xFF) - PNY-compatible 500ms timeout
 
-- [ ] **1.5** Add speed configuration function
-  - `setSPISpeed(frequency)` calculates X register
+- [x] **1.5** Add speed configuration function ✓ COMPLETE
+  - `setSPISpeed(frequency)` calculates half-period
   - Store current speed for reference
   - Validate against card's TRAN_SPEED (Phase 2)
 
-- [ ] **1.6** Update `initCard()` to use smart pins
+- [x] **1.6** Update `initCard()` to use smart pins ✓ COMPLETE
   - Start at 400 kHz for init sequence
-  - Switch to target speed after ACMD41
+  - Switch to 25 MHz after ACMD41
+  - Recovery flush (4096 clocks) for stuck transfers
 
 - [ ] **1.7** Regression test all existing tests with smart pin implementation
+  - Mount tests: 17/17 PASS (P2 Edge)
+  - File ops tests: PENDING
+  - Read/write tests: PENDING
+  - Directory tests: PENDING
+  - Seek tests: PENDING
 
 ### Success Criteria
 - All regression tests pass

@@ -18,6 +18,17 @@ mcp__todo-mcp__context_resume
 
 **Status**: New/Development Phase
 
+## Project Philosophy
+
+**WE ARE NOT TIME CONSTRAINED.** Our focus is:
+- **Good, stable, well-engineered code** - Quality over speed
+- **Use hardware features correctly** - Don't avoid P2 special features (smart pins, streamer, etc.)
+- **Understand before retreating** - When something doesn't work, debug and understand WHY, don't regress to simpler approaches
+- **Performance matters** - Hardware features exist for deep performance gains; we need those gains
+- **Logic analyzer available** - Use it to understand actual signal behavior when debugging
+
+When facing a problem with hardware features: STOP, THINK, DEBUG, UNDERSTAND. Don't take shortcuts that sacrifice the performance benefits we're trying to achieve.
+
 ## Languages & Tools
 
 - **Primary Language**: Spin2 (`.spin2` files) - the Propeller2 microcontroller language
