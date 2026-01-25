@@ -10,6 +10,19 @@
 
 ## Progress Journal
 
+### 2026-01-24: REV Instruction Bug Discovery & Fix
+- **CRITICAL BUG FOUND**: `rev` followed by `shr #24` was destroying received data
+- **Root cause**: After rdpin (data in bits [31:24]), REV moves byte to bits [7:0] AND reverses bit order. The subsequent `shr #24` shifted the data away to zero!
+- **Fix applied**: Removed erroneous `shr #24` from 3 locations in SD_card_driver_v2.spin2:
+  1. readSectors token wait (line ~2049)
+  2. writeSectors data response (line ~2421)
+  3. writeSectors busy loop (line ~2473)
+- **Correct pattern**: `rdpin -> rev -> done` (byte now in [7:0], MSB-first)
+- **P2KB reference**: p2kbArchSmartPin11101SyncSerialReceive confirms left-justified data
+- **Current state**: Card initializes OK but mount fails reading MBR with "Error token"
+- **Observation**: sp_transfer_8 shows raw=$0000_0000 during some transfers (MISO reading zeros when should be $FF)
+- **Next steps**: Logic analyzer investigation to verify actual signal vs smart pin sampling
+
 ### 2026-01-23: Phase 1 Core Complete
 - **Verified**: Streamer-based 512-byte DMA sector reads working on P2 Edge card
 - **Commit**: "Add streamer-based readSector with correct NCO phase alignment"

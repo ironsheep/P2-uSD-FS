@@ -200,6 +200,37 @@ xfrq := ...                     ' Calculate NCO rate
 
 ---
 
+### Hypothesis 7: Smart Pin Flag Reset Timing Violation
+
+**Theory:** After re-enabling MISO smart pin (wrpin/wxpin/pinh), the IN flag needs 2 cycles to reset. If sp_transfer_8 is called immediately, it may see stale flag state, causing synchronization issues.
+
+**From P2KB (updated 2026-01-23):**
+> Smart Pin IN flag reset: 2 clocks after WRPIN/WXPIN/WYPIN/RDPIN/AKPIN. Must NOP before polling.
+
+**Code analysis (readSectors, after streamer):**
+```spin2
+' Re-enable MISO smart pin for CRC reads
+wrpin(_miso, spi_rx_mode)      ; T=0
+wxpin(_miso, %1_00111)         ; T=2
+pinh(_miso)                    ; T=4
+; IN flag valid at T=6 (2 cycles after pinh)
+
+' Immediately called:
+sp_transfer_8($FF)             ; T=6 - MAY be too early!
+sp_transfer_8($FF)             ; CRC byte 2
+```
+
+**Why this could be frequency-dependent:**
+- The sp_transfer_8() function polls the smart pin IN flag
+- At 320 MHz with spi_period=7: more margin in polling loop iterations
+- At 270 MHz with spi_period=6: tighter timing, first poll may see invalid flag
+
+**Test:** Add explicit 2-cycle delay after pinh() before sp_transfer_8().
+
+**Verdict: STRONG CANDIDATE** - This is a documented timing requirement we may be violating.
+
+---
+
 ## 4. Integer Division Properties
 
 ### 4.1 Which half_periods give exact division?
@@ -283,29 +314,103 @@ end
 
 Document that driver requires sysclk = N × 50 MHz for reliable operation.
 
+### Fix E: Add 2-cycle delay after smart pin re-enable (Hypothesis 7)
+
+**Rationale:** P2KB documents that IN flag needs 2 cycles after WRPIN/WXPIN/WYPIN/RDPIN/AKPIN to reset properly.
+
+**Note on timing:** WAITX is 2+N cycles (2 exec + N wait), so `waitx #2` = 4 cycles. NOP is exactly 2 cycles, making it the correct choice for this delay.
+
+```spin2
+' In readSectors and writeSectors, after re-enabling smart pin:
+wrpin(_miso, spi_rx_mode)
+wxpin(_miso, %1_00111)
+pinh(_miso)
+org
+    nop                      ' <-- ADD: 2 cycles - allow IN flag to reset per P2KB
+end
+sp_transfer_8($FF)           ' Now safe to poll smart pin
+```
+
+**Priority: HIGH** - This is based on documented P2 timing requirement, not speculation.
+
 ---
 
-## 7. Instruction Timing Reference (from P2KB)
+## 7. P2 I/O Timing Reference (from P2KB - CRITICAL)
 
-### XINIT
-- Cycles: 2 (fixed)
-- Action: Issues streamer command, zeros phase
+**Source:** P2KB `io_pin_timing.yaml`, smart pin instruction YAMLs (updated 2026-01-23)
 
-### WYPIN
-- Cycles: 2 (fixed)
-- Action: Writes Y value to smart pin
+These timings are in **CLOCK CYCLES**, not nanoseconds. They are constant regardless of sysclk frequency.
 
-### SETXFRQ
-- Cycles: 2 (fixed)
-- Action: Sets streamer NCO frequency
+### 7.1 Instruction-to-Pin Timing Table
 
-### WAITXFI
-- Cycles: Variable (waits for streamer)
-- Action: Blocks until streamer completes
+| Operation | Timing | Clock Cycles | Notes |
+|-----------|--------|--------------|-------|
+| Output (DRVH/DRVL/PINH/PINL/etc.) | 3 clocks AFTER instruction | 5 total (2 exec + 3 propagation) | Pin starts transitioning 3 cycles after instruction completes |
+| Input via INx register | 3 clocks BEFORE instruction | Data is 3 clocks old | Reading INA/INB gives stale data |
+| Input via TESTP/TESTPN | 2 clocks BEFORE instruction | Data is 2 clocks old | Fresher than INx |
+| Smart Pin IN flag reset | 2 clocks AFTER WRPIN/WXPIN/WYPIN/RDPIN/AKPIN | Must NOP before polling | Flag not valid immediately |
 
-### Pin Output Delay
-- Propagation: 3.5-5.0 ns typical
-- Smart pin: 6-9 ns typical
+### 7.2 Instruction Execution Times
+
+| Instruction | Execution Cycles | Notes |
+|-------------|------------------|-------|
+| XINIT | 2 | Issues streamer command, zeros phase |
+| WYPIN | 2 | Writes Y value to smart pin |
+| SETXFRQ | 2 | Sets streamer NCO frequency |
+| WRPIN | 2 | Configures smart pin mode |
+| WXPIN | 2 | Sets smart pin X parameter |
+| PINCLEAR | 2 | Clears smart pin configuration |
+| PINF | 2 | Floats pin (input mode) |
+| WAITX | 2 + N | Wait N cycles after 2-cycle execution |
+| WAITXFI | Variable | Blocks until streamer completes |
+
+### 7.3 Impact on SPI Bit Timing
+
+The fixed-cycle delays consume different **percentages** of the bit period at different frequencies:
+
+| Sysclk | spi_period (half) | full_bit | 3-cycle as % | 2-cycle as % |
+|--------|-------------------|----------|--------------|--------------|
+| 320 MHz | 7 cycles | 14 cycles | 21.4% | 14.3% |
+| 270 MHz | 6 cycles | 12 cycles | 25.0% | 16.7% |
+| 250 MHz | 5 cycles | 10 cycles | 30.0% | 20.0% |
+| 200 MHz | 4 cycles | 8 cycles | 37.5% | 25.0% |
+
+**Key insight:** At lower spi_periods, the fixed-cycle I/O delays consume a larger fraction of the bit time, leaving less margin for timing variations.
+
+### 7.4 WYPIN-to-Clock Transition Analysis
+
+In the driver's inline PASM for readSectors:
+```
+T=0:  wypin clk_count, _sck    ; 2 cycles to execute
+T=2:  wypin completes
+T=5:  Clock pin actually starts transitioning (3 cycles after instruction)
+T=4:  waitx align_delay starts (2 cycles to execute waitx itself)
+T=4+align_delay: xinit executes
+```
+
+So xinit happens at T = 4 + align_delay:
+- At 320 MHz: T = 4 + 7 = 11 cycles after wypin start
+- At 270 MHz: T = 4 + 6 = 10 cycles after wypin start
+
+Relative to first clock transition (T=5):
+- At 320 MHz: xinit at T=11, so 6 cycles after first transition (43% into first bit)
+- At 270 MHz: xinit at T=10, so 5 cycles after first transition (42% into first bit)
+
+**These are nearly identical**, which suggests the WYPIN timing alone isn't causing the issue.
+
+### 7.5 Smart Pin Flag Reset Timing
+
+**CRITICAL:** After WRPIN/WXPIN/WYPIN, the smart pin's IN flag is not valid for 2 clock cycles.
+
+In the driver, after re-enabling the MISO smart pin:
+```spin2
+wrpin(_miso, spi_rx_mode)   ; T=0, executes in 2 cycles
+wxpin(_miso, %1_00111)      ; T=2, executes in 2 cycles
+pinh(_miso)                 ; T=4, executes in 2 cycles
+; IN flag not valid until T=6 (2 cycles after last pin instruction)
+```
+
+If code immediately tries to use the smart pin (e.g., sp_transfer_8), it may see invalid flag state.
 
 ---
 
@@ -321,7 +426,19 @@ Document that driver requires sysclk = N × 50 MHz for reliable operation.
 
 ## 9. Key References
 
-- P2KB: p2kbArchNcoTiming - NCO frequency and +1 rule
-- P2KB: p2kbArchIoPinTiming - Pin propagation delays
-- P2KB: p2kbPasm2Xinit - XINIT instruction details
+### P2KB Documentation (primary sources for timing)
+- **p2kbArchIoPinTiming** - `io_pin_timing.yaml` - CRITICAL: instruction_to_pin_timing section with complete timing table
+- **p2kbPasm2Wrpin** - `wrpin.yaml` - in_flag_reset_latency: 2 cycles
+- **p2kbPasm2Wxpin** - `wxpin.yaml` - in_flag_reset_latency: 2 cycles
+- **p2kbPasm2Wypin** - `wypin.yaml` - in_flag_reset_latency: 2 cycles
+- **p2kbPasm2Rdpin** - `rdpin.yaml` - in_flag_reset_latency: 2 cycles
+- **p2kbPasm2Akpin** - `akpin.yaml` - in_flag_reset_latency: 2 cycles
+- **p2kbPasm2Drvh** - `drvh.yaml` - pin_output_latency: 3 cycles
+- **p2kbPasm2Drvl** - `drvl.yaml` - pin_output_latency: 3 cycles
+- **p2kbPasm2Testp** - `testp.yaml` - pin_sampling_latency: 2 cycles
+- **p2kbArchNcoTiming** - NCO frequency and +1 rule
+- **p2kbPasm2Xinit** - XINIT instruction details
+
+### Other References
 - SD Spec: 25 MHz maximum SPI clock for full-speed operation
+- Silicon Doc v35 - P2 timing specifications
