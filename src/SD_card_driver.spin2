@@ -1201,7 +1201,8 @@ PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i
         "a".."z" : entry_buffer[i] -= $20
 
     i := 0                                                                      '  convert 8.3 filename into short filename
-    if strcomp(@entry_buffer,string("..")) == 0                                 '  exception if changing directory to ".."
+    ' Skip 8.3 conversion for "." (single dot) or ".." (double dot) directory entries
+    if not (entry_buffer[0] == "." and (entry_buffer[1] == 0 or (entry_buffer[1] == "." and entry_buffer[2] == 0)))
       repeat strsize(@entry_buffer) <# 9                                        '  search name for extension
         if entry_buffer[i++] == "."                                             '  if extension found
           bytemove(@entry_buffer + 8,@entry_buffer + i,3)                       '   move extension to byte 8
