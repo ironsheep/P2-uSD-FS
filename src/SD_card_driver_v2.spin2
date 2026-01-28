@@ -24,10 +24,17 @@ CON  '' flags
   F_NEWDATA = decod 2
   F_MOUNTED = decod 3
 
+CON '' driver mode (enforces valid command sequences)
+  MODE_NONE       = 0       ' Not initialized - only mount() or initCardOnly() allowed
+  MODE_RAW        = 1       ' Raw sector access only - initCardOnly() was called
+  MODE_FILESYSTEM = 2       ' Full filesystem access - mount() was called
+
 CON '' command codes for worker cog
   CMD_NONE      = 0         ' Idle / command complete
   CMD_MOUNT     = 1         ' Mount filesystem
   CMD_UNMOUNT   = 2         ' Unmount filesystem
+  CMD_INIT_CARD_ONLY = 22   ' Initialize card without filesystem (raw mode)
+  CMD_GET_CARD_SIZE  = 23   ' Get card size in sectors: returns in data0
   CMD_OPEN      = 3         ' Open file: param0=filename ptr
   CMD_CLOSE     = 4         ' Close file
   CMD_READ      = 5         ' Read: param0=buffer ptr, param1=count
@@ -130,6 +137,14 @@ DAT '' singleton control - SHARED across all object instances
   ' ═══════════════════════════════════════════════════════════════════════
   cog_id        LONG    -1              ' Worker cog ID (-1 = not started)
   api_lock      LONG    -1              ' Hardware lock ID (-1 = not allocated)
+  driver_mode   LONG    0               ' Current mode: MODE_NONE, MODE_RAW, or MODE_FILESYSTEM
+
+  ' ═══════════════════════════════════════════════════════════════════════
+  ' CMD13 STATUS STAGING - Preserved for diagnostic inspection
+  ' ═══════════════════════════════════════════════════════════════════════
+  last_cmd13_r1     BYTE    0           ' Last R1 byte from CMD13
+  last_cmd13_status BYTE    0           ' Last STATUS byte from CMD13
+  last_cmd13_error  WORD    0           ' Last non-zero R2 (preserved until next error)
 
   ' ═══════════════════════════════════════════════════════════════════════
   ' PARAMETER BLOCK - Communication between API and worker cog
@@ -286,6 +301,16 @@ PUB error() : status                                                            
   '' Thread-safe: each cog has its own error slot.
   return LONG[@last_error][COGID()]
 
+PUB getLastCMD13() : r2                                                         '' Get last CMD13 result
+  '' Returns last CMD13 result (R1 in high byte, STATUS in low byte)
+  '' Value is from most recent CMD13, regardless of success/failure
+  return (last_cmd13_r1 << 8) | last_cmd13_status
+
+PUB getLastCMD13Error() : r2                                                    '' Get last CMD13 error
+  '' Returns last non-zero CMD13 result (preserved until next error)
+  '' Useful for diagnostics - shows most recent error even after recovery
+  return last_cmd13_error
+
 PRI set_error(code) : code_out                                                  '' Set error code for this cog
   '' Store error code in per-cog slot and return the code (for chained returns).
   LONG[@last_error][COGID()] := code
@@ -310,6 +335,20 @@ PRI fs_worker() | cur_cmd                                                       
     repeat until (cur_cmd := pb_cmd) <> CMD_NONE
 
     debug("  [fs_worker] Received command ", udec_(cur_cmd))
+
+    ' ═══════════════════════════════════════════════════════════════════════
+    ' MODE ENFORCEMENT: Reject commands invalid for current mode
+    ' ═══════════════════════════════════════════════════════════════════════
+    ' File system commands (CMD_OPEN through CMD_READDIR) require MODE_FILESYSTEM
+    ' Raw sector commands are allowed in both MODE_RAW and MODE_FILESYSTEM
+    ' Mode transitions (MOUNT, UNMOUNT, INIT_CARD_ONLY) have their own logic
+    if cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE
+      if driver_mode <> MODE_FILESYSTEM
+        debug("  [fs_worker] REJECTED: File operation requires MODE_FILESYSTEM")
+        pb_status := E_NOT_MOUNTED
+        pb_cmd := CMD_NONE
+        COGATN(1 << pb_caller)
+        next                                                                    ' Skip to next command
 
     ' Dispatch command
     case cur_cmd
@@ -393,6 +432,13 @@ PRI fs_worker() | cur_cmd                                                       
         else
           pb_status := E_IO_ERROR
 
+      CMD_INIT_CARD_ONLY:
+        pb_status := do_init_card_only()
+
+      CMD_GET_CARD_SIZE:
+        pb_data0 := do_get_card_size()
+        pb_status := SUCCESS
+
       other:
         debug("  [fs_worker] Unknown command: ", udec_(cur_cmd))
         pb_status := E_BAD_RESPONSE
@@ -442,83 +488,140 @@ PRI do_mount() : result | reserved                                              
   dir_sec_in_buf := -1
   fat_sec_in_buf := -1
   sec_in_buf := -1
-  debug("  [do_mount] Calling initCard()...")
-  if initCard()
-    debug("  [do_mount] initCard OK, reading MBR sector 0...")
-    readSector(0, BUF_DATA)                                                     '  read master boot record
-    debug("  [do_mount] MBR type code at $1C2: ", uhex_(buf[$1C2]))
-    if buf[$1C2] == $0B or buf[$1C2] == $0C                                     '  offset $1C2 contains type code, $0B and $0C specify FAT32
-      vbr_sec := long[@buf + $1C6]                                              '  offset $1C6 contains volume boot record sector number
-      debug("  [do_mount] FAT32 detected, VBR at sector ", udec(vbr_sec))
-      readSector(vbr_sec, BUF_DATA)                                             '  read volume boot record
-    else
-      debug("  [do_mount] FAIL: Not FAT32 (type=", uhex_(buf[$1C2]), ")")
-      return E_NOT_FAT32
-    debug("  [do_mount] Bytes/sector: ", udec(word[@buf + $0B]))
-    if word[@buf + $0B] <> 512
-      debug("  [do_mount] FAIL: Bytes/sector not 512")
-      return E_BAD_SECTOR_SIZE
-    sec_per_clus := buf[$0D]
-    debug("  [do_mount] Sectors/cluster: ", udec(sec_per_clus))
-    if (sec_per_clus & (sec_per_clus - 1))
-      debug("  [do_mount] FAIL: sec_per_clus not power of 2")
-      return E_NOT_FAT32
-    reserved := word[@buf + $0E]
-    debug("  [do_mount] Reserved sectors: ", udec(reserved))
-    debug("  [do_mount] Number of FATs: ", udec(buf[$10]))
-    if buf[$10] <> 2
-      debug("  [do_mount] FAIL: FAT count not 2")
-      return E_NOT_FAT32
-    sec_per_fat := long[@buf + $24]
-    fsinfo_sec := word[@buf + $30]
-    fat_sec := vbr_sec + reserved
-    fat2_sec := fat_sec + sec_per_fat
-    root_sec := (fat_sec + 2 * sec_per_fat)
-    dir_sec := root_sec
-    cluster_offset := root_sec // sec_per_clus
-    bytemove(@vol_label, @buf + $47, 11)
-    vol_label[11] := 0
-    debug("  [do_mount] Volume label: ", zstr(@vol_label))
 
-    ' Read FSInfo sector for free cluster count and next-free hint
-    if fsinfo_sec > 0 and fsinfo_sec < reserved
-      readSector(vbr_sec + fsinfo_sec, BUF_DATA)
-      if long[@buf + 0] == $4161_5252 and long[@buf + 484] == $6141_7272
-        fsi_free_count := long[@buf + 488]
-        fsi_nxt_free := long[@buf + 492]
-        debug("  [do_mount] FSInfo: free_count=", udec(fsi_free_count), " nxt_free=", udec(fsi_nxt_free))
-      else
-        fsi_free_count := $FFFF_FFFF
-        fsi_nxt_free := $FFFF_FFFF
-        debug("  [do_mount] FSInfo: invalid signatures, ignoring")
+  ' Skip card init if already in RAW mode (card already initialized)
+  ' This avoids reinitializing smart pins which would corrupt pin states
+  if driver_mode == MODE_RAW
+    debug("  [do_mount] Upgrading from RAW mode - skipping initCard()")
+  else
+    debug("  [do_mount] Calling initCard()...")
+    if not initCard()
+      debug("  [do_mount] FAIL: initCard() returned false")
+      return E_INIT_FAILED
+
+  ' Card is initialized (either fresh or from RAW mode)
+  debug("  [do_mount] Reading MBR sector 0...")
+  readSector(0, BUF_DATA)                                                       '  read master boot record
+  debug("  [do_mount] MBR type code at $1C2: ", uhex_(buf[$1C2]))
+  if buf[$1C2] == $0B or buf[$1C2] == $0C                                       '  offset $1C2 contains type code, $0B and $0C specify FAT32
+    vbr_sec := long[@buf + $1C6]                                                '  offset $1C6 contains volume boot record sector number
+    debug("  [do_mount] FAT32 detected, VBR at sector ", udec(vbr_sec))
+    readSector(vbr_sec, BUF_DATA)                                               '  read volume boot record
+  else
+    debug("  [do_mount] FAIL: Not FAT32 (type=", uhex_(buf[$1C2]), ")")
+    return E_NOT_FAT32
+  debug("  [do_mount] Bytes/sector: ", udec(word[@buf + $0B]))
+  if word[@buf + $0B] <> 512
+    debug("  [do_mount] FAIL: Bytes/sector not 512")
+    return E_BAD_SECTOR_SIZE
+  sec_per_clus := buf[$0D]
+  debug("  [do_mount] Sectors/cluster: ", udec(sec_per_clus))
+  if (sec_per_clus & (sec_per_clus - 1))
+    debug("  [do_mount] FAIL: sec_per_clus not power of 2")
+    return E_NOT_FAT32
+  reserved := word[@buf + $0E]
+  debug("  [do_mount] Reserved sectors: ", udec(reserved))
+  debug("  [do_mount] Number of FATs: ", udec(buf[$10]))
+  if buf[$10] <> 2
+    debug("  [do_mount] FAIL: FAT count not 2")
+    return E_NOT_FAT32
+  sec_per_fat := long[@buf + $24]
+  fsinfo_sec := word[@buf + $30]
+  fat_sec := vbr_sec + reserved
+  fat2_sec := fat_sec + sec_per_fat
+  root_sec := (fat_sec + 2 * sec_per_fat)
+  dir_sec := root_sec
+  cluster_offset := root_sec // sec_per_clus
+  bytemove(@vol_label, @buf + $47, 11)
+  vol_label[11] := 0
+  debug("  [do_mount] Volume label: ", zstr(@vol_label))
+
+  ' Read FSInfo sector for free cluster count and next-free hint
+  if fsinfo_sec > 0 and fsinfo_sec < reserved
+    readSector(vbr_sec + fsinfo_sec, BUF_DATA)
+    if long[@buf + 0] == $4161_5252 and long[@buf + 484] == $6141_7272
+      fsi_free_count := long[@buf + 488]
+      fsi_nxt_free := long[@buf + 492]
+      debug("  [do_mount] FSInfo: free_count=", udec(fsi_free_count), " nxt_free=", udec(fsi_nxt_free))
     else
       fsi_free_count := $FFFF_FFFF
       fsi_nxt_free := $FFFF_FFFF
-      debug("  [do_mount] FSInfo: sector not present")
-
-    debug("  [do_mount] SUCCESS")
-    if date_stamp == 0
-      setdate(2009,01,27,07,00,00)
-    flags |= F_MOUNTED
-
-    ' WORKAROUND: Multi-block operations (CMD18/CMD25) require a warmup operation
-    ' after mount to initialize internal state. Without this, the first multi-block
-    ' write followed by multi-block read can return corrupted data.
-    ' A single-sector multi-block read (count=1) exercises the CMD18 path.
-    readSectors(0, 1, @buf)
-    sec_in_buf := -1                                                            ' Clear cache
-
-    return SUCCESS
+      debug("  [do_mount] FSInfo: invalid signatures, ignoring")
   else
-    debug("  [do_mount] FAIL: initCard() returned false")
-    return E_INIT_FAILED
+    fsi_free_count := $FFFF_FFFF
+    fsi_nxt_free := $FFFF_FFFF
+    debug("  [do_mount] FSInfo: sector not present")
+
+  debug("  [do_mount] SUCCESS")
+  if date_stamp == 0
+    setdate(2009,01,27,07,00,00)
+  flags |= F_MOUNTED
+
+  ' WORKAROUND: Multi-block operations (CMD18/CMD25) require a warmup operation
+  ' after mount to initialize internal state. Without this, the first multi-block
+  ' write followed by multi-block read can return corrupted data.
+  ' A single-sector multi-block read (count=1) exercises the CMD18 path.
+  readSectors(0, 1, @buf)
+  sec_in_buf := -1                                                              ' Clear cache
+
+  driver_mode := MODE_FILESYSTEM
+  debug("  [do_mount] SUCCESS, mode=FILESYSTEM")
+  return SUCCESS
 
 PRI do_unmount() : result                                                       '' Internal unmount operation
   do_close()
   result := updateFSInfo()
   flags := flags & !F_MOUNTED
-  debug("  [do_unmount] Card unmounted cleanly")
+  driver_mode := MODE_NONE
+  debug("  [do_unmount] Card unmounted cleanly, mode=NONE")
   return SUCCESS
+
+PRI do_init_card_only() : result                                                '' Internal card-only init (raw mode)
+  '' Initialize card for raw sector access without filesystem parsing.
+  '' Sets driver_mode to MODE_RAW.
+  dir_sec_in_buf := -1
+  fat_sec_in_buf := -1
+  sec_in_buf := -1
+  debug("  [do_init_card_only] Calling initCard()...")
+  if initCard()
+    debug("  [do_init_card_only] Card initialized successfully")
+    ' WORKAROUND: First streamer operation after card init needs warmup
+    readSector(0, BUF_DATA)
+    sec_in_buf := -1                                                            ' Clear cache for user's first read
+    driver_mode := MODE_RAW
+    debug("  [do_init_card_only] SUCCESS, mode=RAW")
+    return SUCCESS
+  else
+    debug("  [do_init_card_only] FAIL: initCard() returned false")
+    driver_mode := MODE_NONE
+    return E_INIT_FAILED
+
+PRI do_get_card_size() : result | csd[4], c_size, read_bl_len, c_size_mult      '' Internal get card size operation
+'' Returns total number of 512-byte sectors on the card.
+'' Runs on worker cog where smart pins are configured.
+  ' Read CSD using CMD9
+  if not readCSD(@csd)
+    debug("  [do_get_card_size] Failed to read CSD")
+    return 0
+
+  ' CSD structure version is in bits [127:126] (byte 0, bits 7:6)
+  if (csd.byte[0] >> 6) == 0
+    ' CSD Version 1.0 (SDSC)
+    read_bl_len := csd.byte[5] & $0F
+    c_size := (csd.byte[6] & $03) << 10
+    c_size |= csd.byte[7] << 2
+    c_size |= csd.byte[8] >> 6
+    c_size_mult := (csd.byte[9] & $03) << 1
+    c_size_mult |= csd.byte[10] >> 7
+    result := (c_size + 1) << (c_size_mult + 2 + read_bl_len - 9)
+    debug("  [do_get_card_size] CSD v1.0: ", udec(result), " sectors")
+  else
+    ' CSD Version 2.0 (SDHC/SDXC)
+    c_size := (csd.byte[7] & $3F) << 16
+    c_size |= csd.byte[8] << 8
+    c_size |= csd.byte[9]
+    result := (c_size + 1) << 10                                                ' * 1024 sectors (512KB units)
+    debug("  [do_get_card_size] CSD v2.0: ", udec(result), " sectors")
 
 PRI do_open(name_ptr) : result | search_result                                  '' Internal open file operation
   do_close()
@@ -849,12 +952,23 @@ CON     '' management methods
 PUB mount(_cs, _mosi, _miso, _sck) : result                                     '' mount SD card (multi-cog safe)
   '' Starts worker cog (if needed) and mounts the SD card filesystem.
   '' Returns true on success, false on failure.
+  '' Supports MODE_RAW -> MODE_FILESYSTEM upgrade (card already initialized).
   '' @param _cs   - Chip select pin number
   '' @param _mosi - Master Out Slave In pin number
   '' @param _miso - Master In Slave Out pin number
   '' @param _sck  - Serial clock pin number
 
-  ' Start worker cog if not already running
+  ' Check if already mounted
+  if driver_mode == MODE_FILESYSTEM
+    debug("  [mount] Already mounted")
+    return true
+
+  ' MODE_RAW -> MODE_FILESYSTEM upgrade is allowed
+  ' Worker is already running, just send mount command
+  if driver_mode == MODE_RAW
+    debug("  [mount] Upgrading from RAW to FILESYSTEM mode")
+
+  ' Start worker cog if not already running (MODE_NONE case)
   if cog_id == -1
     if start(_cs, _mosi, _miso, _sck) == -1
       debug("  [mount] Failed to start worker cog")
@@ -863,7 +977,7 @@ PUB mount(_cs, _mosi, _miso, _sck) : result                                     
   ' Send mount command to worker
   result := send_command(CMD_MOUNT, 0, 0, 0, 0)
   if result == SUCCESS
-    debug("  [mount] Mount successful")
+    debug("  [mount] Mount successful, mode=FILESYSTEM")
     return true
   else
     debug("  [mount] Mount failed with error ", sdec_(result))
@@ -872,64 +986,50 @@ PUB mount(_cs, _mosi, _miso, _sck) : result                                     
 
 PUB initCardOnly(_cs, _mosi, _miso, _sck) : result                              '' initialize SD card without mounting filesystem
 '' Use this for low-level operations like formatting. Does NOT read filesystem.
+'' Starts worker cog and initializes card for raw sector access (MODE_RAW).
 '' Returns true if card initialized successfully, false otherwise.
-  longmove(@cs, @_cs, 4)
-  pinh(cs)                                                                      '  CS HIGH = deselected
-  pinh(mosi)
-  pinh(sck)
+''
+'' Architecture: ALL card access goes through the worker cog. This method starts
+'' the worker (if not running) and sends CMD_INIT_CARD_ONLY to initialize the card
+'' without parsing filesystem structures.
 
-  debug("  [initCardOnly] Pins: CS=P", udec_(cs), " MOSI=P", udec_(mosi), " MISO=P", udec_(miso), " SCK=P", udec_(sck))
-  closeFile()                                                                   ' Will return error since worker not running - that's OK
-  sec_in_buf := -1
-  result := initCard()
-  if result
-    ' WORKAROUND: The first streamer operation after card init has a subtle timing issue.
-    ' A warm-up read of sector 0 ensures the streamer RX path is exercised, which also
-    ' properly initializes state needed for subsequent streamer TX (write) operations.
-    ' Without this, the first writeSector() may silently fail to write data.
-    readSector(0, BUF_DATA)
-    sec_in_buf := -1                                                            ' Clear cache so user's first read isn't cached
-    debug("  [initCardOnly] Card initialized successfully")
+  debug("  [initCardOnly] Pins: CS=P", udec_(_cs), " MOSI=P", udec_(_mosi), " MISO=P", udec_(_miso), " SCK=P", udec_(_sck))
+
+  ' Check if already in filesystem mode - reject (must unmount first)
+  if driver_mode == MODE_FILESYSTEM
+    debug("  [initCardOnly] REJECTED: Already mounted as filesystem, unmount first")
+    return false
+
+  ' Check if already in raw mode - already initialized
+  if driver_mode == MODE_RAW
+    debug("  [initCardOnly] Already initialized in raw mode")
+    return true
+
+  ' Start worker cog if not already running
+  if cog_id == -1
+    if start(_cs, _mosi, _miso, _sck) == -1
+      debug("  [initCardOnly] FAIL: Could not start worker cog")
+      return false
+
+  ' Send init command to worker
+  result := send_command(CMD_INIT_CARD_ONLY, 0, 0, 0, 0)
+  if result == SUCCESS
+    debug("  [initCardOnly] Card initialized successfully via worker")
+    return true
   else
-    debug("  [initCardOnly] Card initialization failed")
+    debug("  [initCardOnly] Card initialization failed, error=", sdec_(result))
+    return false
 
-PUB cardSizeSectors() : result | csd[4], c_size, read_bl_len, c_size_mult       '' get total sectors on card by reading CSD register
+PUB cardSizeSectors() : result                                                  '' get total sectors on card via worker cog
 '' Returns total number of 512-byte sectors on the card.
 '' Must call initCardOnly() or mount() first.
-  ' Read CSD using CMD9
-  result := readCSD(@csd)
-  if result == 0
-    debug("  [cardSizeSectors] Failed to read CSD")
+'' Routes through worker cog to ensure smart pins are configured.
+  if cog_id == -1
+    debug("  [cardSizeSectors] ERROR: Worker not running")
     return 0
-
-  ' CSD structure version is in bits [127:126] (byte 0, bits 7:6)
-  if (csd.byte[0] >> 6) == 0
-    ' CSD Version 1.0 (SDSC)
-    ' C_SIZE is bits [73:62] (12 bits)
-    ' READ_BL_LEN is bits [83:80] (4 bits)
-    ' C_SIZE_MULT is bits [49:47] (3 bits)
-    read_bl_len := csd.byte[5] & $0F
-    c_size := (csd.byte[6] & $03) << 10
-    c_size |= csd.byte[7] << 2
-    c_size |= csd.byte[8] >> 6
-    c_size_mult := (csd.byte[9] & $03) << 1
-    c_size_mult |= csd.byte[10] >> 7
-    ' Capacity = (C_SIZE + 1) * 2^(C_SIZE_MULT + 2) * 2^READ_BL_LEN bytes
-    ' Sectors = Capacity / 512
-    result := (c_size + 1) << (c_size_mult + 2 + read_bl_len - 9)
-    debug("  [cardSizeSectors] CSD v1.0: C_SIZE=", udec(c_size), " MULT=", udec(c_size_mult), " BL_LEN=", udec(read_bl_len))
-  else
-    ' CSD Version 2.0 (SDHC/SDXC)
-    ' C_SIZE is bits [69:48] (22 bits)
-    ' Capacity = (C_SIZE + 1) * 512KB
-    c_size := (csd.byte[7] & $3F) << 16
-    c_size |= csd.byte[8] << 8
-    c_size |= csd.byte[9]
-    ' Sectors = (C_SIZE + 1) * 1024 (each unit is 512KB = 1024 sectors)
-    result := (c_size + 1) * 1024
-    debug("  [cardSizeSectors] CSD v2.0: C_SIZE=", udec(c_size))
-
-  debug("  [cardSizeSectors] Total sectors: ", udec(result))
+  send_command(CMD_GET_CARD_SIZE, 0, 0, 0, 0)
+  result := pb_data0
+  debug("  [cardSizeSectors] ", udec(result), " sectors")
 
 PUB testCMD13() : r2_response | r1, status                                      '' TEST ONLY: Send CMD13 and return raw R2 response
 '' For testing/validation of CMD13 (SEND_STATUS) functionality.
@@ -1009,14 +1109,14 @@ PUB testCMD13() : r2_response | r1, status                                      
 
 PUB writeSectorRaw(sector, p_buffer) : result                                   '' write a sector at absolute LBA address
 '' Low-level sector write for formatting/partitioning. Bypasses filesystem.
+'' Requires initCardOnly() or mount() first - ALL card access through worker cog.
 '' @param sector - absolute LBA sector number
 '' @param p_buffer - pointer to 512 bytes of data to write
-  ' Use worker cog if running, otherwise call directly (for initCardOnly case)
-  if cog_id <> -1
-    result := send_command(CMD_WRITE_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
-  else
-    bytemove(@buf, p_buffer, 512)
-    result := writeSector(sector, BUF_DATA)                                     ' writeSector returns true on success
+  ' Require worker cog to be running (no direct access allowed)
+  if cog_id == -1
+    debug("  [writeSectorRaw] ERROR: Worker not running - call initCardOnly() or mount() first")
+    return false
+  result := send_command(CMD_WRITE_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
   if result
     debug("  [writeSectorRaw] Wrote sector ", udec(sector))
   else
@@ -1024,16 +1124,14 @@ PUB writeSectorRaw(sector, p_buffer) : result                                   
 
 PUB readSectorRaw(sector, p_buffer) : result                                    '' read a sector at absolute LBA address
 '' Low-level sector read for verification. Bypasses filesystem.
+'' Requires initCardOnly() or mount() first - ALL card access through worker cog.
 '' @param sector - absolute LBA sector number
 '' @param p_buffer - pointer to 512-byte buffer to receive data
-  ' Use worker cog if running, otherwise call directly (for initCardOnly case)
-  if cog_id <> -1
-    result := send_command(CMD_READ_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
-  else
-    sec_in_buf := -1                                                            ' Force re-read
-    result := readSector(sector, BUF_DATA) == 0
-    if result
-      bytemove(p_buffer, @buf, 512)
+  ' Require worker cog to be running (no direct access allowed)
+  if cog_id == -1
+    debug("  [readSectorRaw] ERROR: Worker not running - call initCardOnly() or mount() first")
+    return false
+  result := send_command(CMD_READ_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
   debug("  [readSectorRaw] Read sector ", udec(sector))
 
 PUB readSectorsRaw(start_sector, count, p_buffer) : result                      '' read multiple consecutive sectors
@@ -1121,17 +1219,18 @@ PUB readVBRRaw(p_buf) : result                                                  
 PRI readCSD(p_csd) : result | t, i                                              '' read CSD register using CMD9
 '' Reads the 16-byte CSD register into p_csd buffer
 '' Returns true on success, false on failure
-  transfer(-1, 8)
+'' Uses smart pin operations (sp_transfer_8) for compatibility with smart pin SPI mode
+  sp_transfer_8($FF)
   pinl(cs)
-  transfer(-1, 8)
-  transfer($40 | 9, 8)                                                          '  CMD9 = SEND_CSD
-  transfer(0, 32)                                                               '  argument = 0
-  transfer($AF, 8)                                                              '  CRC (approximate)
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 9)                                                        '  CMD9 = SEND_CSD
+  sp_transfer(0, 32)                                                            '  argument = 0
+  sp_transfer_8($AF)                                                            '  CRC (approximate)
 
   ' Wait for response
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result <> $FF
       quit
     if getct() - t > 0
@@ -1145,7 +1244,7 @@ PRI readCSD(p_csd) : result | t, i                                              
   ' Wait for data token ($FE)
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result == $FE
       quit
     if getct() - t > 0
@@ -1154,10 +1253,11 @@ PRI readCSD(p_csd) : result | t, i                                              
 
   ' Read 16 bytes of CSD data
   repeat i from 0 to 15
-    byte[p_csd + i] := transfer(-1, 8)
+    byte[p_csd + i] := sp_transfer_8($FF)
 
   ' Read and discard 2-byte CRC
-  transfer(-1, 16)
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
 
   pinh(cs)
   return true
@@ -1165,17 +1265,18 @@ PRI readCSD(p_csd) : result | t, i                                              
 PRI readCID(p_cid) : result | t, i                                              '' read CID register using CMD10
 '' Reads the 16-byte CID (Card Identification) register into p_cid buffer
 '' Returns true on success, false on failure
-  transfer(-1, 8)
+'' Uses smart pin operations (sp_transfer_8) for compatibility with smart pin SPI mode
+  sp_transfer_8($FF)
   pinl(cs)
-  transfer(-1, 8)
-  transfer($40 | 10, 8)                                                         '  CMD10 = SEND_CID
-  transfer(0, 32)                                                               '  argument = 0
-  transfer($1B, 8)                                                              '  CRC for CMD10
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 10)                                                       '  CMD10 = SEND_CID
+  sp_transfer(0, 32)                                                            '  argument = 0
+  sp_transfer_8($1B)                                                            '  CRC for CMD10
 
   ' Wait for response
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result <> $FF
       quit
     if getct() - t > 0
@@ -1189,7 +1290,7 @@ PRI readCID(p_cid) : result | t, i                                              
   ' Wait for data token ($FE)
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result == $FE
       quit
     if getct() - t > 0
@@ -1198,10 +1299,11 @@ PRI readCID(p_cid) : result | t, i                                              
 
   ' Read 16 bytes of CID data
   repeat i from 0 to 15
-    byte[p_cid + i] := transfer(-1, 8)
+    byte[p_cid + i] := sp_transfer_8($FF)
 
   ' Read and discard 2-byte CRC
-  transfer(-1, 16)
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
 
   pinh(cs)
   return true
@@ -1210,19 +1312,20 @@ PRI readSCR(p_scr) : result | t, i                                              
 '' Reads the 8-byte SCR (SD Configuration Register) into p_scr buffer
 '' Requires CMD55 prefix before ACMD51
 '' Returns true on success, false on failure
+'' Uses smart pin operations (sp_transfer_8) for compatibility with smart pin SPI mode
 
   ' Send CMD55 (APP_CMD) first
-  transfer(-1, 8)
+  sp_transfer_8($FF)
   pinl(cs)
-  transfer(-1, 8)
-  transfer($40 | 55, 8)                                                         '  CMD55 = APP_CMD
-  transfer(0, 32)                                                               '  argument = 0
-  transfer($65, 8)                                                              '  CRC for CMD55
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 55)                                                       '  CMD55 = APP_CMD
+  sp_transfer(0, 32)                                                            '  argument = 0
+  sp_transfer_8($65)                                                            '  CRC for CMD55
 
   ' Wait for R1 response
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result <> $FF
       quit
     if getct() - t > 0
@@ -1236,17 +1339,17 @@ PRI readSCR(p_scr) : result | t, i                                              
   pinh(cs)                                                                      '  Deselect before ACMD51
 
   ' Send ACMD51 (SEND_SCR)
-  transfer(-1, 8)
+  sp_transfer_8($FF)
   pinl(cs)
-  transfer(-1, 8)
-  transfer($40 | 51, 8)                                                         '  ACMD51 = SEND_SCR
-  transfer(0, 32)                                                               '  argument = 0
-  transfer($55, 8)                                                              '  CRC (approximate)
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 51)                                                       '  ACMD51 = SEND_SCR
+  sp_transfer(0, 32)                                                            '  argument = 0
+  sp_transfer_8($55)                                                            '  CRC (approximate)
 
   ' Wait for R1 response
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result <> $FF
       quit
     if getct() - t > 0
@@ -1260,7 +1363,7 @@ PRI readSCR(p_scr) : result | t, i                                              
   ' Wait for data token ($FE)
   t := getct() + clkfreq
   repeat
-    result := transfer(-1, 8)
+    result := sp_transfer_8($FF)
     if result == $FE
       quit
     if getct() - t > 0
@@ -1269,10 +1372,11 @@ PRI readSCR(p_scr) : result | t, i                                              
 
   ' Read 8 bytes of SCR data
   repeat i from 0 to 7
-    byte[p_scr + i] := transfer(-1, 8)
+    byte[p_scr + i] := sp_transfer_8($FF)
 
   ' Read and discard 2-byte CRC
-  transfer(-1, 16)
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
 
   pinh(cs)
   return true
@@ -2578,6 +2682,14 @@ PRI checkCardStatus(caller) : result | r1, status                               
   status := sp_transfer_8($FF)
 
   pinh(cs)                                                                      ' Deselect card
+
+  ' ═══════════════════════════════════════════════════════════════════════
+  ' STAGE CMD13 RESULTS - Preserve for diagnostic inspection
+  ' ═══════════════════════════════════════════════════════════════════════
+  last_cmd13_r1 := r1
+  last_cmd13_status := status
+  if r1 <> 0 or status <> 0
+    last_cmd13_error := (r1 << 8) | status                                      ' Preserve last error
 
   ' Check for errors
   if r1 <> $00
