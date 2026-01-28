@@ -10,6 +10,16 @@
 
 ## Progress Journal
 
+### 2026-01-26: Execution Order Revised & Full Scope Defined
+- **DECISION**: All phases (1-6) must complete before driver release
+- **ORDER CHANGE**: Phase 4 (File Handles) moved before Phase 5
+  - Rationale: Multi-cog tests already exist but fail due to single-file limitation
+  - Adding handles FIXES tests, doesn't require rewriting them
+- **Current work**: Phase 1 completion (restore streamer, apply bug fixes, add CMD13 verification)
+- **CMD13 addition**: All write operations will verify success via SEND_STATUS command
+- **Bug fixes identified**: Operator precedence (`@buf + x & 511` → `@buf + (x & 511)`), cache invalidation, end-of-chain detection
+- **See**: `/Users/stephen/.claude/plans/validated-baking-bumblebee.md` for detailed execution plan
+
 ### 2026-01-24: REV Instruction Bug Discovery & Fix
 - **CRITICAL BUG FOUND**: `rev` followed by `shr #24` was destroying received data
 - **Root cause**: After rdpin (data in bits [31:24]), REV moves byte to bits [7:0] AND reverses bit order. The subsequent `shr #24` shifted the data away to zero!
@@ -677,26 +687,31 @@ Verify: No crashes, no data corruption, all handles released.
 ## Implementation Order & Dependencies
 
 ```
-Phase 1: Smart Pin SPI
+Phase 1: Smart Pin SPI (restore streamer, bug fixes, CMD13)
     │
-    ├──► Phase 2: Card Configuration (needs smart pin speed control)
-    │        │
-    │        └──► Phase 3: High-Speed Operations (needs adaptive timing)
-    │
-    └──► Phase 5: FAT Optimization (independent, can parallel)
-
-Phase 4: Multiple File Handles (independent of Phases 1-3)
-    │
-    └──► Phase 6: Enhanced Multi-Cog Testing (needs multiple handles)
+    └──► Phase 4: Multiple File Handles (unblocks multi-cog tests)
+              │
+              └──► Phase 5: FAT Optimization (fast unmount)
+                        │
+                        └──► Phase 2: Card Configuration (auto-detect)
+                                  │
+                                  └──► Phase 3: High-Speed Operations (50MHz, file-level multi-sector)
+                                            │
+                                            └──► Phase 6: Enhanced Multi-Cog Testing (final validation)
 ```
 
-**Recommended execution order:**
-1. Phase 1 (Smart Pins) - Foundation
-2. Phase 5 (FAT Optimization) - Quick win, independent
-3. Phase 2 (Card Configuration) - Builds on Phase 1
-4. Phase 4 (File Handles) - Can start in parallel with Phase 2
-5. Phase 3 (High-Speed Ops) - Needs Phase 2
-6. Phase 6 (Multi-Cog Tests) - Needs Phase 4
+**REVISED execution order (2026-01-26):**
+1. Phase 1 (Smart Pins) - Fix regressions, add CMD13 verification
+2. **Phase 4 (File Handles) - MOVED UP: Multi-cog tests exist but fail without this**
+3. Phase 5 (FAT Optimization) - Fix unacceptable 10-second unmount
+4. Phase 2 (Card Configuration) - Auto-detect card capabilities
+5. Phase 3 (High-Speed Ops) - Maximize performance
+6. Phase 6 (Multi-Cog Tests) - Final validation
+7. 270 MHz Validation - Sysclk independence verification
+
+**Rationale for change:** Phase 4 was moved before Phase 5 because multi-cog tests
+are already written correctly but cannot pass due to single-file limitation. Adding
+file handles FIXES existing tests rather than requiring new tests to be written.
 
 ---
 

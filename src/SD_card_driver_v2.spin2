@@ -48,6 +48,11 @@ CON '' command codes for worker cog
   CMD_READ_SECTOR_RAW  = 20 ' Raw single sector read: param0=sector, param1=buffer ptr
   CMD_WRITE_SECTOR_RAW = 21 ' Raw single sector write: param0=sector, param1=buffer ptr
 
+CON '' buffer types for sector read/write (diagnostic: separate buffers to isolate conflicts)
+  BUF_DIR  = 0      ' Directory sector buffer
+  BUF_FAT  = 1      ' FAT sector buffer
+  BUF_DATA = 2      ' Data sector buffer
+
 CON '' error codes
   SUCCESS           = 0
   E_TIMEOUT         = -1        ' Card didn't respond in time
@@ -87,8 +92,24 @@ CON '' SD card command codes and tokens for multi-block operations
   ' SD SPI Commands for multi-block operations (reference: SD Physical Layer Spec)
   ' ═══════════════════════════════════════════════════════════════════════════
   CMD12  = 12                   ' STOP_TRANSMISSION - terminates multi-block read/write
+  CMD13  = 13                   ' SEND_STATUS - get card status register (R2 response)
   CMD18  = 18                   ' READ_MULTIPLE_BLOCK - read consecutive sectors
   CMD25  = 25                   ' WRITE_MULTIPLE_BLOCK - write consecutive sectors
+
+  ' ═══════════════════════════════════════════════════════════════════════════
+  ' Card Status Register (CSR) bits - returned by CMD13 (R2 response = R1 + status byte)
+  ' Reference: SD Physical Layer Spec section 4.10.1
+  ' ═══════════════════════════════════════════════════════════════════════════
+  ' R2 response is 2 bytes: first byte = R1, second byte = status flags
+  ' Status byte bit definitions (directly from SD spec):
+  CSR_CARD_IS_LOCKED    = $01  ' Bit 0: Card is locked
+  CSR_WP_ERASE_SKIP     = $02  ' Bit 1: Write protect erase skip / lock/unlock cmd failed
+  CSR_ERROR             = $04  ' Bit 2: General/unknown error
+  CSR_CC_ERROR          = $08  ' Bit 3: Card controller error
+  CSR_CARD_ECC_FAILED   = $10  ' Bit 4: Card internal ECC failed
+  CSR_WP_VIOLATION      = $20  ' Bit 5: Write protect violation
+  CSR_ERASE_PARAM       = $40  ' Bit 6: Invalid erase parameter
+  CSR_OUT_OF_RANGE      = $80  ' Bit 7: Out of range / CSD overwrite error
 
   ' ═══════════════════════════════════════════════════════════════════════════
   ' SD SPI Data Tokens (reference: SD Physical Layer Spec section 7.3.3)
@@ -165,7 +186,9 @@ DAT '' singleton control - SHARED across all object instances
   n_sec         LONG    0               ' Current sector number
   file_idx      LONG    0               ' Position within file
   flags         LONG    0               ' Open/new file flags
-  sec_in_buf    LONG    0               ' Sector currently in buffer
+  dir_sec_in_buf LONG   0               ' Directory sector currently in dir_buf
+  fat_sec_in_buf LONG   0               ' FAT sector currently in fat_buf
+  sec_in_buf    LONG    0               ' Data sector currently in buf
   bit_delay     LONG    0               ' SPI bit delay
   hcs           LONG    0               ' High capacity support flag
   fsinfo_sec    LONG    0               ' FSInfo sector number
@@ -181,8 +204,11 @@ DAT '' singleton control - SHARED across all object instances
 
   ' ═══════════════════════════════════════════════════════════════════════
   ' BUFFERS (must be in DAT for worker cog access)
+  ' DIAGNOSTIC: Separate buffers for each sector type to isolate conflicts
   ' ═══════════════════════════════════════════════════════════════════════
-  buf           BYTE    0[512]          ' Main sector buffer
+  dir_buf       BYTE    0[512]          ' Directory sector buffer
+  fat_buf       BYTE    0[512]          ' FAT sector buffer
+  buf           BYTE    0[512]          ' Data sector buffer
   entry_buffer  BYTE    0[32]           ' Directory entry buffer
   vol_label     BYTE    0[12]           ' Volume label (11 chars + null)
 
@@ -354,7 +380,7 @@ PRI fs_worker() | cur_cmd                                                       
 
       CMD_READ_SECTOR_RAW:
         sec_in_buf := -1                                                        ' Force re-read
-        if readSector(pb_param0) == 0                                           ' readSector returns 0 on success, -1 on error
+        if readSector(pb_param0, BUF_DATA) == 0                                 ' readSector returns 0 on success, -1 on error
           bytemove(pb_param1, @buf, 512)
           pb_status := SUCCESS
         else
@@ -362,7 +388,7 @@ PRI fs_worker() | cur_cmd                                                       
 
       CMD_WRITE_SECTOR_RAW:
         bytemove(@buf, pb_param1, 512)
-        if writeSector(pb_param0)                                               ' writeSector returns true on success
+        if writeSector(pb_param0, BUF_DATA)                                     ' writeSector returns true on success
           pb_status := SUCCESS
         else
           pb_status := E_IO_ERROR
@@ -413,16 +439,18 @@ CON '' ════════════════════════�
     '' ═══════════════════════════════════════════════════════════════════════════
 
 PRI do_mount() : result | reserved                                              '' Internal mount operation
+  dir_sec_in_buf := -1
+  fat_sec_in_buf := -1
   sec_in_buf := -1
   debug("  [do_mount] Calling initCard()...")
   if initCard()
     debug("  [do_mount] initCard OK, reading MBR sector 0...")
-    readSector(0)                                                               '  read master boot record
+    readSector(0, BUF_DATA)                                                     '  read master boot record
     debug("  [do_mount] MBR type code at $1C2: ", uhex_(buf[$1C2]))
     if buf[$1C2] == $0B or buf[$1C2] == $0C                                     '  offset $1C2 contains type code, $0B and $0C specify FAT32
       vbr_sec := long[@buf + $1C6]                                              '  offset $1C6 contains volume boot record sector number
       debug("  [do_mount] FAT32 detected, VBR at sector ", udec(vbr_sec))
-      readSector(vbr_sec)                                                       '  read volume boot record
+      readSector(vbr_sec, BUF_DATA)                                             '  read volume boot record
     else
       debug("  [do_mount] FAIL: Not FAT32 (type=", uhex_(buf[$1C2]), ")")
       return E_NOT_FAT32
@@ -454,7 +482,7 @@ PRI do_mount() : result | reserved                                              
 
     ' Read FSInfo sector for free cluster count and next-free hint
     if fsinfo_sec > 0 and fsinfo_sec < reserved
-      readSector(vbr_sec + fsinfo_sec)
+      readSector(vbr_sec + fsinfo_sec, BUF_DATA)
       if long[@buf + 0] == $4161_5252 and long[@buf + 484] == $6141_7272
         fsi_free_count := long[@buf + 488]
         fsi_nxt_free := long[@buf + 492]
@@ -504,12 +532,22 @@ PRI do_open(name_ptr) : result | search_result                                  
 PRI do_close()                                                                  '' Internal close file operation
   '' Close the file and write changed data to the card
   if flags & F_NEWDATA
-    writeSector(n_sec)
+    debug("  [do_close] Writing data to sector ", udec_(n_sec))
+    writeSector(n_sec, BUF_DATA)
   '
   if flags & (F_NEWDIR | F_NEWDATA)
-    readSector(entry_address >> 9)
-    bytemove(@buf + entry_address & 511, @entry_buffer, 32)
-    writeSector(entry_address >> 9)
+    debug("  [do_close] Syncing dir entry at sector ", udec_(entry_address >> 9), " offset ", udec_(entry_address & 511))
+    debug("  [do_close] entry_buffer: [", lstr_(@entry_buffer, 11), "]")
+    readSector(entry_address >> 9, BUF_DIR)
+    debug("  [do_close] Before copy, dir_buf at offset: [", lstr_(@dir_buf + (entry_address & 511), 11), "]")
+    bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
+    debug("  [do_close] After copy, dir_buf at offset: [", lstr_(@dir_buf + (entry_address & 511), 11), "]")
+    debug("  [do_close] Before write: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
+    debug("  [do_close] Writing to sector ", udec_(entry_address >> 9), " @dir_buf=", uhex_(@dir_buf))
+    if writeSector(entry_address >> 9, BUF_DIR)
+      debug("  [do_close] Write succeeded")
+    else
+      debug("  [do_close] Write FAILED!")
   bytefill(@entry_buffer, 0, 32)
   flags := flags & !F_NEWDATA & !F_NEWDIR & !F_OPEN
   file_idx := 0
@@ -517,9 +555,9 @@ PRI do_close()                                                                  
 PRI do_read(p_buffer, count) : bytes_read | delta                               '' Internal read operation
   if (flags & F_OPEN) and not (attributes() & %0001_1110)
     count <#= (fileSize() - file_idx)
-    debug("  [do_read] Reading sector ", udec_(n_sec), " sec_in_buf=", udec_(sec_in_buf))
-    readSector(n_sec)
-    debug("  [do_read] After read buf[0..3]=", uhex_byte_(buf[0]), " ", uhex_byte_(buf[1]), " ", uhex_byte_(buf[2]), " ", uhex_byte_(buf[3]))
+    'debug("  [do_read] Reading sector ", udec_(n_sec), " sec_in_buf=", udec_(sec_in_buf))
+    readSector(n_sec, BUF_DATA)
+    'debug("  [do_read] After read buf[0..3]=", uhex_byte_(buf[0]), " ", uhex_byte_(buf[1]), " ", uhex_byte_(buf[2]), " ", uhex_byte_(buf[3]))
     repeat while count > 0
       delta := (512 - (file_idx & 511)) <# count
       bytemove(p_buffer, @buf + (file_idx & 511), delta)
@@ -528,7 +566,7 @@ PRI do_read(p_buffer, count) : bytes_read | delta                               
       p_buffer += delta
       count -= delta
       if file_idx & 511 == 0
-        readNextSector()
+        readNextSector(BUF_DATA)
 
 PRI do_write(p_buffer, count) | delta, temp                                     '' Internal write operation
   if (flags & F_OPEN) and (count > 0) and not (attributes() & %0001_1111)
@@ -546,14 +584,14 @@ PRI do_write(p_buffer, count) | delta, temp                                     
       do_seek(fileSize())                                                       ' Use internal seek to avoid deadlock
     repeat while count > 0
       delta := (512 - (file_idx & 511)) <# count
-      bytemove(@buf + file_idx & 511, p_buffer, delta)
+      bytemove(@buf + (file_idx & 511), p_buffer, delta)
       sec_in_buf := n_sec
       file_idx += delta
       p_buffer += delta
       long[@entry_buffer + $1C] += delta
       count -= delta
       if count > 0 and file_idx & 511 == 0
-        writeSector(n_sec++)
+        writeSector(n_sec++, BUF_DATA)
         bytefill(@buf,0,512)
         if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0
           temp := allocateCluster(sec2clus(n_sec-1))
@@ -568,7 +606,7 @@ PRI do_seek(pos) : result | cluster                                             
     cluster := long[readFat(cluster)]
   n_sec := clus2sec(cluster)
   n_sec += (pos / 512) // sec_per_clus
-  readSector(n_sec)
+  readSector(n_sec, BUF_DATA)
   file_idx := pos
   return SUCCESS
 
@@ -579,7 +617,7 @@ PRI do_newfile(name_ptr) : result | temp                                        
 
   temp := (entry_address + cluster_offset << 9) & (sec_per_clus << 9 - 1)
   if temp == (sec_per_clus << 9 - 32)
-    if buf[480] == $00
+    if dir_buf[480] == $00                                                      ' Check dir buffer after searchDirectory
       temp := allocateCluster(byte2clus(entry_address))
       clearCluster(temp)
 
@@ -599,7 +637,7 @@ PRI do_newdir(name_ptr) : result | temp                                         
 
   temp := (entry_address + cluster_offset << 9) & (sec_per_clus << 9 - 1)
   if temp == sec_per_clus << 9 - 32
-    if buf[480] == $00
+    if dir_buf[480] == $00                                                      ' Check dir buffer after searchDirectory
       temp := allocateCluster(byte2clus(entry_address))
       clearCluster(temp)
 
@@ -611,54 +649,70 @@ PRI do_newdir(name_ptr) : result | temp                                         
   word[@entry_buffer + 26] := temp & $FFFF
   long[@entry_buffer + 28] := 0
 
-  readSector(entry_address >> 9)
-  bytemove(@buf + entry_address & 511, @entry_buffer, 32)
-  writeSector(entry_address >> 9)
+  readSector(entry_address >> 9, BUF_DIR)
+  debug("  [do_newdir] Before write: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
+  bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
+  debug("  [do_newdir] After copy: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
+  debug("  [do_newdir] entry_buffer=[", lstr_(@entry_buffer, 11), "]")
+  writeSector(entry_address >> 9, BUF_DIR)
+  ' Verify write by reading back
+  dir_sec_in_buf := -1                                                          ' Force re-read
+  readSector(entry_address >> 9, BUF_DIR)
+  debug("  [do_newdir] After verify read: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
 
-  bytefill(@buf, 0, 512)
-  bytemove(@buf[0], string(".          "), 11)
-  byte[@buf + 11] := $10
-  long[@buf + 14] := date_stamp
-  word[@buf + 20] := temp >> 16
-  long[@buf + 22] := date_stamp
-  word[@buf + 26] := temp & $FFFF
+  bytefill(@dir_buf, 0, 512)
+  bytemove(@dir_buf[0], string(".          "), 11)
+  byte[@dir_buf + 11] := $10
+  long[@dir_buf + 14] := date_stamp
+  word[@dir_buf + 20] := temp >> 16
+  long[@dir_buf + 22] := date_stamp
+  word[@dir_buf + 26] := temp & $FFFF
 
   temp := byte2clus(entry_address)
   if temp == 2
     temp := 0
-  bytemove(@buf[32], string("..         "), 11)
-  byte[@buf + 32 + 11] := $10
-  long[@buf + 32 + 14] := date_stamp
-  word[@buf + 32 + 20] := temp >> 16
-  long[@buf + 32 + 22] := date_stamp
-  word[@buf + 32 + 26] := temp & $FFFF
+  bytemove(@dir_buf[32], string("..         "), 11)
+  byte[@dir_buf + 32 + 11] := $10
+  long[@dir_buf + 32 + 14] := date_stamp
+  word[@dir_buf + 32 + 20] := temp >> 16
+  long[@dir_buf + 32 + 22] := date_stamp
+  word[@dir_buf + 32 + 26] := temp & $FFFF
 
   n_sec := clus2sec(firstCluster())
-  writeSector(n_sec)
-  sec_in_buf := n_sec
+  debug("  [do_newdir] Writing ./.. to sector ", udec_(n_sec), ": dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
+  writeSector(n_sec, BUF_DIR)
+  dir_sec_in_buf := n_sec
+  ' Verify the ./.. write
+  dir_sec_in_buf := -1
+  readSector(n_sec, BUF_DIR)
+  debug("  [do_newdir] After ./.. verify: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
   return SUCCESS
 
-PRI do_delete(name_ptr) : result | cluster, p_cluster, fat_sector               '' Internal delete operation
+PRI do_delete(name_ptr) : result | cluster, p_cluster, fat_sector, loop_count   '' Internal delete operation
   do_close()
   if searchDirectory(name_ptr) == 0
     return E_FILE_NOT_FOUND
   if attributes() & %0000_1111                                                   ' Check read-only, hidden, system, volume label
     return E_FILE_NOT_FOUND                                                     ' Protected file (but allow directories)
 
-  buf[entry_address & 511] := $E5
-  writeSector(entry_address >> 9)
+  dir_buf[entry_address & 511] := $E5                                           ' Mark entry as deleted in dir buffer
+  writeSector(entry_address >> 9, BUF_DIR)
 
   ' Only deallocate clusters if file has data (cluster >= 2)
   p_cluster := firstCluster()
+  loop_count := 0
   if p_cluster >= 2
     repeat
       cluster := long[readFAT(p_cluster)]
-      long[@buf + p_cluster << 2 & 511] := 0
-      if cluster >> 7 - p_cluster >> 7 <> 0
+      long[@fat_buf + ((p_cluster << 2) & 511)] := 0                            ' Zero the FAT entry in fat buffer
+      if (cluster >> 7) - (p_cluster >> 7) <> 0                                 ' Different FAT sector? (explicit precedence)
         fat_sector := p_cluster >> 7
-        writeSector(fat_sector + fat_sec)
-        writeSector(fat_sector + fat2_sec)
+        writeSector(fat_sector + fat_sec, BUF_FAT)
+        writeSector(fat_sector + fat2_sec, BUF_FAT)
       p_cluster := cluster
+      loop_count++
+      if loop_count > 100000                                                    ' Safety limit - prevent infinite loop
+        return E_IO_ERROR
     until cluster >= $0FFF_FFF8
   return SUCCESS
 
@@ -668,6 +722,10 @@ PRI do_chdir(name_ptr) : result                                                 
     if (attributes() & %0001_0000) or (dir_sec == root_sec)
       dir_sec := n_sec
       return SUCCESS
+    else
+      debug("  [do_chdir] NOT a directory: attr=", uhex_byte_(attributes()))
+  else
+    debug("  [do_chdir] searchDirectory FAILED for: ", zstr(name_ptr), " dir_sec=", udec_(dir_sec))
   return E_NOT_A_DIR
 
 PRI do_freespace() : result | cluster                                           '' Internal free space calculation
@@ -675,37 +733,57 @@ PRI do_freespace() : result | cluster                                           
     return 0
   n_sec := fat_sec
   repeat sec_per_fat
-    readSector(n_sec++)
+    readSector(n_sec++, BUF_FAT)
     repeat cluster from 0 to 127
-      if long[@buf + cluster << 2] == 0
+      if long[@fat_buf + cluster << 2] == 0
         result++
   result := result * sec_per_clus
 
 PRI do_sync()                                                                   '' Internal sync operation
   if flags & F_NEWDATA
-    writeSector(n_sec)
+    writeSector(n_sec, BUF_DATA)
     flags := flags & !F_NEWDATA
   if flags & F_NEWDIR
-    readSector(entry_address >> 9)
-    bytemove(@buf + entry_address & 511, @entry_buffer, 32)
-    writeSector(entry_address >> 9)
+    readSector(entry_address >> 9, BUF_DIR)
+    bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
+    writeSector(entry_address >> 9, BUF_DIR)
     flags := flags & !F_NEWDIR
 
-PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i              '' Internal rename operation
+PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[8], p_buf  '' Internal rename operation
+  '' Rename a file/directory by finding it and updating its name in the directory entry.
+  '' We find the old file, save its complete entry, then parse new_name into 8.3 format
+  '' directly in the sector buffer and write it back.
   if searchDirectory(old_name)
     bookmark := entry_address
     temp_sec := dir_sec
-    dir_sec := entry_address >> 9
+    bytemove(@saved_entry, @entry_buffer, 32)                                  ' Save complete entry (32 bytes)
+    dir_sec := entry_address >> 9                                               ' Search in same directory
     i := 0
     repeat until byte[new_name + i] == $00
       if byte[new_name + i] == "/"
         new_name += i+1
-        i := 1
+        i := 0
       i++
-    if searchDirectory(new_name) == 0
-      readSector(bookmark >> 9)
-      bytemove(@buf + bookmark & 511, @entry_buffer, 11)
-      writeSector(bookmark >> 9)
+    if searchDirectory(new_name) == 0                                           ' Verify new name doesn't exist
+      bytemove(@entry_buffer, @saved_entry, 32)                                ' Restore complete entry
+      readSector(bookmark >> 9, BUF_DIR)
+      ' Parse new_name directly into buffer in 8.3 format
+      p_buf := @dir_buf + (bookmark & 511)
+      i := 0
+      repeat until byte[new_name + i] == "/" or byte[new_name + i] == $00
+        i++
+      bytefill(p_buf, " ", 11)                                                 ' Clear name field
+      bytemove(p_buf, new_name, i <# 12)                                       ' Copy name
+      ' Convert to uppercase and handle 8.3 extension
+      repeat i from 0 to 10
+        case byte[p_buf + i]
+          "a".."z" : byte[p_buf + i] -= $20
+          "." :
+            ' Found extension separator - move extension to position 8
+            bytemove(p_buf + 8, p_buf + i + 1, 3)
+            bytefill(p_buf + i, " ", 8 - i)
+            quit
+      writeSector(bookmark >> 9, BUF_DIR)
       dir_sec := temp_sec
       return SUCCESS
   return E_FILE_NOT_FOUND
@@ -720,24 +798,34 @@ PRI do_movefile(name_ptr, dest_folder) : result | bookmark, p_temp, temp_sec    
       if bookmark >> 9 == n_sec
         return E_FILE_EXISTS                                                    ' Same directory
       if do_newfile(p_temp) == SUCCESS
-        readSector(bookmark >> 9)
-        bytemove(@entry_buffer, @buf + bookmark & 511, 32)
-        byte[@buf + bookmark & 511] := $E5
-        writeSector(bookmark >> 9)
+        debug("  [do_movefile] newfile OK, new entry_address=", uhex_(entry_address))
+        debug("  [do_movefile] Reading sector ", udec_(bookmark >> 9), " (dir_sec_in_buf=", sdec_(dir_sec_in_buf), ")")
+        readSector(bookmark >> 9, BUF_DIR)
+        debug("  [do_movefile] After read: dir_buf[128]=[", lstr_(@dir_buf + 128, 11), "] dir_buf[", udec_(bookmark & 511), "]=[", lstr_(@dir_buf + (bookmark & 511), 11), "]")
+        bytemove(@entry_buffer, @dir_buf + (bookmark & 511), 32)
+        debug("  [do_movefile] Copied entry: [", lstr_(@entry_buffer, 11), "]")
+        byte[@dir_buf + (bookmark & 511)] := $E5
+        debug("  [do_movefile] After $E5: dir_buf[128]=[", lstr_(@dir_buf + 128, 11), "]")
+        writeSector(bookmark >> 9, BUF_DIR)
+        debug("  [do_movefile] Calling do_close, flags=", uhex_(flags))
         do_close()
         dir_sec := temp_sec
         return SUCCESS
+      else
+        debug("  [do_movefile] do_newfile FAILED")
+    else
+      debug("  [do_movefile] do_chdir FAILED for: ", zstr(dest_folder))
     dir_sec := temp_sec
   return E_FILE_NOT_FOUND
 
 PRI do_readdir(entry_num) : result | idx, char, attrib                          '' Internal read directory operation
   idx := 0
   n_sec := dir_sec
-  readSector(n_sec)
+  readSector(n_sec, BUF_DIR)
 
   repeat until entry_num == -1
-    char := byte[@buf + idx & 511]
-    attrib := byte[@buf + idx & 511 + 11]
+    char := byte[@dir_buf + (idx & 511)]
+    attrib := byte[@dir_buf + (idx & 511) + 11]
 
     if char == $00
       return E_FILE_NOT_FOUND
@@ -745,11 +833,11 @@ PRI do_readdir(entry_num) : result | idx, char, attrib                          
       if attrib & %0000_1110 == 0
         entry_num--
         if entry_num == -1
-          bytemove(@entry_buffer, @buf + idx & 511, 32)
+          bytemove(@entry_buffer, @dir_buf + (idx & 511), 32)
           return SUCCESS
     idx += 32
     if idx & 511 == 0
-      readNextSector()
+      readNextSector(BUF_DIR)
   return E_FILE_NOT_FOUND
 
 CON '' ═══════════════════════════════════════════════════════════════════════════
@@ -799,7 +887,7 @@ PUB initCardOnly(_cs, _mosi, _miso, _sck) : result                              
     ' A warm-up read of sector 0 ensures the streamer RX path is exercised, which also
     ' properly initializes state needed for subsequent streamer TX (write) operations.
     ' Without this, the first writeSector() may silently fail to write data.
-    readSector(0)
+    readSector(0, BUF_DATA)
     sec_in_buf := -1                                                            ' Clear cache so user's first read isn't cached
     debug("  [initCardOnly] Card initialized successfully")
   else
@@ -843,6 +931,82 @@ PUB cardSizeSectors() : result | csd[4], c_size, read_bl_len, c_size_mult       
 
   debug("  [cardSizeSectors] Total sectors: ", udec(result))
 
+PUB testCMD13() : r2_response | r1, status                                      '' TEST ONLY: Send CMD13 and return raw R2 response
+'' For testing/validation of CMD13 (SEND_STATUS) functionality.
+'' Returns: R2 response as WORD (high byte = R1, low byte = status)
+''          $0000 = card OK
+''          $FFFF = timeout
+''          Other values indicate error conditions
+'' NOTE: This is a diagnostic method - not for normal operation.
+
+  ' Send dummy clocks with CS HIGH to ensure card is ready
+  pinh(cs)
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
+
+  ' CMD13 requires CS to be asserted
+  pinl(cs)
+
+  ' Send CMD13 with no argument (RCA = 0x0000 for SPI mode)
+  sp_transfer_8($40 | CMD13)                                                    ' Command byte: 0x40 | 13 = 0x4D
+  sp_transfer_8($00)                                                            ' Argument bytes (RCA, unused in SPI)
+  sp_transfer_8($00)
+  sp_transfer_8($00)
+  sp_transfer_8($00)
+  sp_transfer_8($FF)                                                            ' CRC disabled after init in SPI mode
+
+  ' Get R1 response (first byte of R2)
+  r1 := waitR1Response()
+  if r1 < 0
+    debug("  [testCMD13] TIMEOUT waiting for R1")
+    pinh(cs)
+    return $FFFF
+
+  ' Get status byte (second byte of R2)
+  status := sp_transfer_8($FF)
+
+  pinh(cs)                                                                      ' Deselect card
+
+  ' Combine into R2 response word
+  r2_response := (r1 << 8) | status
+
+  ' Log detailed results
+  debug("  [testCMD13] R1=$", uhex_byte_(r1), " STATUS=$", uhex_byte_(status), " -> R2=$", uhex_word_(r2_response))
+  if r1 <> 0
+    debug("    R1 errors:")
+    if r1 & $40
+      debug("      -> PARAMETER_ERROR")
+    if r1 & $20
+      debug("      -> ADDRESS_ERROR")
+    if r1 & $10
+      debug("      -> ERASE_SEQ_ERROR")
+    if r1 & $08
+      debug("      -> COM_CRC_ERROR")
+    if r1 & $04
+      debug("      -> ILLEGAL_COMMAND")
+    if r1 & $02
+      debug("      -> ERASE_RESET")
+    if r1 & $01
+      debug("      -> IN_IDLE_STATE")
+  if status <> 0
+    debug("    STATUS errors:")
+    if status & CSR_OUT_OF_RANGE
+      debug("      -> OUT_OF_RANGE")
+    if status & CSR_ERASE_PARAM
+      debug("      -> ERASE_PARAM")
+    if status & CSR_WP_VIOLATION
+      debug("      -> WP_VIOLATION")
+    if status & CSR_CARD_ECC_FAILED
+      debug("      -> CARD_ECC_FAILED")
+    if status & CSR_CC_ERROR
+      debug("      -> CC_ERROR")
+    if status & CSR_ERROR
+      debug("      -> ERROR")
+    if status & CSR_WP_ERASE_SKIP
+      debug("      -> WP_ERASE_SKIP")
+    if status & CSR_CARD_IS_LOCKED
+      debug("      -> CARD_IS_LOCKED")
+
 PUB writeSectorRaw(sector, p_buffer) : result                                   '' write a sector at absolute LBA address
 '' Low-level sector write for formatting/partitioning. Bypasses filesystem.
 '' @param sector - absolute LBA sector number
@@ -852,7 +1016,7 @@ PUB writeSectorRaw(sector, p_buffer) : result                                   
     result := send_command(CMD_WRITE_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
   else
     bytemove(@buf, p_buffer, 512)
-    result := writeSector(sector)                                               ' writeSector returns true on success
+    result := writeSector(sector, BUF_DATA)                                     ' writeSector returns true on success
   if result
     debug("  [writeSectorRaw] Wrote sector ", udec(sector))
   else
@@ -867,7 +1031,7 @@ PUB readSectorRaw(sector, p_buffer) : result                                    
     result := send_command(CMD_READ_SECTOR_RAW, sector, p_buffer, 0, 0) == SUCCESS
   else
     sec_in_buf := -1                                                            ' Force re-read
-    result := readSector(sector) == 0
+    result := readSector(sector, BUF_DATA) == 0
     if result
       bytemove(p_buffer, @buf, 512)
   debug("  [readSectorRaw] Read sector ", udec(sector))
@@ -949,7 +1113,7 @@ PUB readVBRRaw(p_buf) : result                                                  
     debug("  [readVBRRaw] FAILED: Card not mounted")
     return false
   sec_in_buf := -1                                                              '  force re-read
-  readSector(vbr_sec)
+  readSector(vbr_sec, BUF_DATA)
   bytemove(p_buf, @buf, 512)
   debug("  [readVBRRaw] VBR read from sector ", udec(vbr_sec))
   return true
@@ -1182,7 +1346,7 @@ PRI updateFSInfo() : result | free_count                                        
   free_count := countFreeClusters()
 
   ' Read FSInfo sector
-  readSector(vbr_sec + fsinfo_sec)
+  readSector(vbr_sec + fsinfo_sec, BUF_DATA)
 
   ' Verify signatures before writing
   if long[@buf + 0] <> $4161_5252 or long[@buf + 484] <> $6141_7272
@@ -1194,7 +1358,7 @@ PRI updateFSInfo() : result | free_count                                        
   long[@buf + 492] := fsi_nxt_free                                              '  FSI_Nxt_Free (keep cached value)
 
   ' Write updated FSInfo sector
-  writeSector(vbr_sec + fsinfo_sec)
+  writeSector(vbr_sec + fsinfo_sec, BUF_DATA)
   fsi_free_count := free_count                                                  '  update cached value
   debug("  [updateFSInfo] Updated: free_count=", udec(free_count))
   return true
@@ -1208,12 +1372,12 @@ PRI countFreeClusters() : count | fat_idx, entry                                
     if fat_idx & 511 == 0                                                       '  if at sector boundary
       if fat_idx >> 9 >= sec_per_fat                                            '  if past end of FAT
         quit
-      readSector(fat_sec + fat_idx >> 9)                                        '  read next FAT sector
-    entry := long[@buf + fat_idx & 511]
+      readSector(fat_sec + fat_idx >> 9, BUF_FAT)                               '  read next FAT sector
+    entry := long[@fat_buf + (fat_idx & 511)]
     if (entry & $0FFF_FFFF) == 0                                                '  check only low 28 bits
       count++
     fat_idx += 4
-  sec_in_buf := -1                                                              '  invalidate buffer (FAT sector loaded)
+  fat_sec_in_buf := -1                                                          '  invalidate FAT buffer
 
 PUB deleteFile(name_ptr) : result                                               '' delete file (multi-cog safe)
   '' Deletes a file from the current directory.
@@ -1334,14 +1498,18 @@ PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i
     entry_buffer[11] := $00                                                     '  append null
 
     i := 0
-    readSector(n_sec)                                                           '  read 1st sector of directory
+    debug("  [searchDir] Starting search at n_sec=", udec_(n_sec), " for [", lstr_(@entry_buffer, 11), "]")
+    readSector(n_sec, BUF_DIR)                                                  '  read 1st sector of directory
+    debug("  [searchDir] After read: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
     entry_address := 0
     repeat
-      p_entry := @buf + i & 511                                                 '  locate entry in directory
+      p_entry := @dir_buf + (i & 511)                                           '  locate entry in directory (FIXED precedence)
       bytemove(p_temp,p_entry,11)                                               '  copy short filename into p_temp
+      byte[p_temp + 11] := 0                                                    '  null terminate for comparison
       if strcomp(@entry_buffer,p_temp)                                          '  if matching entry located
-        entry_address := n_sec << 9 | i & 511                                   '   store the byte-level address of the entry
+        entry_address := (n_sec << 9) | (i & 511)                               '   store the byte-level address of the entry
         bytemove(@entry_buffer,p_entry,32)                                      '   copy entire entry into entry_buffer
+        debug("  [searchDir] FOUND at i=", udec_(i), " firstCluster=", udec_(firstCluster()), " n_sec will be ", udec_(clus2sec(firstCluster())))
         if firstCluster() == 0                                                  '  exception if ".." points to root directory
           n_sec := clus2sec(2)                                                  '   root directory located in cluster 2
         else
@@ -1349,13 +1517,14 @@ PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i
         quit
       elseif byte[name_ptr] == $00                                              '  if end of path reached
         if (entry_address == 0) and (byte[p_temp] == $E5 or byte[p_temp] == $00) '  if entry_address not set, and 1st byte is $E5 or $00
-          entry_address := n_sec << 9 | i & 511                                 '    set entry_address to 1st unused entry (for newFile / newDirectory)
+          entry_address := (n_sec << 9) | (i & 511)                             '    set entry_address to 1st unused entry (for newFile / newDirectory)
+          debug("  [searchDir] Free slot at n_sec=", udec_(n_sec), " i=", udec_(i), " entry_address=$", uhex_(entry_address))
 
       if byte[p_temp] == $00                                                    '  entry not found in directory
         return false
       i += 32                                                                   '  increment to next entry
       if i & 511 == 0                                                           '  read new directory sector/cluster if needed
-        readNextSector()
+        readNextSector(BUF_DIR)
   file_idx := 0
   return true
 
@@ -1386,50 +1555,60 @@ PUB fileSize() : result                                                         
 
 CON     '' FAT and sector methods
 PRI readFat(cluster) : result | contents, p_contents                            '' read a FAT location and return a pointer to the location of that entry
-  readSector((cluster >> 7 + fat_sec))                                          '  128 entries in each FAT sector
-  result := @buf + (cluster << 2) & 511
+  readSector((cluster >> 7 + fat_sec), BUF_FAT)                                 '  128 entries in each FAT sector
+  result := @fat_buf + ((cluster << 2) & 511)
 
 PRI allocateCluster(cluster) : result | fat_idx, buf_idx, high_bits             '' searches FAT for an empty cluster, allocates cluster, returns cluster number
   fat_idx := 8                                                                  ' Start at cluster 2 (skip reserved 0,1)
-  readSector(fat_sec)                                                           ' Pre-load first FAT sector
+  readSector(fat_sec, BUF_FAT)                                                  ' Pre-load first FAT sector
   '   if cluster parameter <> 0, writes newly allocated cluster number in parameter cell
   repeat
     if fat_idx & 511 == 0 and fat_idx > 0                                       '  if at sector boundary (but not first iteration)
-      readSector(fat_sec + fat_idx >> 9)                                        '   load next sector of FAT
+      readSector(fat_sec + fat_idx >> 9, BUF_FAT)                               '   load next sector of FAT
     buf_idx := fat_idx & 511
-    result := long[@buf + buf_idx]                                              '  read a cluster cell
+    result := long[@fat_buf + buf_idx]                                          '  read a cluster cell
     if (result & $0FFF_FFFF) == $0000_0000                                      '  if cluster cell is empty (check only low 28 bits)
       high_bits := result & $F000_0000                                          '  preserve high 4 bits
-      long[@buf + buf_idx] := high_bits | $0FFF_FFFF                            '  mark as end-of-chain, preserve high bits
+      long[@fat_buf + buf_idx] := high_bits | $0FFF_FFFF                        '  mark as end-of-chain, preserve high bits
       result := fat_idx >> 2                                                    '  store cluster number in result
-      writeSector(fat_sec + result >> 7)                                        '  write FAT1 sector
-      writeSector(fat2_sec + result >> 7)                                       '  write FAT2 sector (MIRROR)
+      writeSector(fat_sec + result >> 7, BUF_FAT)                               '  write FAT1 sector
+      writeSector(fat2_sec + result >> 7, BUF_FAT)                              '  write FAT2 sector (MIRROR)
       if cluster <> 0                                                           '  if allocateCluster was called with a non-zero cluster parameter
-        readSector(fat_sec + cluster >> 7)                                      '   read FAT sector containing cluster cell
-        buf_idx := cluster << 2 & 511
-        high_bits := long[@buf + buf_idx] & $F000_0000                          '  preserve high 4 bits
-        long[@buf + buf_idx] := high_bits | (result & $0FFF_FFFF)               '  link to new cluster, preserve high bits
-        writeSector(fat_sec + cluster >> 7)                                     '  write FAT1 sector
-        writeSector(fat2_sec + cluster >> 7)                                    '  write FAT2 sector (MIRROR)
+        readSector(fat_sec + cluster >> 7, BUF_FAT)                             '   read FAT sector containing cluster cell
+        buf_idx := (cluster << 2) & 511
+        high_bits := long[@fat_buf + buf_idx] & $F000_0000                      '  preserve high 4 bits
+        long[@fat_buf + buf_idx] := high_bits | (result & $0FFF_FFFF)           '  link to new cluster, preserve high bits
+        writeSector(fat_sec + cluster >> 7, BUF_FAT)                            '  write FAT1 sector
+        writeSector(fat2_sec + cluster >> 7, BUF_FAT)                           '  write FAT2 sector (MIRROR)
       return
     fat_idx += 4                                                                '  advance index to next cluster cell
 
-PRI clearCluster(cluster)                                                       '' initialize entire contents of cluster to 0
+PRI clearCluster(cluster)                                                       '' initialize entire contents of cluster to 0 (used for new directories)
   n_sec := clus2sec(cluster)                                                    '  set n_sec to 1st sector of specified cluster
-  bytefill(@buf,0,512)                                                          '  clear buffer
+  bytefill(@dir_buf, 0, 512)                                                    '  clear directory buffer
   repeat sec_per_clus                                                           '  repeat for all sectors in the cluster
-    writeSector(n_sec++)                                                        '   overwrite sector
-  sec_in_buf := n_sec - 1
+    writeSector(n_sec++, BUF_DIR)                                               '   overwrite sector
+  dir_sec_in_buf := n_sec - 1
 
-PRI readNextSector() | cluster, address, contents                               '' loads the next sector into buffer
+PRI readNextSector(buf_type) | cluster, address, contents, p_buf                '' loads the next sector into buffer
   n_sec++
   if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0                       '  if next sector is in a different cluster
     cluster := sec2clus(n_sec-1)                                                '   find current cluster number
-    readSector(cluster >> 7 + fat_sec)                                          '   read sector of FAT containing cluster number (128 cluster entries in each FAT sector)
-    address := @buf + (cluster << 2) & 511                                      '   find long within sector for current cluster
+    readSector(cluster >> 7 + fat_sec, BUF_FAT)                                 '   read sector of FAT containing cluster number (128 cluster entries in each FAT sector)
+    address := @fat_buf + ((cluster << 2) & 511)                                '   find long within FAT buffer for current cluster
     contents := long[address]                                                   '   read contents to determine next cluster number
+    if contents >= $0FFF_FFF8                                                   '   end-of-chain marker detected
+      ' Fill appropriate buffer with zeros based on buf_type
+      case buf_type
+        BUF_DIR:
+          bytefill(@dir_buf, 0, 512)
+        BUF_FAT:
+          bytefill(@fat_buf, 0, 512)
+        other:
+          bytefill(@buf, 0, 512)
+      return                                                                    '    don't read invalid sector
     n_sec := clus2sec(contents)                                                 '   convert next cluster number into sector number
-  readSector(n_sec)
+  readSector(n_sec, buf_type)
 
 CON     '' helper methods
 PRI byte2clus(byte_address) : result                                            '' convert byte address to cluster number
@@ -1857,10 +2036,11 @@ PRI cmd(op,parm) : result | t                                                   
   if op <> 17 and op <> 24 and op <> CMD18 and op <> CMD25 and op <> 55         '  keep cs asserted for sector read/write and application commands
     pinh(cs)                                                                    '  CS HIGH = deselected (standard active-LOW)
 
-PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf, align_delay  '' read a sector into buffer using P2 streamer
+PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf, align_delay, p_cache  '' read a sector into buffer using P2 streamer
   '' Returns 0 on success, -1 on timeout/error
   '' Uses P2 streamer for bulk 512-byte transfer (hardware DMA)
   '' Reference: flash_loader.spin2 pattern for SPI reads
+  '' buf_type: BUF_DIR, BUF_FAT, or BUF_DATA selects which buffer to use
   ''
   '' Protocol:
   '' 1. CMD17 (READ_SINGLE_BLOCK) with sector address
@@ -1869,9 +2049,24 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   '' 4. Receive 2 CRC bytes (discarded)
   '' 5. Deselect card
 
-  if sector == sec_in_buf
+  ' Select buffer and cache based on type
+  case buf_type
+    BUF_DIR:
+      p_buf := @dir_buf
+      p_cache := @dir_sec_in_buf
+    BUF_FAT:
+      p_buf := @fat_buf
+      p_cache := @fat_sec_in_buf
+    other:  ' BUF_DATA or default
+      p_buf := @buf
+      p_cache := @sec_in_buf
+
+  if sector == long[p_cache]
+    'if buf_type == BUF_DIR
+    '  debug("  [readSector] CACHE HIT sector ", udec_(sector), " bytes: $", uhex_byte_(byte[p_buf]), " $", uhex_byte_(byte[p_buf+1]), " $", uhex_byte_(byte[p_buf+2]))
     return 0
-  sec_in_buf := sector
+  'debug("  [readSector] Reading sector ", udec_(sector), " type=", udec_(buf_type), " p_buf=", uhex_(p_buf))
+  long[p_cache] := sector
 
   ' Send CMD17 (READ_SINGLE_BLOCK)
   cmd(17, sector << hcs)
@@ -1887,12 +2082,12 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
     if data <> $FF
       debug("  [readSector] ERROR: got $", uhex_byte_(data), " instead of $FF or $FE")
       pinh(cs)
-      sec_in_buf := -1
+      long[p_cache] := -1
       return -1
     if getct() - timeout > 0
       debug("  [readSector] TIMEOUT waiting for start token")
       pinh(cs)
-      sec_in_buf := -1
+      long[p_cache] := -1
       return -1
 
   ' ════════════════════════════════════════════════════════════════════════════
@@ -1902,7 +2097,7 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   ' ════════════════════════════════════════════════════════════════════════════
   _sck := sck
   _miso := miso
-  p_buf := @buf
+  ' p_buf already set above based on buf_type
 
   ' CRITICAL FIX: Disable MISO smart pin before streamer capture
   ' The smart pin interferes with streamer's direct pin reading
@@ -1925,8 +2120,7 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   ' Phase alignment: sample in middle of each bit for stability
   ' After wypin starts clock: first rising edge at T=spi_period
   ' With waitx spi_period, xinit happens at T=spi_period (first rising edge)
-  ' init_phase=$4000_0000 causes first sample ~7 sysclocks later (middle of bit 0)
-  ' This is more stable than sampling at bit edges
+  ' init_phase=$4000_0000 causes first sample ~spi_period later (middle of bit 0)
   init_phase := $4000_0000                                                      ' Sample mid-bit for stability
   align_delay := spi_period                                                     ' Wait one half-period before streamer
 
@@ -1952,6 +2146,12 @@ PRI readSector(sector) : result | _sck, _miso, data, loop_ctr, timeout, stream_m
   sp_transfer_8($FF)
 
   pinh(cs)                                                                      ' Deselect card
+
+  ' CMD13: Verify card is in good state after read
+  if checkCardStatus(@"readSector") < 0
+    long[p_cache] := -1                                                         ' Invalidate cache on error
+    return -1
+
   result := 0
 
 PRI readSectors(start_sector, count, p_buffer) : sectors_read | _sck, _miso, p_buf, stream_mode, clk_count, xfrq, init_phase, align_delay, i, resp
@@ -2032,9 +2232,15 @@ PRI readSectors(start_sector, count, p_buffer) : sectors_read | _sck, _miso, p_b
 
   pinh(cs)                                                                      ' Deselect card
 
-PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, t, resp '' write buffer into a sector using P2 streamer
+  ' CMD13: Verify card is in good state after multi-block read
+  if checkCardStatus(@"readSectors") < 0
+    debug("  [readSectors] CMD13 status check FAILED")
+    ' Still return sectors_read - data may be valid
+
+PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, t, resp, p_cache '' write buffer into a sector using P2 streamer
   '' Write a sector using P2 streamer for bulk 512-byte transfer (hardware DMA)
   '' Reference: flash_loader.spin2 pattern for SPI writes
+  '' buf_type: BUF_DIR, BUF_FAT, or BUF_DATA selects which buffer to use
   ''
   '' PNY COMPATIBILITY: This implementation follows strict SPI write protocol:
   '' 1. CMD24 with sector address
@@ -2045,13 +2251,24 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
   '' 6. Wait for MISO to go HIGH ($FF = programming complete)
   '' CRITICAL: CS must stay LOW and clocking must continue during entire busy period!
 
+  ' Select buffer and cache based on type
+  case buf_type
+    BUF_DIR:
+      p_buf := @dir_buf
+      p_cache := @dir_sec_in_buf
+    BUF_FAT:
+      p_buf := @fat_buf
+      p_cache := @fat_sec_in_buf
+    other:  ' BUF_DATA or default
+      p_buf := @buf
+      p_cache := @sec_in_buf
+
   _sck := sck
   _mosi := mosi
-  p_buf := @buf
+  ' p_buf already set above based on buf_type
 
-  ' Invalidate sector cache if we're writing the cached sector
-  if sector == sec_in_buf
-    sec_in_buf := -1
+  ' Invalidate cache for this buffer type after write
+  long[p_cache] := -1
 
   cmd(24, sector << hcs)
   sp_transfer_8($FE)                                                            ' Data start token
@@ -2125,6 +2342,11 @@ PRI writeSector(sector) : result | _sck, _mosi, p_buf, stream_mode, clk_count, x
       return false
 
   pinh(cs)
+
+  ' CMD13: Verify card status after write
+  if checkCardStatus(@"writeSector") < 0
+    return false
+
   return true
 
 PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, settle_delay, resp
@@ -2227,6 +2449,11 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
 
   pinh(cs)                                                                      ' Deselect card
 
+  ' CMD13: Verify card status after multi-block write
+  if checkCardStatus(@"writeSectors") < 0
+    debug("  [writeSectors] CMD13 status check FAILED after writing ", udec_(sectors_written), " sectors")
+    ' Still return sectors_written - some data may have been written
+
 ' ════════════════════════════════════════════════════════════════════════════════
 ' MULTI-BLOCK HELPER FUNCTIONS
 ' These factor out common patterns used by readSectors() and writeSectors()
@@ -2316,6 +2543,69 @@ PRI sendStopTransmission() : result | resp                                      
   ' Wait for busy to complete (card may still be finishing last block)
   result := waitBusyComplete()
 
+PRI checkCardStatus(caller) : result | r1, status                               '' send CMD13 to verify card status after operation
+  '' Sends CMD13 (SEND_STATUS) and checks R2 response for errors
+  '' Returns: 0 on success (card OK), -1 on error
+  '' R2 response format: R1 byte + status byte
+  '' Call this after every write operation and after CMD12
+  '' @param caller: string identifying the calling function (for debug)
+
+  ' Send dummy clocks with CS HIGH to ensure card is ready
+  ' (Some cards need recovery time after previous operation)
+  pinh(cs)
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
+
+  ' CMD13 requires CS to be asserted
+  pinl(cs)
+
+  ' Send CMD13 with no argument (RCA = 0x0000 for SPI mode)
+  sp_transfer_8($40 | CMD13)                                                    ' Command byte: 0x40 | 13 = 0x4D
+  sp_transfer_8($00)                                                            ' Argument bytes (RCA, unused in SPI)
+  sp_transfer_8($00)
+  sp_transfer_8($00)
+  sp_transfer_8($00)
+  sp_transfer_8($FF)                                                            ' CRC disabled after init in SPI mode
+
+  ' Get R1 response (first byte of R2)
+  r1 := waitR1Response()
+  if r1 < 0
+    debug("  [checkCardStatus] ", zstr_(caller), ": TIMEOUT waiting for R1")
+    pinh(cs)
+    return -1
+
+  ' Get status byte (second byte of R2)
+  status := sp_transfer_8($FF)
+
+  pinh(cs)                                                                      ' Deselect card
+
+  ' Check for errors
+  if r1 <> $00
+    debug("  [checkCardStatus] ", zstr_(caller), ": R1 error=$", uhex_byte_(r1))
+    return -1
+
+  if status <> $00
+    debug("  [checkCardStatus] ", zstr_(caller), ": STATUS error=$", uhex_byte_(status))
+    if status & CSR_OUT_OF_RANGE
+      debug("    -> OUT_OF_RANGE")
+    if status & CSR_ERASE_PARAM
+      debug("    -> ERASE_PARAM")
+    if status & CSR_WP_VIOLATION
+      debug("    -> WP_VIOLATION")
+    if status & CSR_CARD_ECC_FAILED
+      debug("    -> CARD_ECC_FAILED")
+    if status & CSR_CC_ERROR
+      debug("    -> CC_ERROR")
+    if status & CSR_ERROR
+      debug("    -> ERROR")
+    if status & CSR_WP_ERASE_SKIP
+      debug("    -> WP_ERASE_SKIP")
+    if status & CSR_CARD_IS_LOCKED
+      debug("    -> CARD_IS_LOCKED")
+    return -1
+
+  return 0                                                                      ' Card status OK
+
 PRI transfer(data,bits) : result | _cs, _mosi, _miso, _sck, delay               '' transfer data to/from SD card
   longmove(@_cs,@cs,4)
   delay := bit_delay
@@ -2366,7 +2656,7 @@ PUB displayEntry() | address, char, ascii_ptr, i
 
 PUB displayFAT(cluster)                                                         '' display FAT sector containing cluster number
   n_sec := fat_sec + cluster >> 7
-  readSector(n_sec)
+  readSector(n_sec, BUF_DATA)                                                   ' Uses BUF_DATA since displaySector reads from buf
   displaySector()
 
 CON {{     FAT32 file system

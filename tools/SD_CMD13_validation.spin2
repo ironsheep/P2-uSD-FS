@@ -1,0 +1,294 @@
+'' =================================================================================================
+''
+''   File....... SD_CMD13_validation.spin2
+''   Purpose.... Validate that CMD13 (SEND_STATUS) returns meaningful results
+''   Author..... Stephen M Moraco / Claude
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... JAN 2026
+''   Updated.... 28 JAN 2026
+''
+''   This is a ONE-OFF diagnostic test to verify CMD13 functionality.
+''   NOT part of the regression test suite.
+''
+''   Questions this test answers:
+''   1. Does CMD13 return $0000 after normal operations? (expected: yes)
+''   2. Does CMD13 return non-zero after out-of-range sector access? (expected: yes)
+''   3. Are the R1 and STATUS bytes being read correctly?
+''
+'' =================================================================================================
+
+CON
+
+     _CLKFREQ        = 320_000_000
+
+     ' Pin configuration for P2 Edge module SD slot
+     SD_CS   = 60
+     SD_MOSI = 59
+     SD_MISO = 58
+     SD_SCK  = 61
+
+OBJ
+    sd    : "SD_card_driver_v2"
+
+DAT
+    test_buffer     BYTE    0[512]
+    testfile        BYTE    "CMD13TST.TXT", 0
+
+PUB go() | result, r2, totalSectors, testSector, i, handle
+
+    debug(" ")
+    debug("==========================================================")
+    debug("  CMD13 (SEND_STATUS) Validation Test")
+    debug("==========================================================")
+    debug(" ")
+
+    ' =================================================================
+    ' TEST 1: CMD13 after card init (before mount)
+    ' =================================================================
+    debug("----------------------------------------------------------")
+    debug("TEST 1: CMD13 after initCardOnly()")
+    debug("----------------------------------------------------------")
+
+    result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result
+        debug("  initCardOnly() succeeded")
+        r2 := sd.testCMD13()
+        reportR2(r2, @"after initCardOnly")
+    else
+        debug("  FAILED: initCardOnly() returned false")
+        debug(" ")
+        debug("TEST ABORTED - Card initialization failed")
+        repeat
+
+    ' Get card size for out-of-range tests
+    totalSectors := sd.cardSizeSectors()
+    debug(" ")
+    debug("  Card size: ", udec_(totalSectors), " sectors")
+
+    ' =================================================================
+    ' TEST 2: CMD13 after normal sector read (sector 0 - MBR)
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 2: CMD13 after normal sector read (sector 0)")
+    debug("----------------------------------------------------------")
+
+    result := sd.readSectorRaw(0, @test_buffer)
+    if result
+        debug("  readSectorRaw(0) succeeded")
+        debug("  First 4 bytes: $", uhex_byte_(test_buffer[0]))
+    else
+        debug("  readSectorRaw(0) FAILED")
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after reading sector 0")
+
+    ' =================================================================
+    ' TEST 3: CMD13 after reading last valid sector
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 3: CMD13 after reading last valid sector")
+    debug("----------------------------------------------------------")
+
+    testSector := totalSectors - 1
+    debug("  Reading sector ", udec_(testSector))
+
+    result := sd.readSectorRaw(testSector, @test_buffer)
+    if result
+        debug("  readSectorRaw() succeeded")
+    else
+        debug("  readSectorRaw() FAILED")
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after reading last valid sector")
+
+    ' =================================================================
+    ' TEST 4: CMD13 after attempting to read OUT-OF-RANGE sector
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 4: CMD13 after OUT-OF-RANGE read attempt")
+    debug("----------------------------------------------------------")
+
+    testSector := totalSectors + 1000
+    debug("  Attempting to read sector ", udec_(testSector))
+    debug("  (1000 beyond card capacity)")
+    debug("  EXPECTING: OUT_OF_RANGE error ($80)")
+
+    result := sd.readSectorRaw(testSector, @test_buffer)
+    debug("  readSectorRaw() returned: ", sdec_(result))
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after out-of-range READ")
+
+    ' =================================================================
+    ' TEST 5: CMD13 after EXTREMELY out-of-range read
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 5: CMD13 after EXTREME out-of-range read")
+    debug("----------------------------------------------------------")
+
+    testSector := $7FFF_FFFF
+    debug("  Attempting to read sector $7FFFFFFF")
+    debug("  EXPECTING: OUT_OF_RANGE error ($80)")
+
+    result := sd.readSectorRaw(testSector, @test_buffer)
+    debug("  readSectorRaw() returned: ", sdec_(result))
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after extreme out-of-range READ")
+
+    ' =================================================================
+    ' TEST 6: Normal sector write to free space, then CMD13
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 6: CMD13 after normal write (high sector)")
+    debug("----------------------------------------------------------")
+
+    ' Use a sector near the end of the card (likely free space)
+    testSector := totalSectors - 100
+    debug("  Writing to sector ", udec_(testSector))
+
+    ' Fill buffer with test pattern
+    repeat i from 0 to 511
+        test_buffer[i] := i & $FF
+
+    result := sd.writeSectorRaw(testSector, @test_buffer)
+    if result
+        debug("  writeSectorRaw() succeeded")
+    else
+        debug("  writeSectorRaw() FAILED")
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after normal WRITE")
+
+    ' Verify by reading back
+    bytefill(@test_buffer, 0, 512)
+    result := sd.readSectorRaw(testSector, @test_buffer)
+    if result
+        debug("  Verification read succeeded")
+        if test_buffer[0] == 0 and test_buffer[1] == 1
+            debug("  Pattern verified correctly!")
+        else
+            debug("  WARNING: Pattern mismatch!")
+    else
+        debug("  Verification read FAILED")
+
+    ' =================================================================
+    ' TEST 7: CMD13 after out-of-range WRITE attempt
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 7: CMD13 after OUT-OF-RANGE write attempt")
+    debug("----------------------------------------------------------")
+
+    testSector := totalSectors + 1000
+    debug("  Attempting to write sector ", udec_(testSector))
+    debug("  EXPECTING: OUT_OF_RANGE error ($80)")
+
+    result := sd.writeSectorRaw(testSector, @test_buffer)
+    debug("  writeSectorRaw() returned: ", sdec_(result))
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after out-of-range WRITE")
+
+    ' =================================================================
+    ' TEST 8: Multiple CMD13 calls in a row (consistency check)
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 8: Multiple consecutive CMD13 calls")
+    debug("----------------------------------------------------------")
+
+    debug("  First CMD13 call:")
+    r2 := sd.testCMD13()
+    reportR2(r2, @"call 1")
+
+    debug("  Second CMD13 call:")
+    r2 := sd.testCMD13()
+    reportR2(r2, @"call 2")
+
+    debug("  Third CMD13 call:")
+    r2 := sd.testCMD13()
+    reportR2(r2, @"call 3")
+
+    ' =================================================================
+    ' TEST 9: CMD13 after mount (full filesystem init)
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 9: CMD13 after full mount()")
+    debug("----------------------------------------------------------")
+
+    result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result
+        debug("  mount() succeeded")
+    else
+        debug("  mount() FAILED")
+
+    r2 := sd.testCMD13()
+    reportR2(r2, @"after mount")
+
+    ' =================================================================
+    ' TEST 10: CMD13 after file operations
+    ' =================================================================
+    debug(" ")
+    debug("----------------------------------------------------------")
+    debug("TEST 10: CMD13 after file operations")
+    debug("----------------------------------------------------------")
+
+    ' Create a small test file
+    handle := sd.newFile(@testfile)
+    if handle
+        debug("  newFile() succeeded, handle=", udec_(handle))
+        r2 := sd.testCMD13()
+        reportR2(r2, @"after newFile")
+
+        ' Write some data
+        repeat i from 0 to 127
+            test_buffer[i] := "A" + (i // 26)
+        result := sd.write(@test_buffer, 128)
+        debug("  write(128 bytes) returned ", udec_(result))
+        r2 := sd.testCMD13()
+        reportR2(r2, @"after writeFile")
+
+        ' Close file
+        sd.closeFile()
+        debug("  closeFile() completed")
+        r2 := sd.testCMD13()
+        reportR2(r2, @"after closeFile")
+
+        ' Delete the test file
+        result := sd.deleteFile(@testfile)
+        debug("  deleteFile() returned ", sdec_(result))
+        r2 := sd.testCMD13()
+        reportR2(r2, @"after deleteFile")
+    else
+        debug("  newFile() FAILED")
+
+    ' =================================================================
+    ' Summary
+    ' =================================================================
+    debug(" ")
+    debug("==========================================================")
+    debug("  CMD13 Validation Test Complete")
+    debug("==========================================================")
+    debug(" ")
+    debug("  Key observations:")
+    debug("  - If all R2=$0000, CMD13 may not be working")
+    debug("  - OUT_OF_RANGE tests SHOULD show STATUS=$80")
+    debug(" ")
+
+    repeat                                                                      ' Halt
+
+PRI reportR2(r2, context)
+'' Display R2 response with interpretation
+    if r2 == $FFFF
+        debug("  >> R2=TIMEOUT ", zstr_(context))
+    elseif r2 == $0000
+        debug("  >> R2=$0000 (OK) ", zstr_(context))
+    else
+        debug("  >> R2=$", uhex_word_(r2), " (ERROR) ", zstr_(context))

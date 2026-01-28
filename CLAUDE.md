@@ -29,6 +29,49 @@ mcp__todo-mcp__context_resume
 
 When facing a problem with hardware features: STOP, THINK, DEBUG, UNDERSTAND. Don't take shortcuts that sacrifice the performance benefits we're trying to achieve.
 
+---
+
+## 🚫 ABSOLUTE PROHIBITION: NO REGRESSION TO SIMPLER IMPLEMENTATIONS
+
+**THIS HAS HAPPENED 3 TIMES IN THIS PROJECT. IT MUST NEVER HAPPEN AGAIN.**
+
+### FORBIDDEN Actions (will be rejected immediately):
+
+1. **NEVER remove streamer and replace with byte-by-byte loops**
+   - ❌ `repeat i from 0 to 511: buf[i] := sp_transfer_8($FF)`
+   - ✅ Keep streamer: `xinit stream_mode, init_phase` + `waitxfi`
+
+2. **NEVER remove smart pins and replace with bit-banging**
+   - ❌ `repeat bits: pin_write(), pin_read()` loops
+   - ✅ Keep smart pins: `P_SYNC_TX`, `P_SYNC_RX`, `P_TRANSITION`
+
+3. **NEVER add delays (waitms, waitus) as workarounds for timing issues**
+   - ❌ `waitus(10)` after operations "just in case"
+   - ✅ Understand the actual timing requirement and fix properly
+
+4. **NEVER change sampling modes without understanding why**
+   - ❌ Changing `%1_00111` (ON-edge) to `%0_00111` (PRE-edge) "to see if it helps"
+   - ✅ Use logic analyzer to understand actual signal timing first
+
+### REQUIRED Response When Hardware Features Fail:
+
+1. **STOP** - Do not write code yet
+2. **ASK** - "Should we use the logic analyzer to debug this?"
+3. **INVESTIGATE** - Understand root cause with evidence
+4. **FIX** - Address the actual problem, not symptoms
+5. **VERIFY** - Prove the fix works with tests
+
+### Why This Matters:
+
+- Streamer provides **4-5x throughput** vs byte loops
+- Smart pins provide **sysclk-independent timing**
+- These are the CORE VALUE of the V2 driver
+- Removing them defeats the entire purpose of this work
+
+**If you find yourself typing `repeat ... sp_transfer_8` for sector data, STOP IMMEDIATELY and ask the user for guidance.**
+
+---
+
 ## Languages & Tools
 
 - **Primary Language**: Spin2 (`.spin2` files) - the Propeller2 microcontroller language

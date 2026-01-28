@@ -464,6 +464,115 @@ See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` Tasks 1.8-1.10 for details.
 
 ---
 
+## Decision 10: Single Path for All Card Access (Worker Cog Exclusive)
+
+### The Question
+Should card access ever bypass the worker cog for "simple" or "raw" operations?
+
+### Background
+The driver has two entry points:
+- `mount()` - Full filesystem initialization
+- `initCardOnly()` - Raw sector access without filesystem parsing
+
+Originally, `initCardOnly()` bypassed the worker cog entirely, doing card initialization and subsequent operations directly from the calling cog. This created an architectural split where the same driver had two incompatible access patterns.
+
+### The Problem with Dual-Path Access
+
+```
+WRONG: Dual-path architecture
+──────────────────────────────────────────────────────────────────
+                                    ┌─────────────────────┐
+Cog0 calls initCardOnly() ─────────►│ Card (via Cog0)     │
+                                    │ Smart pins on Cog0  │
+                                    └─────────────────────┘
+
+Later, Cog1 calls mount() ─────────►┌─────────────────────┐
+                                    │ Worker on Cog1      │
+                                    │ Smart pins on Cog1  │ ← CONFLICT!
+                                    └─────────────────────┘
+```
+
+This caused:
+1. **Pin ownership conflicts** - Two cogs configure the same pins
+2. **Card state confusion** - Card initialized by Cog0, Cog1 tries to re-init
+3. **Code duplication** - `if cog_id <> -1` checks scattered everywhere
+4. **Testing surface doubled** - Two code paths to verify
+
+### Decision: ALL Card Access Through Worker Cog
+
+```
+CORRECT: Single-path architecture
+──────────────────────────────────────────────────────────────────
+                                    ┌─────────────────────────────┐
+                                    │      Worker Cog             │
+Cog0 calls initCardOnly() ─────────►│  - Owns SPI pins            │
+         or mount()                 │  - All card commands        │
+                                    │  - All sector I/O           │
+Cog1 calls file operations ────────►│  - CMD13 status tracking    │
+                                    │  - Mode enforcement         │
+                                    └─────────────────────────────┘
+```
+
+Both `initCardOnly()` and `mount()` start the worker cog. The difference:
+- `initCardOnly()` → Worker initializes card only (MODE_RAW)
+- `mount()` → Worker initializes card + parses filesystem (MODE_FILESYSTEM)
+
+### Mode Management
+
+```spin2
+CON
+  MODE_NONE       = 0    ' Not initialized
+  MODE_RAW        = 1    ' Raw sector access only
+  MODE_FILESYSTEM = 2    ' Full filesystem access
+
+DAT
+  driver_mode     BYTE    MODE_NONE
+```
+
+**Command Rejection by Mode:**
+
+| Command | MODE_NONE | MODE_RAW | MODE_FILESYSTEM |
+|---------|-----------|----------|-----------------|
+| `mount()` | Start worker + init | Allowed (upgrade) | Already mounted |
+| `initCardOnly()` | Start worker + init | Already initialized | REJECT |
+| `readSectorRaw()` | REJECT | Allowed | Allowed |
+| `writeSectorRaw()` | REJECT | Allowed | Allowed |
+| `openFile()` | REJECT | REJECT | Allowed |
+| `read()` / `write()` | REJECT | REJECT | Allowed |
+| `unmount()` | No-op | Stop worker | Close files, stop worker |
+
+**Mode Transitions:**
+
+| From | To | Allowed? | Method |
+|------|-----|----------|--------|
+| NONE → RAW | Yes | `initCardOnly()` |
+| NONE → FS | Yes | `mount()` |
+| RAW → FS | Yes | `mount()` - adds filesystem parsing |
+| FS → RAW | **No** | Must `unmount()` first, then `initCardOnly()` |
+| RAW → NONE | Yes | `unmount()` |
+| FS → NONE | Yes | `unmount()` |
+
+**Rationale for RAW → FS being allowed:**
+A diagnostic tool might examine raw sectors first, then switch to filesystem mode if the card appears healthy.
+
+**Rationale for FS → RAW being rejected:**
+If files are open, dropping to raw mode would corrupt the filesystem. Explicit unmount ensures proper cleanup.
+
+### Implementation Changes Required
+
+1. **`initCardOnly()`**: Start worker cog, send `CMD_INIT_CARD_ONLY` command
+2. **Remove "direct access" fallbacks**: Delete all `if cog_id == -1` branches that do direct card access
+3. **Add mode tracking**: Worker maintains `driver_mode`, rejects invalid commands
+4. **Format utility**: Works unchanged - uses `initCardOnly()` which now goes through worker
+5. **Verification tools**: Work unchanged - raw sector methods still available in MODE_RAW
+
+### Decision
+**ALL card hardware access goes through the worker cog. No exceptions.**
+
+This eliminates pin conflicts, simplifies testing, and enforces clean mode transitions.
+
+---
+
 ## Summary: Why This Architecture
 
 | Component | Decision | P2-Specific Reason |
