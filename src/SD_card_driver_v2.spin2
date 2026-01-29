@@ -221,6 +221,8 @@ DAT '' singleton control - SHARED across all object instances
   card_mfr_id   LONG    0               ' Manufacturer ID from CID (byte 0)
   card_max_speed_hz LONG 0              ' Maximum speed from CSD TRAN_SPEED (Hz)
   card_is_slow  LONG    0               ' Flag: 1 = card requires conservative timing (e.g., PNY)
+  card_read_timeout_ms  LONG  100       ' Read timeout in ms (from CSD or spec default)
+  card_write_timeout_ms LONG  500       ' Write timeout in ms (from CSD or spec default)
 
   ' ═══════════════════════════════════════════════════════════════════════
   ' PER-COG ERROR STORAGE (for thread-safe error reporting)
@@ -680,13 +682,15 @@ PRI do_close()                                                                  
   flags := flags & !F_NEWDATA & !F_NEWDIR & !F_OPEN
   file_idx := 0
 
-PRI do_read(p_buffer, count) : bytes_read | delta                               '' Internal read operation
+PRI do_read(p_buffer, count) : bytes_read | delta, sectors_to_boundary, full_sectors, multi_count, multi_read  '' Internal read operation
+  '' Optimized read with multi-sector support for improved throughput.
+  '' Uses CMD18 (readSectors) when reading 2+ full sequential sectors within a cluster.
   if (flags & F_OPEN) and not (attributes() & %0001_1110)
     count <#= (fileSize() - file_idx)
-    'debug("  [do_read] Reading sector ", udec_(n_sec), " sec_in_buf=", udec_(sec_in_buf))
-    readSector(n_sec, BUF_DATA)
-    'debug("  [do_read] After read buf[0..3]=", uhex_byte_(buf[0]), " ", uhex_byte_(buf[1]), " ", uhex_byte_(buf[2]), " ", uhex_byte_(buf[3]))
-    repeat while count > 0
+
+    ' Handle partial first sector (if not at sector boundary)
+    if (file_idx & 511) and count > 0
+      readSector(n_sec, BUF_DATA)
       delta := (512 - (file_idx & 511)) <# count
       bytemove(p_buffer, @buf + (file_idx & 511), delta)
       file_idx += delta
@@ -696,7 +700,48 @@ PRI do_read(p_buffer, count) : bytes_read | delta                               
       if file_idx & 511 == 0
         readNextSector(BUF_DATA)
 
-PRI do_write(p_buffer, count) | delta, temp                                     '' Internal write operation
+    ' Multi-sector optimization: read full sectors directly to user buffer
+    repeat while count >= 512
+      ' Calculate sectors remaining before cluster boundary
+      sectors_to_boundary := sec_per_clus - ((n_sec - cluster_offset) & (sec_per_clus - 1))
+      full_sectors := count >> 9                                                ' Number of full sectors needed
+      multi_count := sectors_to_boundary <# full_sectors                        ' Limit to cluster boundary
+
+      if multi_count >= 2
+        ' Multi-sector read directly to user buffer (more efficient)
+        multi_read := readSectors(n_sec, multi_count, p_buffer)
+        if multi_read > 0
+          file_idx += multi_read << 9
+          bytes_read += multi_read << 9
+          p_buffer += multi_read << 9
+          count -= multi_read << 9
+          n_sec += multi_read
+          sec_in_buf := -1                                                      ' Invalidate cache (we bypassed buf)
+          ' Check if we hit cluster boundary
+          if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0
+            followFatChain()                                                    ' Update n_sec to next cluster
+        else
+          quit                                                                  ' Error - exit loop
+      else
+        ' Single-sector read (for partial cluster or small reads)
+        readSector(n_sec, BUF_DATA)
+        bytemove(p_buffer, @buf, 512)
+        file_idx += 512
+        bytes_read += 512
+        p_buffer += 512
+        count -= 512
+        readNextSector(BUF_DATA)
+
+    ' Handle partial last sector
+    if count > 0
+      readSector(n_sec, BUF_DATA)
+      bytemove(p_buffer, @buf, count)
+      file_idx += count
+      bytes_read += count
+
+PRI do_write(p_buffer, count) | delta, temp, sectors_to_boundary, full_sectors, multi_count, multi_written  '' Internal write operation
+  '' Optimized write with multi-sector support for improved throughput.
+  '' Uses CMD25 (writeSectors) when writing 2+ full sequential sectors within a cluster.
   if (flags & F_OPEN) and (count > 0) and not (attributes() & %0001_1111)
     if fileSize() & (sec_per_clus << 9 - 1) == 0
       temp := firstCluster()
@@ -710,7 +755,9 @@ PRI do_write(p_buffer, count) | delta, temp                                     
       bytefill(@buf,0,512)
     else
       do_seek(fileSize())                                                       ' Use internal seek to avoid deadlock
-    repeat while count > 0
+
+    ' Handle partial first sector (if not at sector boundary)
+    if (file_idx & 511) and count > 0
       delta := (512 - (file_idx & 511)) <# count
       bytemove(@buf + (file_idx & 511), p_buffer, delta)
       sec_in_buf := n_sec
@@ -718,12 +765,56 @@ PRI do_write(p_buffer, count) | delta, temp                                     
       p_buffer += delta
       long[@entry_buffer + $1C] += delta
       count -= delta
-      if count > 0 and file_idx & 511 == 0
+      if file_idx & 511 == 0
         writeSector(n_sec++, BUF_DATA)
         bytefill(@buf,0,512)
         if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0
           temp := allocateCluster(sec2clus(n_sec-1))
           n_sec := clus2sec(temp)
+
+    ' Multi-sector optimization: write full sectors directly from user buffer
+    repeat while count >= 512
+      ' Calculate sectors remaining before cluster boundary
+      sectors_to_boundary := sec_per_clus - ((n_sec - cluster_offset) & (sec_per_clus - 1))
+      full_sectors := count >> 9                                                ' Number of full sectors to write
+      multi_count := sectors_to_boundary <# full_sectors                        ' Limit to cluster boundary
+
+      if multi_count >= 2
+        ' Multi-sector write directly from user buffer (more efficient)
+        multi_written := writeSectors(n_sec, multi_count, p_buffer)
+        if multi_written > 0
+          file_idx += multi_written << 9
+          long[@entry_buffer + $1C] += multi_written << 9
+          p_buffer += multi_written << 9
+          count -= multi_written << 9
+          n_sec += multi_written
+          sec_in_buf := -1                                                      ' Invalidate cache (we bypassed buf)
+          ' Check if we hit cluster boundary and need more writes
+          if count > 0 and ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0
+            temp := allocateCluster(sec2clus(n_sec-1))
+            n_sec := clus2sec(temp)
+        else
+          quit                                                                  ' Error - exit loop
+      else
+        ' Single-sector write (for partial cluster or small writes)
+        bytemove(@buf, p_buffer, 512)
+        writeSector(n_sec++, BUF_DATA)
+        file_idx += 512
+        long[@entry_buffer + $1C] += 512
+        p_buffer += 512
+        count -= 512
+        bytefill(@buf,0,512)
+        if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0
+          temp := allocateCluster(sec2clus(n_sec-1))
+          n_sec := clus2sec(temp)
+
+    ' Handle partial last sector
+    if count > 0
+      bytemove(@buf + (file_idx & 511), p_buffer, count)
+      sec_in_buf := n_sec
+      file_idx += count
+      long[@entry_buffer + $1C] += count
+
     flags |= F_NEWDATA
 
 PRI do_seek(pos) : result | cluster                                             '' Internal seek operation
@@ -1382,6 +1473,65 @@ PRI parseMfrId(p_cid) : mfr_id                                                  
   debug("  [parseMfrId] Manufacturer ID=$", uhex_byte_(mfr_id))
   return mfr_id
 
+PRI parseTimeouts(p_csd) | csd_ver, taac, nsac, r2w_factor, read_timeout_ns, time_val, time_unit  '' extract timeout values from CSD register
+'' Sets card_read_timeout_ms and card_write_timeout_ms based on CSD fields.
+'' For SDHC/SDXC (CSD v2.0): Uses SD spec mandated fixed values (100ms read, 250ms write).
+'' For SDSC (CSD v1.0): Calculates from TAAC, NSAC, and R2W_FACTOR.
+'' CSD byte layout: [0]=CSD_STRUCTURE, [1]=TAAC, [2]=NSAC, [12] bits 4:2=R2W_FACTOR
+
+  csd_ver := byte[p_csd] >> 6                                                   ' CSD_STRUCTURE in bits [7:6] of byte 0
+
+  if csd_ver == 1
+    ' CSD Version 2.0 (SDHC/SDXC): Use fixed timeouts per SD Physical Layer spec
+    card_read_timeout_ms := 100                                                 ' 100ms read timeout
+    card_write_timeout_ms := 250                                                ' 250ms write timeout
+    debug("  [parseTimeouts] SDHC/SDXC: read=", udec_(card_read_timeout_ms), "ms, write=", udec_(card_write_timeout_ms), "ms (fixed per spec)")
+  else
+    ' CSD Version 1.0 (SDSC): Calculate from TAAC, NSAC, R2W_FACTOR
+    taac := byte[p_csd + 1]                                                     ' Data read access time-1 (TAAC)
+    nsac := byte[p_csd + 2]                                                     ' Data read access time-2 (NSAC) in CLK cycles
+    r2w_factor := (byte[p_csd + 12] >> 2) & $07                                 ' R2W_FACTOR bits [4:2] of byte 12
+
+    ' Parse TAAC: time value in bits [6:3], time unit in bits [2:0]
+    case (taac >> 3) & $0F                                                      ' Time value multiplier
+      0:  time_val := 0                                                         ' Reserved
+      1:  time_val := 10
+      2:  time_val := 12
+      3:  time_val := 13
+      4:  time_val := 15
+      5:  time_val := 20
+      6:  time_val := 25
+      7:  time_val := 30
+      8:  time_val := 35
+      9:  time_val := 40
+      10: time_val := 45
+      11: time_val := 50
+      12: time_val := 55
+      13: time_val := 60
+      14: time_val := 70
+      15: time_val := 80
+
+    case taac & $07                                                             ' Time unit (nanoseconds)
+      0:  time_unit := 1                                                        ' 1 ns
+      1:  time_unit := 10                                                       ' 10 ns
+      2:  time_unit := 100                                                      ' 100 ns
+      3:  time_unit := 1_000                                                    ' 1 us
+      4:  time_unit := 10_000                                                   ' 10 us
+      5:  time_unit := 100_000                                                  ' 100 us
+      6:  time_unit := 1_000_000                                                ' 1 ms
+      7:  time_unit := 10_000_000                                               ' 10 ms
+
+    ' Read timeout = TAAC + NSAC * 100 (NSAC is in clock cycles / 100)
+    ' For safety, multiply by 100 to get worst-case timeout
+    read_timeout_ns := (time_val * time_unit) * 100                             ' Apply 100x safety factor
+    card_read_timeout_ms := (read_timeout_ns / 1_000_000) #> 100                ' Minimum 100ms
+
+    ' Write timeout = read timeout * 2^R2W_FACTOR
+    card_write_timeout_ms := (card_read_timeout_ms << r2w_factor) #> 250 <# 1000  ' Min 250ms, max 1000ms
+
+    debug("  [parseTimeouts] SDSC: TAAC=$", uhex_byte_(taac), " NSAC=", udec_(nsac), " R2W=", udec_(r2w_factor))
+    debug("  [parseTimeouts] SDSC: read=", udec_(card_read_timeout_ms), "ms, write=", udec_(card_write_timeout_ms), "ms")
+
 PRI identifyCard() | cid[4], csd[4]                                             '' read card identity and configure adaptive timing
 '' Reads CID and CSD registers, identifies card brand, and sets optimal SPI speed.
 '' Known slow cards (e.g., PNY with MID=$1D) get conservative 20 MHz timing.
@@ -1409,12 +1559,15 @@ PRI identifyCard() | cid[4], csd[4]                                             
     card_mfr_id := 0
     card_is_slow := false
 
-  ' Read CSD to get maximum speed
+  ' Read CSD to get maximum speed and timeouts
   if readCSD(@csd)
     card_max_speed_hz := parseTransSpeed(@csd)
+    parseTimeouts(@csd)
   else
     debug("  [identifyCard] WARNING: Could not read CSD")
     card_max_speed_hz := 25_000_000                                             ' Default to 25 MHz
+    card_read_timeout_ms := 100                                                 ' Safe defaults
+    card_write_timeout_ms := 500
 
 PRI setOptimalSpeed()                                                           '' set SPI speed based on card identification
 '' Called after identifyCard() to configure optimal SPI clock.
@@ -1597,6 +1750,16 @@ PUB getManufacturerID() : mid                                                   
 '' Returns the manufacturer ID (MID) from the CID register.
 '' Common IDs: $03=SanDisk, $1D=PNY/AData, $27=Samsung
   return card_mfr_id
+
+PUB getReadTimeout() : ms                                                       '' get read timeout from CSD
+'' Returns the read timeout in milliseconds as extracted from the CSD register.
+'' SDHC/SDXC: Fixed 100ms per spec. SDSC: Calculated from TAAC/NSAC fields.
+  return card_read_timeout_ms
+
+PUB getWriteTimeout() : ms                                                      '' get write timeout from CSD
+'' Returns the write timeout in milliseconds as extracted from the CSD register.
+'' SDHC/SDXC: Fixed 250ms per spec. SDSC: Calculated from read timeout * R2W_FACTOR.
+  return card_write_timeout_ms
 
 PUB isHighSpeedActive() : active                                                '' check if high-speed mode is active
 '' Returns true if card is running at 50 MHz.
@@ -2040,6 +2203,18 @@ PRI readNextSector(buf_type) | cluster, address, contents, p_buf                
       return                                                                    '    don't read invalid sector
     n_sec := clus2sec(contents)                                                 '   convert next cluster number into sector number
   readSector(n_sec, buf_type)
+
+PRI followFatChain() | cluster, address, contents                               '' follow FAT chain to next cluster (for multi-sector reads)
+  '' Called after multi-sector read lands exactly on cluster boundary.
+  '' Updates n_sec to first sector of next cluster in the chain.
+  '' n_sec is already pointing at the first sector of the NEW cluster boundary (one past current cluster).
+  cluster := sec2clus(n_sec - 1)                                                '  find cluster number of the sector we just finished reading
+  readSector(cluster >> 7 + fat_sec, BUF_FAT)                                   '  read sector of FAT containing cluster number
+  address := @fat_buf + ((cluster << 2) & 511)                                  '  find long within FAT buffer for current cluster
+  contents := long[address]                                                     '  read contents to determine next cluster number
+  if contents < $0FFF_FFF8                                                      '  if not end-of-chain marker
+    n_sec := clus2sec(contents)                                                 '   convert next cluster number into sector number
+  ' else: end-of-chain - n_sec stays invalid (caller should check file_idx against fileSize)
 
 CON     '' helper methods
 PRI byte2clus(byte_address) : result                                            '' convert byte address to cluster number
@@ -2505,7 +2680,7 @@ PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout
   cmd(17, sector << hcs)
 
   ' Wait for start token ($FE) - use sp_transfer_8 for token polling
-  timeout := getct() + clkfreq                                                  ' 1 second timeout
+  timeout := getct() + (clkfreq / 100) * card_read_timeout_ms                   ' CSD-based timeout with 10x margin
   loop_ctr := 0
   repeat
     data := sp_transfer_8($FF)
@@ -2764,7 +2939,7 @@ PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, cl
   ' Wait for card to finish programming (busy period)
   ' Card holds MISO LOW during internal flash write, releases to HIGH ($FF) when done
   ' CRITICAL for PNY: Keep CS LOW and keep clocking until we see stable $FF!
-  t := getct() + clkfreq / 2                                                    ' 500ms timeout per block (generous)
+  t := getct() + (clkfreq / 1000) * card_write_timeout_ms                       ' CSD-based timeout
   repeat
     resp := sp_transfer_8($FF)                                                  ' Clock 8 bits while reading MISO
     if resp == $FF                                                              ' Card released MISO = programming complete
@@ -2909,8 +3084,8 @@ PRI waitDataToken() : result | t, resp                                          
   '' Polls for $FE data token before sector data
   '' Returns: 0 on success (got $FE), -1 on timeout or error token
   '' Error tokens: $01-$0F indicate read errors
-  '' Timeout: 1 second (some cards are slow to start read)
-  t := getct() + clkfreq                                                        ' 1 second timeout
+  '' Timeout: Uses card_read_timeout_ms from CSD (minimum 100ms, with 10x safety factor)
+  t := getct() + (clkfreq / 100) * card_read_timeout_ms                         ' CSD-based timeout with 10x margin
   repeat
     resp := sp_transfer_8($FF)
     if resp == TOKEN_START_BLOCK                                                ' $FE = data coming
@@ -2942,9 +3117,9 @@ PRI waitDataResponse() : result | t, resp                                       
 PRI waitBusyComplete() : result | t, resp                                       '' wait for card to finish programming
   '' Polls until MISO returns $FF (card no longer busy)
   '' Returns: 0 on success, -1 on timeout
-  '' Timeout: 500ms (per SD spec, write can take up to 250ms typical, 500ms worst case)
+  '' Timeout: Uses card_write_timeout_ms from CSD (default 250ms for SDHC, calculated for SDSC)
   '' CRITICAL: Must keep clocking and CS LOW during busy period!
-  t := getct() + clkfreq / 2                                                    ' 500ms timeout
+  t := getct() + (clkfreq / 1000) * card_write_timeout_ms                       ' CSD-based timeout
   repeat
     resp := sp_transfer_8($FF)
     if resp == $FF                                                              ' Card released MISO = done

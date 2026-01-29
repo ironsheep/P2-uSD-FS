@@ -29,62 +29,28 @@ Project roadmap for SD card driver development and testing.
 - [x] Create performance benchmark suite
 - [x] Document baseline measurements
 
----
+### Phase 1: Smart Pin SPI (Complete - 2026-01-29)
+- [x] initSPIPins() - Configure P_TRANSITION, P_SYNC_TX, P_SYNC_RX
+- [x] setSPISpeed() - Sysclk-independent frequency control
+- [x] sp_transfer_8() - Smart pin byte transfer
+- [x] Streamer DMA for 512-byte sector reads/writes
+- [x] Full regression tests (129/129 passing)
 
-## Current Sprint: Driver Performance (Phase 1)
+### Phase 2: Adaptive Timing (Complete - 2026-01-29)
+- [x] CID manufacturer identification (PNY, SanDisk, Samsung)
+- [x] CSD TRAN_SPEED parsing for max speed
+- [x] CSD timeout extraction (TAAC, NSAC, R2W_FACTOR)
+- [x] Brand-specific speed limiting
+- [x] FAT performance optimization (incremental free count)
 
-**Status**: ACTIVE
-**Plan Document**: `PHASE1-SMARTPIN-SPI.md`
-**Sprint Plan**: `SPRINT-PLAN-driver-performance.md`
+### Phase 3: Multi-Sector Operations (Complete - 2026-01-29)
+- [x] readSectors() - CMD18 multi-block read
+- [x] writeSectors() - CMD25 multi-block write
+- [x] File API integration (do_read/do_write optimization)
+- [x] Cluster boundary handling with FAT chain following
+- [x] Performance verified: ~4x speedup over single-sector
 
-### Part A: Smart Pin Foundation
-- [ ] Task 1.1: initSPIPins() - Configure smart pin modes
-- [ ] Task 1.2: setSPISpeed() - Sysclk-independent frequency control
-- [ ] Task 1.3: sp_transfer() - Smart pin byte/word transfer
-- [ ] Task 1.7: Regression tests (partial)
-
-### Part B: Smart Pin Sector Operations
-- [ ] Task 1.4: sp_readSector() - Optimized 512-byte read
-- [ ] Task 1.5: sp_writeSector() - Optimized 512-byte write
-- [ ] Task 1.6: Integration with initCard()
-- [ ] Task 1.7: Full regression tests
-
-### Part C: Multi-Block Operations
-- [ ] Task 1.8: readSectors() - CMD18 multi-block read
-- [ ] Task 1.9: writeSectors() - CMD25 multi-block write
-- [ ] Task 1.10: Multi-block benchmark
-
-### Performance Targets
-
-| Metric | Baseline | Target |
-|--------|----------|--------|
-| Read 256KB | 1,467 KB/s | 4,000+ KB/s |
-| Write 32KB | 425 KB/s | 1,200+ KB/s |
-| SPI Clock | ~20 MHz | 25-50 MHz |
-
----
-
-## Future Phases
-
-### Phase 2: Adaptive Speed Control
-**Status**: Planned (from SPRINT-PLAN-driver-performance.md)
-
-- [ ] Automatic card speed detection
-- [ ] Per-card speed profiles
-- [ ] Runtime speed adjustment on errors
-- [ ] Speed validation tests
-
-### Phase 3: Sequential I/O Optimization
-**Status**: Planned
-
-- [ ] Integrate multi-block into file read/write
-- [ ] Read-ahead caching for sequential access
-- [ ] Write coalescing for small writes
-- [ ] Cluster-aligned buffer strategy
-
-### Phase 4: Format Utility
-**Status**: Complete (2026-01-28)
-
+### Phase 4: Format Utility (Complete - 2026-01-28)
 - [x] Add CMD9 (SEND_CSD) to read card capacity
 - [x] Implement FAT32 parameter calculations
 - [x] Write MBR, VBR, FSInfo, backup boot sector
@@ -92,7 +58,33 @@ Project roadmap for SD card driver development and testing.
 - [x] FAT32 audit tool for validation
 - [x] 46 format validation tests passing
 
-### Phase 5: Safe FSCK Utility
+---
+
+## Current Status
+
+**V2 Driver Certification**: PASS (129/129 tests at 320 MHz)
+
+| Test Suite | Pass | Total |
+|------------|------|-------|
+| Mount | 17 | 17 |
+| File Ops | 24 | 24 |
+| Read/Write | 30 | 30 |
+| Directory | 22 | 22 |
+| Seek | 36 | 36 |
+
+---
+
+## Future Phases
+
+### Phase 5: Multiple File Handles (Deferred)
+**Status**: Future (user requested deferral)
+
+- [ ] Handle table in DAT section (8 handles)
+- [ ] Refactor do_open/close/read/write/seek for handle parameter
+- [ ] Handle allocation/deallocation logic
+- [ ] Multi-cog file independence
+
+### Phase 6: Safe FSCK Utility
 **Status**: Future
 
 Create a filesystem check/repair utility for SD cards:
@@ -103,18 +95,14 @@ Create a filesystem check/repair utility for SD cards:
 - [ ] Recalculate and fix FSInfo free cluster count
 - [ ] Update FSInfo next-free cluster hint
 - [ ] Validate and fix directory . and .. entries
-- [ ] (Advanced) Detect and report lost clusters
-- [ ] (Advanced) Detect and report cross-linked files
 
-**Note**: Start with "safe fixes" (backup sync, FAT sync, free count) that cover 90% of real-world corruption. Advanced fixes (lost clusters, cross-links) require full FAT scan and are more complex.
-
-### Phase 6: Advanced Features
+### Phase 7: Advanced Features
 **Status**: Future
 
 - [ ] Long filename (LFN) support
 - [ ] Read-ahead caching
 - [ ] Write-back caching
-- [ ] Multiple file handles
+- [ ] High-Speed mode (50 MHz via CMD6)
 
 ---
 
@@ -124,23 +112,17 @@ Create a filesystem check/repair utility for SD cards:
 | Document | Purpose |
 |----------|---------|
 | `ROADMAP.md` | High-level project timeline (this file) |
-| `SPRINT-PLAN-driver-performance.md` | Current sprint overview |
-| `PHASE1-SMARTPIN-SPI.md` | Detailed Phase 1 implementation plan |
-
-### Decisions
-| Document | Purpose |
-|----------|---------|
-| `ARCHITECTURE-DECISIONS.md` | Core architectural choices |
-| `TECHNICAL-DECISIONS.md` | Technical research and decisions |
-| `SD-Driver-Improvements.md` | Issue tracking and fixes |
+| `SPRINT-PLAN-driver-performance.md` | Performance sprint details |
+| `PHASE1-SMARTPIN-SPI.md` | Phase 1 implementation plan |
 
 ### Reference
 | Document | Purpose |
 |----------|---------|
-| `THEORY-OF-OPERATIONS.md` | How the driver works |
+| `V2-THEORY-OF-OPERATIONS.md` | V2 driver architecture and internals |
+| `V2-DRIVER-CERTIFICATION-STATUS.md` | Test results and certification |
+| `THEORY-OF-OPERATIONS.md` | V1 driver (historical) |
 | `BENCHMARK-RESULTS.md` | Performance measurements |
 | `CARD-CATALOG.md` | SD card compatibility data |
-| `SPI_SD_Implementation_Reference.md` | Protocol reference |
 
 ---
 
@@ -148,14 +130,15 @@ Create a filesystem check/repair utility for SD cards:
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Baseline documented | 2026-01-21 | ✅ Complete |
-| Phase 1 plan approved | 2026-01-21 | ✅ Complete |
-| Smart Pin SPI working | TBD | 🔄 In Progress |
-| Multi-block working | TBD | 🔄 In Progress |
-| 4 MB/s read achieved | TBD | ⏳ Pending |
-| Format utility complete | 2026-01-28 | ✅ Complete |
-| Safe FSCK utility | TBD | ⏳ Future |
+| Baseline documented | 2026-01-21 | Complete |
+| Phase 1 (Smart Pin SPI) | 2026-01-29 | Complete |
+| Phase 2 (Adaptive Timing) | 2026-01-29 | Complete |
+| Phase 3 (Multi-Sector) | 2026-01-29 | Complete |
+| Phase 4 (Format Utility) | 2026-01-28 | Complete |
+| V2 Driver Certified | 2026-01-29 | Complete (129/129 tests) |
+| Phase 5 (Multiple Handles) | TBD | Deferred |
+| Phase 6 (FSCK Utility) | TBD | Future |
 
 ---
 
-*Last updated: 2026-01-28*
+*Last updated: 2026-01-29*

@@ -1,5 +1,8 @@
 # SD Card Driver - Theory of Operations
 
+> **HISTORICAL DOCUMENT**: This describes the V1 driver (`SD_card_driver.spin2`).
+> For the current V2 driver with smart pins and streamer DMA, see `V2-THEORY-OF-OPERATIONS.md`.
+
 ## Overview
 
 This is an **SPI-mode only** SD card driver for the Parallax Propeller 2. The driver uses a dedicated worker cog to handle all SD card I/O, providing thread-safe access from multiple application cogs.

@@ -72,12 +72,12 @@ PUB go() | result, pFilename, fileSize, attrs
     utils.startTest(@"Write some content to new file")
     result := sd.writeString(@testContent1)
     debug("  writeString(): wrote ", udec_(strsize(@testContent1)), " bytes")
-    debug("   -> pass")
+    utils.recordPass()
 
     utils.startTest(@"closeFile() saves the file")
     sd.closeFile()
     debug("  closeFile(): completed")
-    debug("   -> pass")
+    utils.recordPass()
 
     utils.startTest(@"newFile() fails if file already exists")
     result := sd.newFile(@testfile1)
@@ -108,7 +108,7 @@ PUB go() | result, pFilename, fileSize, attrs
     utils.startTest(@"closeFile() on open file")
     sd.closeFile()
     debug("  closeFile(): completed")
-    debug("   -> pass")
+    utils.recordPass()
 
     utils.startTest(@"openFile() fails for non-existent file")
     result := sd.openFile(@"NOEXIST.TXT")
