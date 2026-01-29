@@ -22,6 +22,8 @@
 
 CON
 
+    DEBUG_DISABLE = 1   ' Disable debug in this file to reduce debug record count
+
     ' FAT32 constants
     BYTES_PER_SECTOR    = 512
     RESERVED_SECTORS    = 32        ' Standard for FAT32

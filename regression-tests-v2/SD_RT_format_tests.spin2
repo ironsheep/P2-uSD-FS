@@ -273,22 +273,22 @@ PUB go() | result, dataStart, fat1Start, fat2Start, idx, mismatch, cardSectors
     fat1Start := partitionStart + 32
     fat2Start := fat1Start + sectorsPerFat
 
-    utils.startTest(@"FAT1 first sector entries")
+    ' Read FAT1 first sector for multiple tests
     sd.readSectorRaw(fat1Start, @buf)
 
-    ' FAT[0] = media type with high bits set
+    utils.startTest(@"FAT[0] media type entry")
     result := LONG[@buf + 0]
     utils.evaluateBool(result == $0FFFFFF8, @"FAT[0] = $0FFFFFF8", true)
 
-    ' FAT[1] = end of chain marker
+    utils.startTest(@"FAT[1] end of chain marker")
     result := LONG[@buf + 4]
     utils.evaluateBool(result == $0FFFFFFF, @"FAT[1] = $0FFFFFFF (EOC)", true)
 
-    ' FAT[2] = root directory end of chain
+    utils.startTest(@"FAT[2] root directory EOC")
     result := LONG[@buf + 8]
     utils.evaluateBool(result == $0FFFFFFF, @"FAT[2] = $0FFFFFFF (root EOC)", true)
 
-    ' FAT[3] onwards should be 0 (free)
+    utils.startTest(@"FAT[3] first free cluster")
     result := LONG[@buf + 12]
     utils.evaluateBool(result == 0, @"FAT[3] = 0 (free)", true)
 

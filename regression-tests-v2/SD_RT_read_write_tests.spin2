@@ -86,10 +86,7 @@ PUB go() | result, bytesRead, idx, fileSize
             sd.writeByte(idx)
         sd.closeFile()
         debug("  Wrote 10 bytes (1-10)")
-        debug("   -> pass")
-    else
-        debug("  ERROR: Could not create file")
-        debug("   -> FAIL")
+    utils.evaluateBool(result, @"newFile + writeByte", true)
 
     utils.startTest(@"read() - read back 10 bytes")
     result := sd.openFile(@testBytes)
@@ -115,25 +112,20 @@ PUB go() | result, bytesRead, idx, fileSize
     result := sd.newFile(@testString)
     utils.evaluateBool(result, @"newFile()", true)
 
-    utils.startTest(@"Write first string")
+    ' Write all strings to file (setup for verification)
     sd.writeString(@testStr1)
     sd.writeByte(13)  ' CR
     sd.writeByte(10)  ' LF
     debug("  Wrote: ", zstr_(@testStr1))
-    debug("   -> pass")
 
-    utils.startTest(@"Write second string")
     sd.writeString(@testStr2)
     sd.writeByte(13)
     sd.writeByte(10)
     debug("  Wrote: ", zstr_(@testStr2))
-    debug("   -> pass")
 
-    utils.startTest(@"Write third string")
     sd.writeString(@testStr3)
     sd.closeFile()
     debug("  Wrote: ", zstr_(@testStr3))
-    debug("   -> pass")
 
     utils.startTest(@"Read back and verify content")
     result := sd.openFile(@testString)
@@ -158,16 +150,16 @@ PUB go() | result, bytesRead, idx, fileSize
     result := sd.newFile(@testPattern)
     utils.evaluateBool(result, @"newFile()", true)
 
-    utils.startTest(@"Write buffer with pattern $A0-$FF, $00-$9F")
+    ' Write buffer (setup for verification)
     sd.write(@writeBuffer, 256)
     sd.closeFile()
     debug("  Wrote 256 bytes")
-    debug("   -> pass")
 
     utils.startTest(@"Read back buffer")
     result := sd.openFile(@testPattern)
     utils.evaluateBool(result, @"openFile()", true)
 
+    utils.startTest(@"Verify bytes read count")
     bytesRead := sd.read(@readBuffer, 256)
     utils.evaluateSingleValue(bytesRead, @"bytes read", 256)
 
@@ -188,10 +180,10 @@ PUB go() | result, bytesRead, idx, fileSize
     result := sd.newFile(@testLarge)
     utils.evaluateBool(result, @"newFile()", true)
 
+    ' Write large buffer (setup for verification)
     sd.write(@largeWriteBuf, LARGE_BUFFER_SIZE)
     sd.closeFile()
     debug("  Wrote ", udec_(LARGE_BUFFER_SIZE), " bytes")
-    debug("   -> pass")
 
     utils.startTest(@"Read back 2KB file")
     result := sd.openFile(@testLarge)
@@ -219,11 +211,11 @@ PUB go() | result, bytesRead, idx, fileSize
     result := sd.newFile(@testMulti)
     utils.evaluateBool(result, @"newFile()", true)
 
+    ' Write first chunk (setup for verification)
     utils.fillBufferWithValue(@writeBuffer, 100, $AA)
     sd.write(@writeBuffer, 100)
     sd.closeFile()
     debug("  Wrote 100 bytes of $AA")
-    debug("   -> pass")
 
     utils.startTest(@"Reopen and append more data")
     ' Note: SD driver opens at end for writing
@@ -245,26 +237,23 @@ PUB go() | result, bytesRead, idx, fileSize
     result := sd.newFile(@testPattern)
     utils.evaluateBool(result, @"newFile()", true)
 
-    utils.startTest(@"Write first chunk")
+    ' Write first chunk (setup)
     utils.fillBufferWithValue(@writeBuffer, 100, $11)
     sd.write(@writeBuffer, 100)
     debug("  Wrote 100 bytes of $11")
-    debug("   -> pass")
 
     utils.startTest(@"Call sync() to flush without close")
     result := sd.sync()
     utils.evaluateBool(result, @"sync()", true)
 
-    utils.startTest(@"Write second chunk")
+    ' Write second chunk (setup)
     utils.fillBufferWithValue(@writeBuffer, 100, $22)
     sd.write(@writeBuffer, 100)
     debug("  Wrote 100 bytes of $22")
-    debug("   -> pass")
 
-    utils.startTest(@"Close file")
+    ' Close file (setup)
     sd.closeFile()
     debug("  closeFile(): completed")
-    debug("   -> pass")
 
     utils.startTest(@"Verify total file size")
     result := sd.openFile(@testPattern)

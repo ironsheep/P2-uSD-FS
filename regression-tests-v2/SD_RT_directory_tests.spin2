@@ -145,9 +145,8 @@ PUB go() | result, pEntry, pFilename, attrs, fileCount, idx
     sd.closeFile()
 
     utils.startTest(@"Ensure back at root after path operations")
-    sd.changeDirectory(@"/")
-    debug("  Changed to root")
-    debug("   -> pass")
+    result := sd.changeDirectory(@"/")
+    utils.evaluateBool(result, @"changeDirectory(/)", true)
 
     ' ----------------------------------
     ' TEST GROUP: Directory listing

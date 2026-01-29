@@ -83,14 +83,32 @@ Project roadmap for SD card driver development and testing.
 - [ ] Cluster-aligned buffer strategy
 
 ### Phase 4: Format Utility
+**Status**: Complete (2026-01-28)
+
+- [x] Add CMD9 (SEND_CSD) to read card capacity
+- [x] Implement FAT32 parameter calculations
+- [x] Write MBR, VBR, FSInfo, backup boot sector
+- [x] Initialize FAT tables and root directory
+- [x] FAT32 audit tool for validation
+- [x] 46 format validation tests passing
+
+### Phase 5: Safe FSCK Utility
 **Status**: Future
 
-- [ ] Add CMD9 (SEND_CSD) to read card capacity
-- [ ] Implement FAT32 parameter calculations
-- [ ] Write MBR, VBR, FSInfo, backup boot sector
-- [ ] Initialize FAT tables and root directory
+Create a filesystem check/repair utility for SD cards:
 
-### Phase 5: Advanced Features
+- [ ] Sync backup VBR with primary VBR
+- [ ] Sync backup FSInfo with primary FSInfo
+- [ ] Sync FAT2 with FAT1
+- [ ] Recalculate and fix FSInfo free cluster count
+- [ ] Update FSInfo next-free cluster hint
+- [ ] Validate and fix directory . and .. entries
+- [ ] (Advanced) Detect and report lost clusters
+- [ ] (Advanced) Detect and report cross-linked files
+
+**Note**: Start with "safe fixes" (backup sync, FAT sync, free count) that cover 90% of real-world corruption. Advanced fixes (lost clusters, cross-links) require full FAT scan and are more complex.
+
+### Phase 6: Advanced Features
 **Status**: Future
 
 - [ ] Long filename (LFN) support
@@ -135,7 +153,9 @@ Project roadmap for SD card driver development and testing.
 | Smart Pin SPI working | TBD | 🔄 In Progress |
 | Multi-block working | TBD | 🔄 In Progress |
 | 4 MB/s read achieved | TBD | ⏳ Pending |
+| Format utility complete | 2026-01-28 | ✅ Complete |
+| Safe FSCK utility | TBD | ⏳ Future |
 
 ---
 
-*Last updated: 2026-01-21*
+*Last updated: 2026-01-28*

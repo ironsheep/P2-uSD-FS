@@ -19,6 +19,8 @@
   debug(zstr(@buffer))
 }}
 CON  '' flags
+  DEBUG_DISABLE = 1   ' Disable debug in driver to reduce debug record count
+
   F_OPEN    = decod 0
   F_NEWDIR  = decod 1
   F_NEWDATA = decod 2
@@ -1461,10 +1463,11 @@ PRI updateFSInfo() : result | free_count                                        
   long[@buf + 488] := free_count                                                '  FSI_Free_Count
   long[@buf + 492] := fsi_nxt_free                                              '  FSI_Nxt_Free (keep cached value)
 
-  ' Write updated FSInfo sector
+  ' Write updated FSInfo sector (primary at sector 1, backup at sector 7)
   writeSector(vbr_sec + fsinfo_sec, BUF_DATA)
+  writeSector(vbr_sec + 7, BUF_DATA)                                            '  backup FSInfo at sector 7
   fsi_free_count := free_count                                                  '  update cached value
-  debug("  [updateFSInfo] Updated: free_count=", udec(free_count))
+  debug("  [updateFSInfo] Updated primary+backup: free_count=", udec(free_count))
   return true
 
 PRI countFreeClusters() : count | fat_idx, entry                                '' count free clusters in FAT

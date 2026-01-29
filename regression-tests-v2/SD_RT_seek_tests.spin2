@@ -63,22 +63,19 @@ PUB go() | result, bytesRead, idx, fileSize, expectedByte, actualByte
     ' ----------------------------------
     utils.startTestGroup(@"Create Test File")
 
-    ' Fill buffer with pattern: each byte = position & $FF
-    utils.startTest(@"Fill buffer with position pattern")
+    ' Fill buffer with pattern: each byte = position & $FF (setup)
     repeat idx from 0 to TEST_FILE_SIZE - 1
         writeBuffer[idx] := idx & $FF
     debug("  Buffer filled with position pattern (0-255 repeating)")
-    debug("   -> pass")
 
     utils.startTest(@"Create test file with 2048 bytes")
     result := sd.newFile(@testSeek)
     utils.evaluateBool(result, @"newFile()", true)
 
-    utils.startTest(@"Write test data")
+    ' Write test data and close (setup)
     sd.write(@writeBuffer, TEST_FILE_SIZE)
     sd.closeFile()
     debug("  Wrote ", udec_(TEST_FILE_SIZE), " bytes")
-    debug("   -> pass")
 
     utils.startTest(@"Verify file size")
     result := sd.openFile(@testSeek)
