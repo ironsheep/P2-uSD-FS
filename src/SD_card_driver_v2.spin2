@@ -37,6 +37,7 @@ CON '' command codes for worker cog
   CMD_UNMOUNT   = 2         ' Unmount filesystem
   CMD_INIT_CARD_ONLY = 22   ' Initialize card without filesystem (raw mode)
   CMD_GET_CARD_SIZE  = 23   ' Get card size in sectors: returns in data0
+  CMD_READ_SCR       = 24   ' Read SCR register: param0=buffer ptr
   CMD_OPEN      = 3         ' Open file: param0=filename ptr
   CMD_CLOSE     = 4         ' Close file
   CMD_READ      = 5         ' Read: param0=buffer ptr, param1=count
@@ -448,6 +449,9 @@ PRI fs_worker() | cur_cmd                                                       
         pb_data0 := do_get_card_size()
         pb_status := SUCCESS
 
+      CMD_READ_SCR:
+        pb_status := do_read_scr(pb_param0)
+
       other:
         debug("  [fs_worker] Unknown command: ", udec_(cur_cmd))
         pb_status := E_BAD_RESPONSE
@@ -631,6 +635,18 @@ PRI do_get_card_size() : result | csd[4], c_size, read_bl_len, c_size_mult      
     c_size |= csd.byte[9]
     result := (c_size + 1) << 10                                                ' * 1024 sectors (512KB units)
     debug("  [do_get_card_size] CSD v2.0: ", udec(result), " sectors")
+
+PRI do_read_scr(p_buf) : result                                                 '' Internal read SCR operation
+'' Reads the 8-byte SCR register into the provided buffer.
+'' Runs on worker cog where smart pins are configured.
+'' @param p_buf - pointer to 8-byte buffer to receive SCR data
+'' @return SUCCESS on success, error code on failure
+  if readSCR(p_buf)
+    debug("  [do_read_scr] SCR read successfully")
+    return SUCCESS
+  else
+    debug("  [do_read_scr] SCR read failed")
+    return E_IO_ERROR
 
 PRI do_open(name_ptr) : result | search_result                                  '' Internal open file operation
   do_close()
@@ -1196,15 +1212,18 @@ PUB readCSDRaw(p_buf) : result                                                  
   else
     debug("  [readCSDRaw] CSD read FAILED")
 
-PUB readSCRRaw(p_buf) : result                                                  '' read SCR register (8 bytes) into buffer
+PUB readSCRRaw(p_buf) : result | status                                         '' read SCR register (8 bytes) into buffer
 '' Reads the SD Configuration Register containing SD spec version and bus widths.
+'' Routes through worker cog which owns the SPI pins.
 '' @param p_buf - pointer to 8-byte buffer to receive SCR data
 '' @return true on success, false on failure
-  result := readSCR(p_buf)
-  if result
+  status := send_command(CMD_READ_SCR, p_buf, 0, 0, 0)
+  if status == SUCCESS
     debug("  [readSCRRaw] SCR read successfully")
+    result := true
   else
     debug("  [readSCRRaw] SCR read FAILED")
+    result := false
 
 PUB getOCR() : ocr                                                              '' get cached OCR register value
 '' Returns the Operating Conditions Register cached during card initialization.
@@ -1411,11 +1430,205 @@ PRI setOptimalSpeed()                                                           
       setSPISpeed(card_max_speed_hz)
     debug("  [setOptimalSpeed] Set to card's max speed (up to 25 MHz)")
 
+CON '' High-Speed Mode Support (50 MHz via CMD6)
+
+PRI sendCMD6(arg, p_status) : result | t, i                                     '' send CMD6 (SWITCH_FUNC) and receive 64-byte status
+'' Sends CMD6 with specified argument and reads 64-byte status structure.
+'' arg format: [31]=mode (0=check, 1=switch), [3:0]=function group 1 selection
+'' Returns true on success, false on failure/timeout.
+  sp_transfer_8($FF)
+  pinl(cs)
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 6)                                                        '  CMD6 = SWITCH_FUNC
+  sp_transfer(arg, 32)                                                          '  argument
+  sp_transfer_8($FF)                                                            '  CRC (not checked in SPI mode)
+
+  ' Wait for R1 response
+  t := getct() + clkfreq
+  repeat
+    result := sp_transfer_8($FF)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      debug("  [sendCMD6] Timeout waiting for R1")
+      pinh(cs)
+      return false
+
+  if result <> $00
+    debug("  [sendCMD6] R1 error: $", uhex_byte_(result))
+    pinh(cs)
+    return false
+
+  ' Wait for data token ($FE)
+  t := getct() + clkfreq
+  repeat
+    result := sp_transfer_8($FF)
+    if result == $FE
+      quit
+    if getct() - t > 0
+      debug("  [sendCMD6] Timeout waiting for data token")
+      pinh(cs)
+      return false
+
+  ' Read 64 bytes of status data
+  repeat i from 0 to 63
+    byte[p_status + i] := sp_transfer_8($FF)
+
+  ' Read and discard 2-byte CRC
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
+
+  pinh(cs)
+  return true
+
+PRI queryHighSpeedSupport() : result | scr[2], status[16], sd_spec              '' check if card supports high-speed mode
+'' Checks SCR for CMD6 support, then queries function group 1.
+'' Returns true if high-speed (50 MHz) is supported.
+  debug("  [queryHighSpeedSupport] Checking card capabilities...")
+
+  ' First check SCR for CMD6 support (SD 2.0+ cards support CMD6)
+  if not readSCR(@scr)
+    debug("  [queryHighSpeedSupport] Failed to read SCR")
+    return false
+
+  sd_spec := scr.byte[0] & $0F                                                  '  SD_SPEC in bits [3:0]
+  debug("  [queryHighSpeedSupport] SD_SPEC=", udec_(sd_spec))
+  if sd_spec < 2
+    debug("  [queryHighSpeedSupport] Card is SD 1.x - CMD6 not supported")
+    return false
+  debug("  [queryHighSpeedSupport] Card is SD 2.0+ - CMD6 supported")
+
+  ' Query function group 1 using CMD6 mode 0 (check)
+  ' Argument: 0x00FFFFF1 = check mode, access function group 1, query high-speed
+  if not sendCMD6($00FFFFF1, @status)
+    debug("  [queryHighSpeedSupport] CMD6 query failed")
+    return false
+
+  ' Status bytes 12-13 contain function group 1 support bits
+  ' Bit 1 of byte 13 indicates high-speed support
+  if (status.byte[13] & $02) == 0
+    debug("  [queryHighSpeedSupport] High-speed function not supported")
+    return false
+
+  debug("  [queryHighSpeedSupport] High-speed (50 MHz) IS SUPPORTED")
+  return true
+
+PRI switchToHighSpeed() : result | status[16]                                   '' switch card to high-speed mode
+'' Sends CMD6 to switch to high-speed mode (function group 1 = 1).
+'' Returns true if switch succeeded.
+  debug("  [switchToHighSpeed] Sending CMD6 switch command...")
+
+  ' Switch to high-speed using CMD6 mode 1 (switch)
+  ' Argument: 0x80FFFFF1 = switch mode, access function group 1, select high-speed
+  if not sendCMD6($80FFFFF1, @status)
+    debug("  [switchToHighSpeed] CMD6 switch failed")
+    return false
+
+  ' Verify switch succeeded - check function group 1 selection in status
+  ' Byte 16, bits 3:0 should be 1 (high-speed selected)
+  if (status.byte[16] & $0F) <> 1
+    debug("  [switchToHighSpeed] Switch not accepted, status=$", uhex_byte_(status.byte[16]))
+    return false
+
+  debug("  [switchToHighSpeed] Successfully switched to high-speed mode")
+  return true
+
+PUB attemptHighSpeed() : hs_ok | test_buf[128], verify_buf[128], i, mismatch    '' attempt to enable 50 MHz high-speed mode
+'' Attempts to switch card to 50 MHz high-speed mode with verification.
+'' Queries card capability, switches mode, then verifies with sector read/write.
+'' Returns true if 50 MHz is active, false if fell back to 25 MHz.
+'' Safe to call - will not break operation on failure.
+  debug("  [attemptHighSpeed] Attempting high-speed mode...")
+
+  ' Skip if card is known to be slow (e.g., PNY)
+  if card_is_slow
+    debug("  [attemptHighSpeed] Skipped - card flagged as slow")
+    return false
+
+  ' Check if card supports high-speed
+  if not queryHighSpeedSupport()
+    debug("  [attemptHighSpeed] Card does not support high-speed")
+    return false
+
+  ' Switch to high-speed mode
+  if not switchToHighSpeed()
+    debug("  [attemptHighSpeed] Failed to switch to high-speed")
+    return false
+
+  ' Set 50 MHz SPI clock
+  setSPISpeed(50_000_000)
+  debug("  [attemptHighSpeed] SPI set to 50 MHz, verifying...")
+
+  ' Verify by reading a sector, writing it back, reading again
+  ' Use root directory sector as test (always valid after mount)
+  readSector(root_sec, BUF_DATA)
+  longmove(@test_buf, @buf, 128)                                                ' Copy 512 bytes
+
+  writeSector(root_sec, BUF_DATA)                                               ' Write same data back
+  bytefill(@buf, $AA, 512)                                                      ' Clear buffer with pattern
+
+  readSector(root_sec, BUF_DATA)                                                ' Read again
+  longmove(@verify_buf, @buf, 128)
+
+  ' Compare
+  mismatch := 0
+  repeat i from 0 to 127
+    if test_buf[i] <> verify_buf[i]
+      mismatch++
+
+  if mismatch > 0
+    debug("  [attemptHighSpeed] VERIFICATION FAILED - ", udec_(mismatch), " long mismatches")
+    debug("  [attemptHighSpeed] Falling back to 25 MHz")
+    setSPISpeed(25_000_000)
+    return false
+
+  debug("  [attemptHighSpeed] VERIFIED - 50 MHz high-speed mode ACTIVE")
+  return true
+
+PUB getSPIFrequency() : hz                                                      '' get current SPI clock frequency
+'' Returns the current SPI clock frequency in Hz.
+  return spi_freq
+
+PUB getCardMaxSpeed() : hz                                                      '' get card's reported maximum speed
+'' Returns the card's maximum speed from CSD TRAN_SPEED field in Hz.
+  return card_max_speed_hz
+
+PUB getManufacturerID() : mid                                                   '' get card manufacturer ID
+'' Returns the manufacturer ID (MID) from the CID register.
+'' Common IDs: $03=SanDisk, $1D=PNY/AData, $27=Samsung
+  return card_mfr_id
+
+PUB isHighSpeedActive() : active                                                '' check if high-speed mode is active
+'' Returns true if card is running at 50 MHz.
+  return spi_freq >= 50_000_000
+
+PUB checkCMD6Support() : supported | scr[2], sd_spec                            '' check if card supports CMD6 command
+'' Reads SCR and checks if CMD6 is supported.
+'' CMD6 is supported by all SD 2.0 and later cards (SD_SPEC >= 2).
+'' Routes through worker cog which owns the SPI pins.
+'' Returns true if CMD6 is available.
+  if not readSCRRaw(@scr)
+    debug("  [checkCMD6Support] Failed to read SCR")
+    return false
+  sd_spec := scr.byte[0] & $0F                                                  '  SD_SPEC in bits [3:0]
+  debug("  [checkCMD6Support] SCR: $", uhex_byte_(scr.byte[0]), " $", uhex_byte_(scr.byte[1]), " SD_SPEC=", udec_(sd_spec))
+  return sd_spec >= 2                                                           '  CMD6 supported in SD 2.0+
+
+PUB checkHighSpeedCapability() : capable | status[16]                           '' check if card reports high-speed capability
+'' Queries function group 1 using CMD6 mode 0 (check without switch).
+'' Returns true if high-speed function is supported.
+'' Requires CMD6 support - call checkCMD6Support() first.
+  if not sendCMD6($00FFFFF1, @status)
+    return false
+  return (status.byte[13] & $02) <> 0
+
 PRI readSCR(p_scr) : result | t, i                                              '' read SCR register using ACMD51
 '' Reads the 8-byte SCR (SD Configuration Register) into p_scr buffer
 '' Requires CMD55 prefix before ACMD51
 '' Returns true on success, false on failure
 '' Uses smart pin operations (sp_transfer_8) for compatibility with smart pin SPI mode
+
+  debug("  [readSCR] Starting SCR read sequence")
 
   ' Send CMD55 (APP_CMD) first
   sp_transfer_8($FF)
@@ -1432,10 +1645,13 @@ PRI readSCR(p_scr) : result | t, i                                              
     if result <> $FF
       quit
     if getct() - t > 0
+      debug("  [readSCR] CMD55 timeout - no response")
       pinh(cs)
       return false
 
+  debug("  [readSCR] CMD55 response: $", uhex_byte_(result))
   if result > $01                                                               '  Accept $00 or $01 (idle)
+    debug("  [readSCR] CMD55 error response")
     pinh(cs)
     return false
 
@@ -1456,10 +1672,13 @@ PRI readSCR(p_scr) : result | t, i                                              
     if result <> $FF
       quit
     if getct() - t > 0
+      debug("  [readSCR] ACMD51 timeout - no response")
       pinh(cs)
       return false
 
+  debug("  [readSCR] ACMD51 response: $", uhex_byte_(result))
   if result <> $00
+    debug("  [readSCR] ACMD51 error - expected $00")
     pinh(cs)
     return false
 
@@ -1470,8 +1689,11 @@ PRI readSCR(p_scr) : result | t, i                                              
     if result == $FE
       quit
     if getct() - t > 0
+      debug("  [readSCR] Timeout waiting for data token $FE")
       pinh(cs)
       return false
+
+  debug("  [readSCR] Got data token, reading 8 bytes")
 
   ' Read 8 bytes of SCR data
   repeat i from 0 to 7
@@ -1482,6 +1704,7 @@ PRI readSCR(p_scr) : result | t, i                                              
   sp_transfer_8($FF)
 
   pinh(cs)
+  debug("  [readSCR] Success")
   return true
 
 PUB newFile(name_ptr) : result                                                  '' create and open a new file (multi-cog safe)
