@@ -21,7 +21,7 @@ CON
      SD_SCK  = 61
 
 OBJ
-    sd    : "SD_card_driver_v2"
+    sd    : "SD_card_driver"
     utils : "SD_RT_utilities"
 
 DAT
