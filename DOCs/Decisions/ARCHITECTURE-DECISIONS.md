@@ -573,6 +573,132 @@ This eliminates pin conflicts, simplifies testing, and enforces clean mode trans
 
 ---
 
+## Decision 11: Three Separate Sector Buffers in Hub RAM
+
+### The Question
+How many sector buffers should the driver maintain, and where should they reside?
+
+### Options Considered
+
+1. **Single buffer (512 bytes)** - All sector types share one buffer
+2. **Two buffers (1024 bytes)** - FAT separate, data/directory combined
+3. **Three buffers (1536 bytes)** - FAT, directory, and data each have dedicated buffers
+4. **LUT/Cog RAM buffers** - Use cog's 4KB local memory instead of hub RAM
+
+### Memory Architecture Constraint: Spin2 Interpreter Occupies Cog/LUT RAM
+
+The Spin2 interpreter is approximately **4,784 bytes** - larger than cog RAM alone. It spans:
+
+| Memory | Size | Contents When Running Spin2 |
+|--------|------|----------------------------|
+| Cog RAM | 2KB | Core interpreter code (loaded at boot) |
+| LUT RAM | 2KB | Extended interpreter code (loaded by interpreter) |
+| Hub RAM | Variable | Hub-exec portions, bytecode, user data |
+
+**Implication**: When running Spin2, both cog RAM and LUT RAM are occupied by the interpreter. **User data must reside in hub RAM** - there is no alternative for a Spin2-based driver.
+
+### Streamer Constraint: Cannot Write to Cog/LUT RAM
+
+Even if we rewrote the driver in pure PASM (freeing cog/LUT for data), the P2 streamer has a fundamental limitation:
+
+- **Streamer capture modes** (`X_1P_1DAC1_WFBYTE`, etc.) write to hub RAM via WRFAST
+- **There is no streamer mode that writes to cog or LUT RAM**
+- The `X_*_LUT` modes are for OUTPUT (LUT → pins), not INPUT (pins → LUT)
+
+Data flow would still require hub RAM as an intermediary:
+```
+SD Card → Streamer → Hub RAM (required) → SETQ+RDLONG → Cog RAM
+```
+
+The extra copy overhead would likely negate any benefit from faster cog RAM access.
+
+### Cache Thrashing Analysis
+
+The critical factor for buffer count is **cache thrashing** during compound operations. Consider reading a 64KB file spanning 8 clusters:
+
+**With 3 buffers (current architecture)**:
+```
+Read FAT for cluster 1    → FAT buffer loaded (1 read)
+Read 8 data sectors       → Data buffer used (8 reads)
+Read FAT for cluster 2    → FAT buffer STILL VALID (0 reads - cached!)
+Read 8 data sectors       → Data buffer used (8 reads)
+... repeat ...
+
+Total: ~72 sector reads (FAT lookups mostly cached)
+```
+
+**With 1 buffer (hypothetical)**:
+```
+Read FAT for cluster 1    → Buffer loaded with FAT (1 read)
+Read data sector 0        → Buffer reloaded with data (1 read) - FAT evicted!
+Read data sector 1        → Buffer reloaded (1 read)
+... after 8 data sectors ...
+Read FAT for cluster 2    → Buffer reloaded with FAT (1 read) - data evicted!
+Read data sector 0        → Buffer reloaded with data (1 read)
+... constant thrashing ...
+
+Total: ~136 sector reads (every operation evicts the previous)
+```
+
+**Performance Impact**:
+
+| Configuration | Thrashing Behavior | Performance Impact |
+|---------------|-------------------|-------------------|
+| 3 buffers | FAT, DIR, DATA cached independently | Optimal |
+| 2 buffers | FAT cached; DIR/DATA may thrash | ~10-20% slower |
+| 1 buffer | Constant thrashing | ~50-100% slower |
+
+### When Each Buffer Configuration Makes Sense
+
+**3 buffers is optimal when:**
+- Large files span multiple clusters (most real-world use)
+- Directory searches in directories with many entries
+- Mixed operations (read file, check directory, read another file)
+
+**2 buffers might suffice when:**
+- Files are always in single clusters
+- Operations are purely sequential with no directory interaction
+
+**1 buffer is problematic for:**
+- Nearly all real filesystem operations beyond trivial single-sector access
+
+### Hub RAM Cost is Negligible
+
+The P2 has **512 KB of hub RAM**. Buffer memory cost:
+
+| Configuration | Memory | % of Hub RAM |
+|---------------|--------|--------------|
+| 1 buffer | 512 bytes | 0.1% |
+| 2 buffers | 1,024 bytes | 0.2% |
+| 3 buffers | 1,536 bytes | 0.3% |
+
+The additional 512-1024 bytes for multiple buffers is trivial compared to the potential 50-100% performance degradation from cache thrashing.
+
+### Decision
+**Use three separate sector buffers in hub RAM:**
+
+```spin2
+DAT
+  dir_buf       BYTE    0[512]    ' Directory sector buffer
+  fat_buf       BYTE    0[512]    ' FAT sector buffer
+  buf           BYTE    0[512]    ' Data sector buffer
+
+  dir_sec_in_buf LONG   0         ' Directory sector currently cached
+  fat_sec_in_buf LONG   0         ' FAT sector currently cached
+  sec_in_buf     LONG   0         ' Data sector currently cached
+```
+
+**Rationale:**
+1. **Hub RAM is the only option** - Spin2 interpreter occupies cog/LUT RAM
+2. **Streamer requires hub RAM** - Even pure PASM can't avoid hub as intermediary
+3. **Cache thrashing is expensive** - 50-100% performance loss with single buffer
+4. **Memory cost is negligible** - 1.5KB of 512KB hub RAM (0.3%)
+5. **Complexity is minimal** - Each buffer has simple independent cache tracking
+
+**Future consideration**: If memory becomes critical, the directory buffer could merge with the data buffer (2-buffer configuration) since directory and data operations rarely interleave. The FAT buffer should always remain separate.
+
+---
+
 ## Summary: Why This Architecture
 
 | Component | Decision | P2-Specific Reason |
@@ -583,7 +709,8 @@ This eliminates pin conflicts, simplifies testing, and enforces clean mode trans
 | Signaling | COGATN | Zero-cost waiting, instant wake |
 | SPI method | Smart Pins (revised) | Sysclk independence, higher throughput |
 | Multi-block | CMD18/CMD25 | Reduced command overhead |
-| Streamer | Not used | Parallel engine, SPI is serial |
+| Streamer | Hub DMA for sectors | Zero-CPU bulk transfers |
+| Buffers | 3× hub RAM | Spin2 occupies cog/LUT; streamer needs hub |
 | Errors | Negative codes, per-cog | Thread-safe multi-cog access |
 | Failures | Timeouts, not retries | Caller has context to decide |
 
@@ -596,4 +723,5 @@ These decisions work together to create a driver that is:
 ---
 
 *Document created: 2026-01-17*
+*Last updated: 2026-01-29 (added Decision 11: Buffer Architecture)*
 *For use by: Implementation agents, code reviewers*

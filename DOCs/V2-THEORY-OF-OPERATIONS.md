@@ -400,7 +400,135 @@ For best performance:
 3. Write in multiples of 512 bytes when possible
 4. Use sync() sparingly (forces flush to card)
 
-## 10. Usage Example
+## 10. Memory Architecture
+
+### 10.1 Spin2 Interpreter Memory Usage
+
+Understanding where the Spin2 interpreter runs is critical for memory optimization decisions:
+
+| Memory Region | Size | Contents When Running Spin2 |
+|---------------|------|----------------------------|
+| **Cog RAM** | 2KB (512 longs) | Core Spin2 interpreter code |
+| **LUT RAM** | 2KB (512 longs) | Additional interpreter code (loaded by interpreter) |
+| **Hub RAM** | Variable | Bytecode, more interpreter code (hub-exec), user data |
+
+The complete Spin2 interpreter is approximately **4,784 bytes** - larger than cog RAM alone. It spans:
+- Cog RAM (loaded at boot)
+- LUT RAM (loaded by the interpreter itself)
+- Hub RAM (for hub-exec portions)
+
+**Key implication**: When running Spin2, both cog RAM and LUT RAM are occupied by the interpreter. User data (VAR, DAT sections) must reside in hub RAM.
+
+### 10.2 Buffer Architecture
+
+The driver uses three separate 512-byte sector buffers:
+
+| Buffer | Purpose | Cache Tracking Variable |
+|--------|---------|------------------------|
+| `dir_buf` | Directory sector operations | `dir_sec_in_buf` |
+| `fat_buf` | FAT sector operations | `fat_sec_in_buf` |
+| `buf` | Data sector operations | `sec_in_buf` |
+
+Plus supporting buffers:
+- `entry_buffer` (32 bytes): Current directory entry
+- `vol_label` (12 bytes): Volume label string
+
+**Total buffer memory**: ~1,580 bytes in hub RAM
+
+**Why separate buffers?**
+- **FAT operations interleave with data operations**: During file read/write, we frequently access FAT sectors to follow cluster chains while also reading/writing data sectors. A single buffer would thrash.
+- **Directory operations are distinct**: Directory scanning happens during open/search, separate from data I/O.
+- **Simplified cache tracking**: Each buffer has its own cache variable, avoiding complex invalidation logic.
+
+**Potential consolidation**: The directory buffer could potentially merge with the data buffer (2 buffers instead of 3), saving 512 bytes. Directory and data operations are mostly sequential, not interleaved. The FAT buffer should remain separate.
+
+### 10.3 DAT Section Variables
+
+All driver state variables reside in the DAT section (hub RAM):
+
+| Category | Variables | Access Frequency |
+|----------|-----------|------------------|
+| **SPI control** | `cs`, `mosi`, `miso`, `sck`, `spi_period` | Every SPI operation |
+| **Cache state** | `sec_in_buf`, `dir_sec_in_buf`, `fat_sec_in_buf` | Every sector read |
+| **File state** | `n_sec`, `file_idx`, `flags`, `entry_address` | Every file operation |
+| **FS geometry** | `fat_sec`, `root_sec`, `sec_per_clus`, `cluster_offset` | Mount and cluster calculations |
+| **Card info** | `card_mfr_id`, `card_max_speed_hz`, timeouts | Mount and timing |
+| **API state** | `cog_id`, `api_lock`, `driver_mode` | Start/stop only |
+
+Total variable storage: ~180 longs (~720 bytes) plus the 128-long worker stack.
+
+### 10.4 LUT RAM Feasibility Analysis
+
+**Question**: Could LUT RAM be used for buffers or variables to improve performance?
+
+**Analysis**:
+
+1. **Spin2 interpreter occupies LUT RAM**: As described above, the interpreter uses LUT RAM for code. There's no room for user data when running Spin2.
+
+2. **Streamer cannot write to LUT**: The P2 streamer's capture modes (`X_1P_1DAC1_WFBYTE`, etc.) write to hub RAM via WRFAST. There is no streamer mode that writes directly to LUT or cog RAM. Data flow is always:
+   ```
+   SD Card → Streamer → Hub RAM (required) → [optional copy to LUT/cog]
+   ```
+
+3. **LUT-to-pins modes are OUTPUT only**: The `X_*_LUT` streamer modes read FROM LUT to output pins (for video/audio). They cannot capture input TO LUT.
+
+4. **Even with pure PASM, hub copy required**: If we rewrote the driver in pure PASM (running from LUT, with cog RAM free for data), we'd still need:
+   ```
+   SD Card → Streamer → Hub staging → SETQ+RDLONG → Cog RAM buffer
+   ```
+   This adds copy overhead that may negate the faster cog RAM access.
+
+**Conclusion**: For this Spin2-based driver, **all data must remain in hub RAM**. The LUT RAM optimization path would require:
+- Complete rewrite in PASM (losing Spin2's maintainability)
+- Still requiring hub RAM as streamer intermediary
+- Modest benefit for the significant complexity increase
+
+### 10.5 When LUT/Cog RAM IS Beneficial
+
+LUT and cog RAM provide significant benefits for:
+
+| Use Case | Why It Works |
+|----------|--------------|
+| **Lookup tables** (sine, color palettes) | Load once, access many times via RDLUT (3 cycles) |
+| **PASM driver code** | Execute from LUT, use cog RAM for data |
+| **Frequently-accessed constants** | Single-cycle access from cog RAM |
+| **Real-time DSP** | Data processing without hub access latency |
+
+For our SD driver, the access pattern (write once per sector read, process, write back) doesn't match LUT's sweet spot of "load once, access repeatedly."
+
+### 10.6 Memory Map Summary
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         HUB RAM (~512 KB)                       │
+├─────────────────────────────────────────────────────────────────┤
+│  Spin2 Bytecode + Interpreter (hub-exec portions)               │
+│  ───────────────────────────────────────────────────            │
+│  Driver DAT Section:                                            │
+│    • Singleton control (cog_id, api_lock, driver_mode)          │
+│    • Parameter block (pb_cmd, pb_status, pb_param0-3, etc.)     │
+│    • Worker stack (128 longs)                                   │
+│    • SPI pin configuration                                      │
+│    • Filesystem state variables                                 │
+│    • Sector buffers (dir_buf, fat_buf, buf = 1536 bytes)        │
+│    • Entry buffer (32 bytes), vol_label (12 bytes)              │
+│  ───────────────────────────────────────────────────            │
+│  User application code and data                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   WORKER COG (dedicated to SD driver)           │
+├─────────────────────────────────────────────────────────────────┤
+│  Cog RAM (512 longs = 2KB):  Spin2 Interpreter (core)           │
+│  LUT RAM (512 longs = 2KB):  Spin2 Interpreter (extended)       │
+│                                                                 │
+│  Smart Pins: SCK (P_TRANSITION), MOSI (P_SYNC_TX),              │
+│              MISO (P_SYNC_RX), CS (GPIO)                        │
+│  Streamer: Configured for sector DMA via XINIT/WAITXFI          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## 11. Usage Example
 
 ```spin2
 OBJ
