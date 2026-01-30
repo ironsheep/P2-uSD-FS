@@ -1,0 +1,269 @@
+'' =================================================================================================
+''
+''   File....... SD_RT_file_ops_tests.spin2
+''   Purpose.... This object exercises file create/open/close/delete/rename operations
+''   Author..... Stephen M Moraco
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... JAN 2026
+''   Updated.... 16 JAN 2026
+''
+'' =================================================================================================
+
+CON
+
+     _CLKFREQ        = 320_000_000
+
+     ' Pin configuration for P2 Edge with SD card
+     SD_CS   = 60
+     SD_MOSI = 59
+     SD_MISO = 58
+     SD_SCK  = 61
+
+OBJ
+    sd    : "SD_card_driver_v3"
+    utils : "SD_RT_utilities"
+
+DAT
+
+' Test filenames - use unique names to avoid conflicts
+testfile1       BYTE    "RTFILE1.TXT", 0
+testfile2       BYTE    "RTFILE2.BIN", 0
+testfile3       BYTE    "RTFILE3.DAT", 0
+renamedFile     BYTE    "RENAMED.TXT", 0
+testContent1    BYTE    "Hello, SD Card!", 0
+testContent2    BYTE    "This is test content for file operations.", 0
+
+PUB go() | result, pFilename, fileSize, attrs
+
+    debug(" ")
+    debug("==============================================")
+    debug("  SD Card Driver - File Operations Tests")
+    debug("==============================================")
+
+    ' Mount the card first
+    result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result == false
+        debug("ERROR: Could not mount SD card!")
+        debug("END_SESSION")
+        return
+
+    ' Show card info
+    debug(" ")
+    debug("* SD Card Information:")
+    debug("   Volume Label: ", zstr_(sd.volumeLabel()))
+    debug("   Free Space: ", udec(sd.freeSpace()), " sectors")
+
+    ' ----------------------------------
+    ' TEST GROUP: File creation
+    ' ----------------------------------
+    utils.startTestGroup(@"File Creation")
+
+    ' Clean up any existing test files first
+    sd.deleteFile(@testfile1)
+    sd.deleteFile(@testfile2)
+    sd.deleteFile(@testfile3)
+    sd.deleteFile(@renamedFile)
+
+    utils.startTest(@"newFile() creates a new file")
+    result := sd.newFile(@testfile1)
+    utils.evaluateBool(result, @"newFile()", true)
+
+    ' Write content and close file (setup for other tests)
+    sd.writeString(@testContent1)
+    debug("  Wrote content: ", zstr_(@testContent1))
+    sd.closeFile()
+    debug("  File closed")
+
+    utils.startTest(@"newFile() fails if file already exists")
+    result := sd.newFile(@testfile1)
+    utils.evaluateBool(result, @"newFile() on existing", false)
+
+    ' ----------------------------------
+    ' TEST GROUP: File open/close
+    ' ----------------------------------
+    utils.startTestGroup(@"File Open/Close")
+
+    utils.startTest(@"openFile() opens existing file")
+    result := sd.openFile(@testfile1)
+    utils.evaluateBool(result, @"openFile()", true)
+
+    utils.startTest(@"fileName() returns correct name")
+    pFilename := sd.fileName()
+    utils.evaluateStringMatch(pFilename, @"fileName()", @"RTFILE1.TXT")
+
+    utils.startTest(@"fileSize() returns correct size")
+    fileSize := sd.fileSize()
+    utils.evaluateSingleValue(fileSize, @"fileSize()", strsize(@testContent1))
+
+    utils.startTest(@"attributes() returns valid attributes")
+    attrs := sd.attributes()
+    ' Archive bit ($20) should be set for a regular file
+    utils.evaluateRange(attrs & $20, @"attributes() archive bit", $20, $20)
+
+    utils.startTest(@"closeFile() on open file")
+    sd.closeFile()
+    utils.evaluateBool(true, @"closeFile()", true)
+
+    utils.startTest(@"openFile() fails for non-existent file")
+    result := sd.openFile(@"NOEXIST.TXT")
+    utils.evaluateBool(result, @"openFile() non-existent", false)
+
+    ' ----------------------------------
+    ' TEST GROUP: File deletion
+    ' ----------------------------------
+    utils.startTestGroup(@"File Deletion")
+
+    ' Create a file to delete
+    utils.startTest(@"Create file to delete")
+    result := sd.newFile(@testfile2)
+    utils.evaluateBool(result, @"newFile()", true)
+    sd.writeString(@"Delete me")
+    sd.closeFile()
+
+    utils.startTest(@"deleteFile() removes the file")
+    result := sd.deleteFile(@testfile2)
+    utils.evaluateBool(result, @"deleteFile()", true)
+
+    utils.startTest(@"Verify file is deleted (openFile fails)")
+    result := sd.openFile(@testfile2)
+    utils.evaluateBool(result, @"openFile() after delete", false)
+
+    utils.startTest(@"deleteFile() fails for non-existent file")
+    result := sd.deleteFile(@testfile2)
+    utils.evaluateBool(result, @"deleteFile() non-existent", false)
+
+    ' ----------------------------------
+    ' TEST GROUP: File rename
+    ' ----------------------------------
+    utils.startTestGroup(@"File Rename")
+
+    utils.startTest(@"rename() changes filename")
+    result := sd.rename(@testfile1, @renamedFile)
+    utils.evaluateBool(result, @"rename()", true)
+
+    utils.startTest(@"Original file no longer accessible")
+    result := sd.openFile(@testfile1)
+    utils.evaluateBool(result, @"openFile() old name", false)
+
+    utils.startTest(@"Renamed file is accessible")
+    result := sd.openFile(@renamedFile)
+    utils.evaluateBool(result, @"openFile() new name", true)
+
+    utils.startTest(@"Content preserved after rename")
+    fileSize := sd.fileSize()
+    utils.evaluateSingleValue(fileSize, @"fileSize()", strsize(@testContent1))
+    sd.closeFile()
+
+    utils.startTest(@"rename() fails for non-existent source")
+    result := sd.rename(@"NOFILE.TXT", @"OTHER.TXT")
+    utils.evaluateBool(result, @"rename() non-existent", false)
+
+    ' ----------------------------------
+    ' TEST GROUP: Multiple file handling
+    ' ----------------------------------
+    utils.startTestGroup(@"Multiple File Handling")
+
+    ' Create multiple files
+    utils.startTest(@"Create multiple test files")
+    utils.setCheckCountPerTest(3)
+
+    result := sd.newFile(@testfile1)
+    utils.evaluateSubBool(result, @"newFile() file1", true)
+    sd.writeString(@"File 1 content")
+    sd.closeFile()
+
+    result := sd.newFile(@testfile2)
+    utils.evaluateSubBool(result, @"newFile() file2", true)
+    sd.writeString(@"File 2 content")
+    sd.closeFile()
+
+    result := sd.newFile(@testfile3)
+    utils.evaluateSubBool(result, @"newFile() file3", true)
+    sd.writeString(@"File 3 content")
+    sd.closeFile()
+
+    utils.startTest(@"Open each file and verify content preserved")
+    utils.setCheckCountPerTest(3)
+
+    result := sd.openFile(@testfile1)
+    utils.evaluateSubBool(result, @"openFile() file1", true)
+    sd.closeFile()
+
+    result := sd.openFile(@testfile2)
+    utils.evaluateSubBool(result, @"openFile() file2", true)
+    sd.closeFile()
+
+    result := sd.openFile(@testfile3)
+    utils.evaluateSubBool(result, @"openFile() file3", true)
+    sd.closeFile()
+
+    ' ----------------------------------
+    ' TEST GROUP: Opening file closes previous
+    ' ----------------------------------
+    utils.startTestGroup(@"Auto-close on new open")
+
+    utils.startTest(@"Opening new file closes previous (no explicit close)")
+    result := sd.openFile(@testfile1)
+    utils.evaluateBool(result, @"openFile() first", true)
+
+    utils.startTest(@"Open second file without closing first")
+    result := sd.openFile(@testfile2)
+    utils.evaluateBool(result, @"openFile() second", true)
+
+    utils.startTest(@"Verify we can access second file")
+    pFilename := sd.fileName()
+    utils.evaluateStringMatch(pFilename, @"fileName()", @"RTFILE2.BIN")
+    sd.closeFile()
+
+    ' ----------------------------------
+    ' Cleanup: Delete test files
+    ' ----------------------------------
+    debug(" ")
+    debug("* Cleaning up test files...")
+    sd.deleteFile(@testfile1)
+    sd.deleteFile(@testfile2)
+    sd.deleteFile(@testfile3)
+    sd.deleteFile(@renamedFile)
+
+    ' Unmount
+    sd.unmount()
+
+    ' ----------------------------------
+    ' Summary
+    ' ----------------------------------
+    utils.ShowTestEndCounts()
+
+    debug(" ")
+    debug("* File Operations Tests Complete")
+    debug("END_SESSION")
+
+
+con { license }
+
+{{
+  =================================================================================================
+
+  Terms of Use: MIT License
+
+  Copyright (c) 2026 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  =================================================================================================
+}}
