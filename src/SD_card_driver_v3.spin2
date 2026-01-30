@@ -57,6 +57,24 @@ CON '' command codes for worker cog
   CMD_WRITE_SECTORS = 19    ' Raw multi-block write: param0=start_sector, param1=count, param2=buffer ptr
   CMD_READ_SECTOR_RAW  = 20 ' Raw single sector read: param0=sector, param1=buffer ptr
   CMD_WRITE_SECTOR_RAW = 21 ' Raw single sector write: param0=sector, param1=buffer ptr
+  CMD_DEBUG_SLOW_READ  = 25 ' DEBUG: Byte-by-byte sector read (no streamer)
+  CMD_DEBUG_CLEAR_ROOT = 26 ' DEBUG: Clear root directory (fixes corruption)
+
+  ' ═══════════════════════════════════════════════════════════════════════════
+  ' V3 Handle-Based File Commands (multi-file support)
+  ' ═══════════════════════════════════════════════════════════════════════════
+  CMD_OPEN_READ   = 30      ' Open file for reading: param0=path ptr, returns data0=handle
+  CMD_OPEN_WRITE  = 31      ' Open file for writing (append): param0=path ptr, returns data0=handle
+  CMD_CREATE      = 32      ' Create new file for writing: param0=path ptr, returns data0=handle
+  CMD_CLOSE_H     = 33      ' Close file handle: param0=handle
+  CMD_READ_H      = 34      ' Read from handle: param0=handle, param1=buffer ptr, param2=count, returns data0=bytes_read
+  CMD_WRITE_H     = 35      ' Write to handle: param0=handle, param1=buffer ptr, param2=count, returns data0=bytes_written
+  CMD_SEEK_H      = 36      ' Seek in handle: param0=handle, param1=position
+  CMD_TELL_H      = 37      ' Get position: param0=handle, returns data0=position
+  CMD_FILESIZE_H  = 38      ' Get file size: param0=handle, returns data0=size
+  CMD_SYNC_H      = 39      ' Sync handle buffer to disk: param0=handle
+  CMD_SYNC_ALL    = 40      ' Sync all open file handles
+  CMD_EOF_H       = 41      ' Check end of file: param0=handle, returns data0=true/false
 
 CON '' buffer types for sector read/write (diagnostic: separate buffers to isolate conflicts)
   BUF_DIR  = 0      ' Directory sector buffer
@@ -251,6 +269,23 @@ DAT '' singleton control - SHARED across all object instances
   last_error    LONG    0[8]            ' One slot per possible cog
 
   ' ═══════════════════════════════════════════════════════════════════════
+  ' DIAGNOSTIC: Capture data inside readSector for debugging from test cog
+  ' ═══════════════════════════════════════════════════════════════════════
+  diag_last_sector   LONG    0          ' Last sector read
+  diag_last_buftype  LONG    0          ' Last buf_type used
+  diag_last_token    LONG    0          ' Last start token received
+  diag_buf_byte0     LONG    0          ' First byte of buffer after streamer
+  diag_buf_byte1     LONG    0          ' Second byte
+  diag_buf_byte2     LONG    0          ' Third byte
+  diag_buf_byte3     LONG    0          ' Fourth byte
+  diag_p_buf         LONG    0          ' Buffer pointer used
+  diag_before_b0     LONG    0          ' Buffer byte 0 BEFORE streamer
+  diag_before_b1     LONG    0          ' Buffer byte 1 BEFORE streamer
+  diag_before_b2     LONG    0          ' Buffer byte 2 BEFORE streamer
+  diag_before_b3     LONG    0          ' Buffer byte 3 BEFORE streamer
+  diag_spi_period    LONG    0          ' SPI period at time of read
+
+  ' ═══════════════════════════════════════════════════════════════════════
   ' BUFFERS (must be in DAT for worker cog access)
   ' DIAGNOSTIC: Separate buffers for each sector type to isolate conflicts
   ' ═══════════════════════════════════════════════════════════════════════
@@ -394,10 +429,11 @@ PRI fs_worker() | cur_cmd                                                       
     ' ═══════════════════════════════════════════════════════════════════════
     ' MODE ENFORCEMENT: Reject commands invalid for current mode
     ' ═══════════════════════════════════════════════════════════════════════
-    ' File system commands (CMD_OPEN through CMD_READDIR) require MODE_FILESYSTEM
+    ' File system commands require MODE_FILESYSTEM
     ' Raw sector commands are allowed in both MODE_RAW and MODE_FILESYSTEM
     ' Mode transitions (MOUNT, UNMOUNT, INIT_CARD_ONLY) have their own logic
-    if cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE
+    ' V3: Include handle-based commands (CMD_OPEN_READ through CMD_EOF_H)
+    if (cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE) or (cur_cmd >= CMD_OPEN_READ and cur_cmd <= CMD_EOF_H)
       if driver_mode <> MODE_FILESYSTEM
         debug("  [fs_worker] REJECTED: File operation requires MODE_FILESYSTEM")
         pb_status := E_NOT_MOUNTED
@@ -487,6 +523,19 @@ PRI fs_worker() | cur_cmd                                                       
         else
           pb_status := E_IO_ERROR
 
+      CMD_DEBUG_SLOW_READ:
+        ' DEBUG: Read sector byte-by-byte without streamer for comparison
+        pb_status := readSectorSlow(pb_param0, pb_param1)
+
+      CMD_DEBUG_CLEAR_ROOT:
+        ' DEBUG: Clear root directory by writing zeros
+        bytefill(@buf, 0, 512)                                                  ' Zero the buffer
+        if writeSector(root_sec, BUF_DATA)                                      ' Write to root directory
+          dir_sec_in_buf := -1                                                  ' Invalidate cache
+          pb_status := SUCCESS
+        else
+          pb_status := E_IO_ERROR
+
       CMD_INIT_CARD_ONLY:
         pb_status := do_init_card_only()
 
@@ -496,6 +545,62 @@ PRI fs_worker() | cur_cmd                                                       
 
       CMD_READ_SCR:
         pb_status := do_read_scr(pb_param0)
+
+      ' ═══════════════════════════════════════════════════════════════════════
+      ' V3 Handle-Based File Commands
+      ' ═══════════════════════════════════════════════════════════════════════
+      CMD_OPEN_READ:
+        pb_data0 := do_open_read(pb_param0)                                       ' Returns handle or error
+        pb_status := pb_data0 < 0 ? pb_data0 : SUCCESS
+
+      CMD_OPEN_WRITE:
+        pb_data0 := do_open_write(pb_param0)                                      ' Returns handle or error
+        pb_status := pb_data0 < 0 ? pb_data0 : SUCCESS
+
+      CMD_CREATE:
+        pb_data0 := do_create(pb_param0)                                          ' Returns handle or error
+        pb_status := pb_data0 < 0 ? pb_data0 : SUCCESS
+
+      CMD_CLOSE_H:
+        pb_status := do_close_h(pb_param0)                                        ' param0 = handle
+
+      CMD_READ_H:
+        pb_data0 := do_read_h(pb_param0, pb_param1, pb_param2)                    ' handle, buffer, count -> bytes_read
+        pb_status := pb_data0 < 0 ? pb_data0 : SUCCESS
+
+      CMD_WRITE_H:
+        pb_data0 := do_write_h(pb_param0, pb_param1, pb_param2)                   ' handle, buffer, count -> bytes_written
+        pb_status := pb_data0 < 0 ? pb_data0 : SUCCESS
+
+      CMD_SEEK_H:
+        pb_status := do_seek_h(pb_param0, pb_param1)                              ' handle, position
+
+      CMD_TELL_H:
+        if validateHandle(pb_param0)
+          pb_data0 := h_position[pb_param0]
+          pb_status := SUCCESS
+        else
+          pb_status := E_INVALID_HANDLE
+
+      CMD_FILESIZE_H:
+        if validateHandle(pb_param0)
+          pb_data0 := h_size[pb_param0]
+          pb_status := SUCCESS
+        else
+          pb_status := E_INVALID_HANDLE
+
+      CMD_SYNC_H:
+        pb_status := do_sync_h(pb_param0)                                         ' handle
+
+      CMD_SYNC_ALL:
+        pb_status := do_sync_all()
+
+      CMD_EOF_H:
+        if validateHandle(pb_param0)
+          pb_data0 := h_position[pb_param0] >= h_size[pb_param0] ? 1 : 0
+          pb_status := SUCCESS
+        else
+          pb_status := E_INVALID_HANDLE
 
       other:
         debug("  [fs_worker] Unknown command: ", udec_(cur_cmd))
@@ -699,6 +804,8 @@ PRI do_mount() : result | reserved                                              
   return SUCCESS
 
 PRI do_unmount() : result                                                       '' Internal unmount operation
+  ' V3: Sync all open handles before unmount
+  do_sync_all()
   do_close()
   result := updateFSInfo()
   flags := flags & !F_MOUNTED
@@ -796,6 +903,504 @@ PRI do_close()                                                                  
   bytefill(@entry_buffer, 0, 32)
   flags := flags & !F_NEWDATA & !F_NEWDIR & !F_OPEN
   file_idx := 0
+
+' ═══════════════════════════════════════════════════════════════════════════
+' V3 HANDLE-BASED FILE OPERATIONS
+' These functions use the multi-file handle system for independent file access
+' ═══════════════════════════════════════════════════════════════════════════
+
+PRI do_open_read(p_path) : handle | start_cluster                               '' Open file for reading (V3 handle)
+  '' Opens an existing file for reading and returns a file handle.
+  '' Multiple files can be open simultaneously for reading.
+  '' Each handle has its own position, enabling interleaved reads.
+  ''
+  '' @param p_path - Pointer to null-terminated path string
+  '' @returns handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+  '' @errors E_TOO_MANY_FILES - All handle slots are in use
+  ''         E_FILE_NOT_FOUND - File doesn't exist at specified path
+  ''         E_NOT_A_FILE - Path refers to a directory
+
+  ' Allocate a handle slot
+  handle := allocateHandle()
+  if handle < 0
+    debug("  [do_open_read] No free handles")
+    return handle                                                               ' E_TOO_MANY_FILES
+
+  ' Search for the file
+  if not searchDirectory(p_path)
+    debug("  [do_open_read] File not found: ", zstr_(p_path))
+    freeHandle(handle)
+    return E_FILE_NOT_FOUND
+
+  ' Verify it's a file, not a directory
+  if attributes() & %0001_0000                                                  ' Directory bit
+    debug("  [do_open_read] Path is a directory, not a file")
+    freeHandle(handle)
+    return E_NOT_A_FILE
+
+  ' Populate handle state from directory entry
+  start_cluster := firstCluster()
+  h_start_clus[handle] := start_cluster
+  h_size[handle] := fileSize()
+  h_attr[handle] := attributes()
+  h_dir_sector[handle] := entry_address >> 9
+  h_dir_offset[handle] := entry_address & 511
+  h_cluster[handle] := start_cluster
+  h_sector[handle] := clus2sec(start_cluster)
+  h_position[handle] := 0
+  h_buf_sector[handle] := -1                                                    ' No sector cached yet
+  h_flags[handle] := HF_READ
+
+  debug("  [do_open_read] Success: handle=", udec_(handle), " size=", udec_(h_size[handle]), " cluster=", udec_(start_cluster))
+  return handle
+
+PRI do_open_write(p_path) : handle | start_cluster, current_cluster, fat_addr, file_size, cluster_count  '' Open file for writing/append (V3 handle)
+  '' Opens an existing file for writing (append mode) and returns a handle.
+  '' Enforces single-writer policy: only one write handle per file is allowed.
+  '' Position is set to end of file for appending.
+  ''
+  '' @param p_path - Pointer to null-terminated path string
+  '' @returns handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+  '' @errors E_TOO_MANY_FILES - All handle slots are in use
+  ''         E_FILE_NOT_FOUND - File doesn't exist at specified path
+  ''         E_NOT_A_FILE - Path refers to a directory
+  ''         E_FILE_ALREADY_OPEN - File is already open for writing
+
+  ' Allocate a handle slot
+  handle := allocateHandle()
+  if handle < 0
+    debug("  [do_open_write] No free handles")
+    return handle                                                               ' E_TOO_MANY_FILES
+
+  ' Search for the file
+  if not searchDirectory(p_path)
+    debug("  [do_open_write] File not found: ", zstr_(p_path))
+    freeHandle(handle)
+    return E_FILE_NOT_FOUND
+
+  ' Verify it's a file, not a directory
+  if attributes() & %0001_0000                                                  ' Directory bit
+    debug("  [do_open_write] Path is a directory, not a file")
+    freeHandle(handle)
+    return E_NOT_A_FILE
+
+  ' Check single-writer policy
+  if isFileOpenForWrite(entry_address >> 9, entry_address & 511)
+    debug("  [do_open_write] File already open for write")
+    freeHandle(handle)
+    return E_FILE_ALREADY_OPEN
+
+  ' Populate handle state from directory entry
+  start_cluster := firstCluster()
+  file_size := fileSize()
+  h_start_clus[handle] := start_cluster
+  h_size[handle] := file_size
+  h_attr[handle] := attributes()
+  h_dir_sector[handle] := entry_address >> 9
+  h_dir_offset[handle] := entry_address & 511
+
+  ' Position at end of file for append mode
+  ' Walk FAT chain to find the last cluster
+  h_position[handle] := file_size
+  if file_size > 0
+    ' Calculate which cluster contains the last byte
+    cluster_count := (file_size - 1) / (sec_per_clus << 9)
+    current_cluster := start_cluster
+    repeat cluster_count
+      fat_addr := readFat(current_cluster)
+      current_cluster := long[fat_addr]
+      if current_cluster >= $0FFF_FFF8                                          ' End of chain - shouldn't happen
+        quit
+    h_cluster[handle] := current_cluster
+    h_sector[handle] := clus2sec(current_cluster) + ((file_size - 1) >> 9) & (sec_per_clus - 1)
+  else
+    ' Empty file - position at start
+    h_cluster[handle] := start_cluster
+    h_sector[handle] := clus2sec(start_cluster)
+
+  h_buf_sector[handle] := -1                                                    ' No sector cached yet
+  h_flags[handle] := HF_WRITE
+
+  debug("  [do_open_write] Success: handle=", udec_(handle), " size=", udec_(file_size), " pos=", udec_(h_position[handle]))
+  return handle
+
+PRI do_create(p_path) : handle | temp, first_cluster                            '' Create new file (V3 handle)
+  '' Creates a new file and opens it for writing. Returns a handle.
+  '' The file is created empty (size 0). If file already exists, returns error.
+  ''
+  '' @param p_path - Pointer to null-terminated path string
+  '' @returns handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+  '' @errors E_TOO_MANY_FILES - All handle slots are in use
+  ''         E_FILE_EXISTS - File already exists at specified path
+  ''         E_DISK_FULL - No space for directory entry or cluster
+
+  ' Allocate a handle slot
+  handle := allocateHandle()
+  if handle < 0
+    debug("  [do_create] No free handles")
+    return handle                                                               ' E_TOO_MANY_FILES
+
+  ' Check if file already exists
+  if searchDirectory(p_path)
+    debug("  [do_create] File already exists: ", zstr_(p_path))
+    freeHandle(handle)
+    return E_FILE_EXISTS
+
+  ' searchDirectory() sets entry_address to first free directory entry
+  ' Check if we need to allocate a new cluster for the directory
+  temp := (entry_address + cluster_offset << 9) & (sec_per_clus << 9 - 1)
+  if temp == (sec_per_clus << 9 - 32)
+    if dir_buf[480] == $00                                                      ' End of directory
+      temp := allocateCluster(byte2clus(entry_address))
+      if temp < 0
+        debug("  [do_create] Failed to allocate dir cluster")
+        freeHandle(handle)
+        return E_DISK_FULL
+      clearCluster(temp)
+
+  ' Allocate first cluster for the new file
+  first_cluster := allocateCluster(0)
+  if first_cluster < 0
+    debug("  [do_create] Failed to allocate file cluster")
+    freeHandle(handle)
+    return E_DISK_FULL
+
+  ' Set up directory entry in entry_buffer
+  byte[@entry_buffer + 11] := $20                                               ' Archive attribute
+  long[@entry_buffer + 14] := date_stamp                                        ' Create time
+  word[@entry_buffer + 20] := first_cluster >> 16                               ' First cluster high
+  long[@entry_buffer + 22] := date_stamp                                        ' Modify time
+  word[@entry_buffer + 26] := first_cluster & $FFFF                             ' First cluster low
+  long[@entry_buffer + 28] := 0                                                 ' File size = 0
+
+  ' Write directory entry to disk
+  readSector(entry_address >> 9, BUF_DIR)
+  bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
+  writeSector(entry_address >> 9, BUF_DIR)
+
+  ' Populate handle state
+  h_start_clus[handle] := first_cluster
+  h_size[handle] := 0
+  h_attr[handle] := $20
+  h_dir_sector[handle] := entry_address >> 9
+  h_dir_offset[handle] := entry_address & 511
+  h_cluster[handle] := first_cluster
+  h_sector[handle] := clus2sec(first_cluster)
+  h_position[handle] := 0
+  h_buf_sector[handle] := -1                                                    ' No sector cached yet
+  h_flags[handle] := HF_WRITE
+
+  debug("  [do_create] Success: handle=", udec_(handle), " cluster=", udec_(first_cluster))
+  return handle
+
+PRI do_close_h(handle) : result | p_buf                                           '' Close file handle (V3)
+  '' Closes a file handle, flushing any pending writes and updating directory.
+  '' For write handles, the directory entry is updated with the final file size.
+  ''
+  '' @param handle - Handle to close
+  '' @returns SUCCESS (0) on success, negative error code on failure
+  '' @errors E_INVALID_HANDLE - Handle is not valid or not open
+
+  ' Validate handle
+  if not validateHandle(handle)
+    debug("  [do_close_h] Invalid handle: ", sdec_(handle))
+    return E_INVALID_HANDLE
+
+  debug("  [do_close_h] Closing handle=", udec_(handle), " flags=$", uhex_byte_(h_flags[handle]))
+
+  ' If buffer is dirty, flush it to disk
+  if h_flags[handle] & HF_DIRTY
+    debug("  [do_close_h] Flushing dirty buffer for sector ", udec_(h_buf_sector[handle]))
+    p_buf := getHandleBuffer(handle)
+    bytemove(@buf, p_buf, 512)                                                    ' Copy to shared buffer
+    writeSector(h_buf_sector[handle], BUF_DATA)                                   ' Write to disk
+
+  ' If opened for write, update directory entry with final size
+  if h_flags[handle] & HF_WRITE
+    debug("  [do_close_h] Updating directory: size=", udec_(h_size[handle]))
+    readSector(h_dir_sector[handle], BUF_DIR)
+    long[@dir_buf + h_dir_offset[handle] + 28] := h_size[handle]                  ' Update size field
+    writeSector(h_dir_sector[handle], BUF_DIR)
+
+  ' Free the handle
+  freeHandle(handle)
+  debug("  [do_close_h] Handle closed successfully")
+
+  return SUCCESS
+
+PRI do_read_h(handle, p_buffer, count) : bytes_read | p_hbuf, available, offset, to_read, cluster, fat_addr, next_cluster  '' Handle-based read (V3)
+  '' Reads data from an open file handle into user buffer.
+  '' Uses per-handle buffer to avoid cache thrashing between files.
+  '' Each handle maintains independent position, enabling interleaved reads.
+  ''
+  '' @param handle - Valid read handle
+  '' @param p_buffer - Pointer to destination buffer
+  '' @param count - Number of bytes to read
+  '' @returns Number of bytes actually read (0 at EOF), negative on error
+  '' @errors E_INVALID_HANDLE - Handle is not valid
+
+  ' Validate handle
+  if not validateHandle(handle)
+    debug("  [do_read_h] Invalid handle: ", sdec_(handle))
+    return E_INVALID_HANDLE
+
+  ' Calculate how many bytes we can actually read
+  available := h_size[handle] - h_position[handle]
+  if available <= 0
+    debug("  [do_read_h] EOF reached")
+    return 0                                                                      ' EOF
+
+  count := count <# available                                                     ' Cap at available bytes
+  debug("  [do_read_h] handle=", udec_(handle), " pos=", udec_(h_position[handle]), " count=", udec_(count))
+
+  ' Get pointer to handle's buffer
+  p_hbuf := getHandleBuffer(handle)
+
+  bytes_read := 0
+  repeat while count > 0
+    ' Ensure current sector is loaded into handle's buffer
+    if h_buf_sector[handle] <> h_sector[handle]
+      ' Load sector into shared buffer, then copy to handle's buffer
+      readSector(h_sector[handle], BUF_DATA)
+      bytemove(p_hbuf, @buf, 512)
+      h_buf_sector[handle] := h_sector[handle]
+
+    ' Calculate offset within sector and bytes to read from this sector
+    offset := h_position[handle] & 511
+    to_read := (512 - offset) <# count
+
+    ' Copy data from handle buffer to user buffer
+    bytemove(p_buffer, p_hbuf + offset, to_read)
+
+    ' Advance positions
+    p_buffer += to_read
+    h_position[handle] += to_read
+    bytes_read += to_read
+    count -= to_read
+
+    ' If we've finished this sector, advance to next
+    if (h_position[handle] & 511) == 0 and count > 0
+      h_sector[handle]++
+      ' Check if we crossed a cluster boundary
+      if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
+        ' Follow FAT chain to next cluster
+        cluster := h_cluster[handle]
+        readSector(cluster >> 7 + fat_sec, BUF_FAT)
+        fat_addr := @fat_buf + ((cluster << 2) & 511)
+        next_cluster := long[fat_addr]
+        if next_cluster >= $0FFF_FFF8
+          ' End of chain - shouldn't happen if h_size is correct
+          debug("  [do_read_h] Unexpected end of FAT chain")
+          quit
+        h_cluster[handle] := next_cluster
+        h_sector[handle] := clus2sec(next_cluster)
+
+  debug("  [do_read_h] Read ", udec_(bytes_read), " bytes, pos now ", udec_(h_position[handle]))
+  return bytes_read
+
+PRI do_write_h(handle, p_buffer, count) : bytes_written | p_hbuf, offset, to_write, new_cluster, fat_addr  '' Handle-based write (V3)
+  '' Writes data from user buffer to an open file handle.
+  '' Uses per-handle buffer with dirty tracking. File grows as needed.
+  '' Clusters are allocated when extending past current allocation.
+  ''
+  '' @param handle - Valid write handle (must have HF_WRITE set)
+  '' @param p_buffer - Pointer to source data buffer
+  '' @param count - Number of bytes to write
+  '' @returns Number of bytes written, negative on error
+  '' @errors E_INVALID_HANDLE - Handle is not valid or not open for write
+
+  ' Validate handle
+  if not validateHandle(handle)
+    debug("  [do_write_h] Invalid handle: ", sdec_(handle))
+    return E_INVALID_HANDLE
+
+  ' Verify handle is open for writing
+  if not (h_flags[handle] & HF_WRITE)
+    debug("  [do_write_h] Handle not open for write")
+    return E_INVALID_HANDLE
+
+  if count <= 0
+    return 0
+
+  debug("  [do_write_h] handle=", udec_(handle), " pos=", udec_(h_position[handle]), " count=", udec_(count))
+
+  ' Get pointer to handle's buffer
+  p_hbuf := getHandleBuffer(handle)
+
+  bytes_written := 0
+  repeat while count > 0
+    ' Ensure current sector is in handle's buffer
+    if h_buf_sector[handle] <> h_sector[handle]
+      ' Flush dirty buffer first if needed
+      if h_flags[handle] & HF_DIRTY
+        debug("  [do_write_h] Flushing dirty sector ", udec_(h_buf_sector[handle]))
+        bytemove(@buf, p_hbuf, 512)
+        writeSector(h_buf_sector[handle], BUF_DATA)
+        h_flags[handle] &= !HF_DIRTY
+
+      ' Load sector (or zero-fill if writing past end)
+      if h_position[handle] < h_size[handle]
+        ' Within existing file - load sector
+        readSector(h_sector[handle], BUF_DATA)
+        bytemove(p_hbuf, @buf, 512)
+      else
+        ' Past end of file - zero-fill buffer
+        bytefill(p_hbuf, 0, 512)
+      h_buf_sector[handle] := h_sector[handle]
+
+    ' Calculate offset within sector and bytes to write to this sector
+    offset := h_position[handle] & 511
+    to_write := (512 - offset) <# count
+
+    ' Copy data from user buffer to handle buffer
+    bytemove(p_hbuf + offset, p_buffer, to_write)
+    h_flags[handle] |= HF_DIRTY
+
+    ' Advance positions
+    p_buffer += to_write
+    h_position[handle] += to_write
+    bytes_written += to_write
+    count -= to_write
+
+    ' Update file size if we've grown past it
+    if h_position[handle] > h_size[handle]
+      h_size[handle] := h_position[handle]
+
+    ' If we've filled this sector, flush and advance to next
+    if (h_position[handle] & 511) == 0 and count > 0
+      ' Flush current sector
+      debug("  [do_write_h] Sector full, flushing sector ", udec_(h_sector[handle]))
+      bytemove(@buf, p_hbuf, 512)
+      writeSector(h_sector[handle], BUF_DATA)
+      h_flags[handle] &= !HF_DIRTY
+      h_buf_sector[handle] := -1
+
+      h_sector[handle]++
+      ' Check if we crossed a cluster boundary
+      if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
+        ' Need to allocate new cluster or follow chain
+        new_cluster := allocateCluster(h_cluster[handle])
+        if new_cluster < 0
+          debug("  [do_write_h] Failed to allocate cluster")
+          return bytes_written                                                    ' Return what we've written so far
+        debug("  [do_write_h] Allocated new cluster ", udec_(new_cluster))
+        h_cluster[handle] := new_cluster
+        h_sector[handle] := clus2sec(new_cluster)
+
+  debug("  [do_write_h] Wrote ", udec_(bytes_written), " bytes, size now ", udec_(h_size[handle]))
+  return bytes_written
+
+PRI do_seek_h(handle, position) : result | target_cluster_idx, cluster, i, fat_addr, sector_in_cluster  '' Handle-based seek (V3)
+  '' Seeks to an absolute position in a file.
+  '' For read handles, position must be <= file size.
+  '' For write handles, same constraint (no seeking past EOF).
+  ''
+  '' @param handle - Valid file handle
+  '' @param position - Absolute byte position to seek to
+  '' @returns SUCCESS (0) on success, negative error code on failure
+  '' @errors E_INVALID_HANDLE - Handle not valid
+  ''         E_END_OF_FILE - Position beyond file size
+
+  ' Validate handle
+  if not validateHandle(handle)
+    debug("  [do_seek_h] Invalid handle: ", sdec_(handle))
+    return E_INVALID_HANDLE
+
+  ' Validate position is within file
+  if position > h_size[handle]
+    debug("  [do_seek_h] Position ", udec_(position), " > size ", udec_(h_size[handle]))
+    return E_END_OF_FILE
+
+  debug("  [do_seek_h] handle=", udec_(handle), " pos ", udec_(h_position[handle]), " -> ", udec_(position))
+
+  ' Fast path: if position is in the same sector, just update position
+  if (position >> 9) == (h_position[handle] >> 9)
+    h_position[handle] := position
+    debug("  [do_seek_h] Same sector, fast path")
+    return SUCCESS
+
+  ' Calculate which cluster the target position is in
+  ' target_cluster_idx = how many clusters from the start
+  target_cluster_idx := position / (sec_per_clus << 9)
+
+  ' Walk the FAT chain from the file's start cluster
+  cluster := h_start_clus[handle]
+
+  ' BUG FIX: Guard against Spin2's count-down behavior
+  ' When target_cluster_idx is 0, "repeat i from 0 to -1" would execute twice
+  ' (counting down from 0 to -1), incorrectly walking the FAT chain.
+  ' Only walk the chain if we need to move to a different cluster.
+  if target_cluster_idx > 0
+    repeat i from 0 to target_cluster_idx - 1
+      ' Read FAT entry for current cluster
+      readSector(cluster >> 7 + fat_sec, BUF_FAT)
+      fat_addr := @fat_buf + ((cluster << 2) & 511)
+      cluster := long[fat_addr]
+      if cluster >= $0FFF_FFF8
+        ' End of chain reached before target - shouldn't happen
+        debug("  [do_seek_h] Unexpected end of FAT chain at index ", udec_(i))
+        return E_END_OF_FILE
+
+  ' Calculate sector within cluster
+  sector_in_cluster := (position >> 9) & (sec_per_clus - 1)
+
+  ' Update handle state
+  h_cluster[handle] := cluster
+  h_sector[handle] := clus2sec(cluster) + sector_in_cluster
+  h_position[handle] := position
+  h_buf_sector[handle] := -1                                                      ' Invalidate buffer cache
+
+  debug("  [do_seek_h] Seek complete: cluster=", udec_(cluster), " sector=", udec_(h_sector[handle]))
+  return SUCCESS
+
+PRI do_sync_h(handle) : result | p_buf                                            '' Sync handle buffer to disk (V3)
+  '' Flushes any pending writes and updates directory entry.
+  '' Does NOT close the handle - file remains open for further operations.
+  '' Useful for periodic safety flushes during long write sessions.
+  ''
+  '' @param handle - Valid file handle
+  '' @returns SUCCESS (0) on success, negative error code on failure
+  '' @errors E_INVALID_HANDLE - Handle not valid
+
+  ' Validate handle
+  if not validateHandle(handle)
+    debug("  [do_sync_h] Invalid handle: ", sdec_(handle))
+    return E_INVALID_HANDLE
+
+  debug("  [do_sync_h] Syncing handle=", udec_(handle), " flags=$", uhex_byte_(h_flags[handle]))
+
+  ' If buffer is dirty, flush it to disk
+  if h_flags[handle] & HF_DIRTY
+    debug("  [do_sync_h] Flushing dirty buffer for sector ", udec_(h_buf_sector[handle]))
+    p_buf := getHandleBuffer(handle)
+    bytemove(@buf, p_buf, 512)
+    writeSector(h_buf_sector[handle], BUF_DATA)
+    h_flags[handle] &= !HF_DIRTY
+
+  ' If opened for write, update directory entry with current size
+  if h_flags[handle] & HF_WRITE
+    debug("  [do_sync_h] Updating directory: size=", udec_(h_size[handle]))
+    readSector(h_dir_sector[handle], BUF_DIR)
+    long[@dir_buf + h_dir_offset[handle] + 28] := h_size[handle]
+    writeSector(h_dir_sector[handle], BUF_DIR)
+
+  debug("  [do_sync_h] Sync complete")
+  return SUCCESS
+
+PRI do_sync_all() : result | i                                                    '' Sync all open write handles (V3)
+  '' Flushes all open write handles to disk.
+  '' Called by unmount() to ensure all data is written before stopping.
+  ''
+  '' @returns SUCCESS (0) on success
+
+  debug("  [do_sync_all] Syncing all handles")
+  repeat i from 0 to MAX_OPEN_FILES - 1
+    if h_flags[i] & HF_WRITE
+      debug("  [do_sync_all] Syncing write handle ", udec_(i))
+      do_sync_h(i)
+
+  debug("  [do_sync_all] All handles synced")
+  return SUCCESS
 
 PRI do_read(p_buffer, count) : bytes_read | delta, sectors_to_boundary, full_sectors, multi_count, multi_read  '' Internal read operation
   '' Optimized read with multi-sector support for improved throughput.
@@ -1089,7 +1694,9 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
   '' Rename a file/directory by finding it and updating its name in the directory entry.
   '' We find the old file, save its complete entry, then parse new_name into 8.3 format
   '' directly in the sector buffer and write it back.
+  debug("  [do_rename] old=", zstr_(old_name), " new=", zstr_(new_name), " dir_sec=", udec_(dir_sec))
   if searchDirectory(old_name)
+    debug("  [do_rename] Found old file, entry_address=", uhex_(entry_address))
     bookmark := entry_address
     temp_sec := dir_sec
     bytemove(@saved_entry, @entry_buffer, 32)                                  ' Save complete entry (32 bytes)
@@ -1100,7 +1707,9 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
         new_name += i+1
         i := 0
       i++
+    debug("  [do_rename] Checking if new name exists...")
     if searchDirectory(new_name) == 0                                           ' Verify new name doesn't exist
+      debug("  [do_rename] New name doesn't exist, proceeding")
       bytemove(@entry_buffer, @saved_entry, 32)                                ' Restore complete entry
       readSector(bookmark >> 9, BUF_DIR)
       ' Parse new_name directly into buffer in 8.3 format
@@ -1121,7 +1730,12 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
             quit
       writeSector(bookmark >> 9, BUF_DIR)
       dir_sec := temp_sec
+      debug("  [do_rename] SUCCESS")
       return SUCCESS
+    else
+      debug("  [do_rename] New name already exists!")
+  else
+    debug("  [do_rename] Old file NOT FOUND")
   return E_FILE_NOT_FOUND
 
 PRI do_movefile(name_ptr, dest_folder) : result | bookmark, p_temp, temp_sec    '' Internal move file operation
@@ -2043,6 +2657,204 @@ PUB sync() : result                                                             
   debug("  [sync] Buffers flushed")
   return result == SUCCESS
 
+' ═══════════════════════════════════════════════════════════════════════════
+' V3 HANDLE-BASED PUBLIC API
+' Multi-file support with independent file handles
+' ═══════════════════════════════════════════════════════════════════════════
+
+PUB openFileRead(p_path) : handle                                               '' Open file for reading (V3 multi-file)
+  '' Opens an existing file for reading and returns a file handle.
+  '' Multiple files can be open simultaneously. Each handle maintains
+  '' independent position. Use closeFileHandle() when done.
+  ''
+  '' @param p_path - Pointer to null-terminated path string
+  '' @returns File handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+  '' @errors E_TOO_MANY_FILES (-90) - All handle slots in use
+  ''         E_FILE_NOT_FOUND (-40) - File doesn't exist
+  ''         E_NOT_A_FILE (-43) - Path is a directory
+  ''         E_NOT_MOUNTED (-10) - Card not mounted
+  send_command(CMD_OPEN_READ, p_path, 0, 0, 0)
+  handle := pb_data0
+  if handle >= 0
+    debug("  [openFileRead] Opened handle ", udec_(handle))
+  else
+    debug("  [openFileRead] Failed: ", sdec_(handle))
+    set_error(handle)
+  return handle
+
+PUB openFileWrite(p_path) : handle                                              '' Open file for writing/append (V3 multi-file)
+  '' Opens an existing file for writing (append mode) and returns a handle.
+  '' Position is set to end of file. Only one write handle per file is allowed.
+  '' Use closeFileHandle() when done to flush data.
+  ''
+  '' @param p_path - Pointer to null-terminated path string
+  '' @returns File handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+  '' @errors E_TOO_MANY_FILES (-90) - All handle slots in use
+  ''         E_FILE_NOT_FOUND (-40) - File doesn't exist
+  ''         E_FILE_ALREADY_OPEN (-92) - File already open for writing
+  ''         E_NOT_MOUNTED (-10) - Card not mounted
+  send_command(CMD_OPEN_WRITE, p_path, 0, 0, 0)
+  handle := pb_data0
+  if handle >= 0
+    debug("  [openFileWrite] Opened handle ", udec_(handle))
+  else
+    debug("  [openFileWrite] Failed: ", sdec_(handle))
+    set_error(handle)
+  return handle
+
+PUB createFileNew(p_path) : handle                                              '' Create new file for writing (V3 multi-file)
+  '' Creates a new file and opens it for writing. Returns error if file exists.
+  '' Use closeFileHandle() when done to flush data and finalize file size.
+  ''
+  '' @param p_path - Pointer to null-terminated path string
+  '' @returns File handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+  '' @errors E_TOO_MANY_FILES (-90) - All handle slots in use
+  ''         E_FILE_EXISTS (-41) - File already exists
+  ''         E_DISK_FULL (-31) - No space for file
+  ''         E_NOT_MOUNTED (-10) - Card not mounted
+  send_command(CMD_CREATE, p_path, 0, 0, 0)
+  handle := pb_data0
+  if handle >= 0
+    debug("  [createFileNew] Created handle ", udec_(handle))
+  else
+    debug("  [createFileNew] Failed: ", sdec_(handle))
+    set_error(handle)
+  return handle
+
+PUB closeFileHandle(handle) : result                                            '' Close file handle (V3 multi-file)
+  '' Closes a file handle, flushing any pending writes.
+  '' For write handles, updates directory with final file size.
+  '' After close, the handle is invalid and slot is available for reuse.
+  ''
+  '' @param handle - File handle to close
+  '' @returns SUCCESS (0) on success, negative error code on failure
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid or not open
+  result := send_command(CMD_CLOSE_H, handle, 0, 0, 0)
+  if result == SUCCESS
+    debug("  [closeFileHandle] Closed handle ", udec_(handle))
+  else
+    debug("  [closeFileHandle] Failed: ", sdec_(result))
+    set_error(result)
+  return result
+
+PUB readHandle(handle, p_buffer, count) : bytes_read                            '' Read from file handle (V3 multi-file)
+  '' Reads up to 'count' bytes from the file into the buffer.
+  '' Returns actual bytes read (may be less at EOF). Returns 0 at EOF.
+  '' Position advances by the number of bytes read.
+  ''
+  '' @param handle - Valid read handle
+  '' @param p_buffer - Pointer to destination buffer
+  '' @param count - Maximum bytes to read
+  '' @returns Bytes actually read (0 at EOF), negative on error
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid
+  send_command(CMD_READ_H, handle, p_buffer, count, 0)
+  bytes_read := pb_data0
+  if bytes_read < 0
+    debug("  [readHandle] Failed: ", sdec_(bytes_read))
+    set_error(bytes_read)
+  return bytes_read
+
+PUB writeHandle(handle, p_buffer, count) : bytes_written                        '' Write to file handle (V3 multi-file)
+  '' Writes 'count' bytes from the buffer to the file.
+  '' File grows as needed. Clusters are allocated automatically.
+  '' Position advances by the number of bytes written.
+  ''
+  '' @param handle - Valid write handle
+  '' @param p_buffer - Pointer to source data
+  '' @param count - Bytes to write
+  '' @returns Bytes actually written, negative on error
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid or not open for write
+  ''         E_DISK_FULL (-31) - No space to extend file
+  send_command(CMD_WRITE_H, handle, p_buffer, count, 0)
+  bytes_written := pb_data0
+  if bytes_written < 0
+    debug("  [writeHandle] Failed: ", sdec_(bytes_written))
+    set_error(bytes_written)
+  return bytes_written
+
+PUB seekHandle(handle, position) : result                                       '' Seek to position in file (V3 multi-file)
+  '' Seeks to an absolute byte position in the file.
+  '' Position must be <= file size (cannot seek past EOF).
+  ''
+  '' @param handle - Valid file handle
+  '' @param position - Absolute byte position to seek to
+  '' @returns SUCCESS (0) on success, negative error code on failure
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid
+  ''         E_END_OF_FILE (-50) - Position beyond file size
+  result := send_command(CMD_SEEK_H, handle, position, 0, 0)
+  if result <> SUCCESS
+    debug("  [seekHandle] Failed: ", sdec_(result))
+    set_error(result)
+  return result
+
+PUB tellHandle(handle) : position                                               '' Get current position (V3 multi-file)
+  '' Returns the current byte position in the file.
+  ''
+  '' @param handle - Valid file handle
+  '' @returns Current position (0-based), negative on error
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid
+  send_command(CMD_TELL_H, handle, 0, 0, 0)
+  if pb_status == SUCCESS
+    position := pb_data0
+  else
+    position := pb_status
+    set_error(position)
+  return position
+
+PUB eofHandle(handle) : is_eof                                                  '' Check if at end of file (V3 multi-file)
+  '' Returns TRUE if current position is at or past end of file.
+  ''
+  '' @param handle - Valid file handle
+  '' @returns TRUE if at EOF, FALSE if not, negative on error
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid
+  send_command(CMD_EOF_H, handle, 0, 0, 0)
+  if pb_status == SUCCESS
+    is_eof := pb_data0 <> 0
+  else
+    is_eof := pb_status
+    set_error(is_eof)
+  return is_eof
+
+PUB fileSizeHandle(handle) : size                                               '' Get file size (V3 multi-file)
+  '' Returns the total size of the file in bytes.
+  '' For write handles, reflects current size including pending writes.
+  ''
+  '' @param handle - Valid file handle
+  '' @returns File size in bytes, negative on error
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid
+  send_command(CMD_FILESIZE_H, handle, 0, 0, 0)
+  if pb_status == SUCCESS
+    size := pb_data0
+  else
+    size := pb_status
+    set_error(size)
+  return size
+
+PUB syncHandle(handle) : result                                                 '' Flush handle to disk (V3 multi-file)
+  '' Flushes any pending writes for this handle to disk.
+  '' Updates directory entry with current file size.
+  '' File remains open for further operations.
+  ''
+  '' @param handle - Valid file handle
+  '' @returns SUCCESS (0) on success, negative error code on failure
+  '' @errors E_INVALID_HANDLE (-91) - Handle not valid
+  result := send_command(CMD_SYNC_H, handle, 0, 0, 0)
+  if result <> SUCCESS
+    debug("  [syncHandle] Failed: ", sdec_(result))
+    set_error(result)
+  return result
+
+PUB syncAllHandles() : result                                                   '' Flush all handles to disk (V3 multi-file)
+  '' Flushes all open write handles to disk.
+  '' Useful before risky operations or for periodic safety.
+  ''
+  '' @returns SUCCESS (0) on success
+  result := send_command(CMD_SYNC_ALL, 0, 0, 0, 0)
+  if result <> SUCCESS
+    debug("  [syncAllHandles] Failed: ", sdec_(result))
+    set_error(result)
+  return result
+
 PRI updateFSInfo() : result                                                      '' update FSInfo sector with current free cluster count
 '' Uses cached fsi_free_count (tracked incrementally during alloc/delete).
 '' Called by unmount() to ensure other OSes see correct free space.
@@ -2253,6 +3065,84 @@ PUB attributes() : result                                                       
 
 PUB volumeLabel() : result                                                      '' return pointer to volume label string
   return @vol_label
+
+PUB debugDumpRootDir() | sec, i, p_entry                                        '' DEBUG: Dump root directory entries to debug output
+  '' This is a diagnostic function for debugging. It reads the root directory
+  '' and prints each entry's first 11 bytes (filename) and first cluster.
+  '' Called from test cog so output appears in headless logs.
+  sec := root_sec
+  debug("  [debugDumpRootDir] root_sec=", udec_(sec), " dir_sec=", udec_(dir_sec))
+  readSector(sec, BUF_DIR)
+  debug("  [debugDumpRootDir] Read sector ", udec_(sec), " into dir_buf")
+  repeat i from 0 to 15                                                         ' First 16 entries
+    p_entry := @dir_buf + (i * 32)
+    if byte[p_entry] == 0
+      debug("  Entry ", udec_(i), ": [END OF DIR]")
+      quit
+    elseif byte[p_entry] == $E5
+      debug("  Entry ", udec_(i), ": [DELETED]")
+    else
+      debug("  Entry ", udec_(i), ": [", lstr_(p_entry, 11), "] attr=$", uhex_byte_(byte[p_entry+11]), " clus=", udec_(word[p_entry+26] | (word[p_entry+20] << 16)))
+
+PUB syncDirCache()                                                              '' Force directory cache invalidation
+  '' Invalidates the directory sector cache so the next read will re-fetch from card.
+  '' Use after file operations to ensure consistency when multiple files are accessed.
+  '' This is safe to call from any cog (just sets a DAT variable to -1).
+  dir_sec_in_buf := -1
+
+PUB debugGetRootSec() : result                                                  '' DEBUG: Return root_sec for diagnostic
+  return root_sec
+
+PUB debugGetDirSec() : result                                                   '' DEBUG: Return dir_sec for diagnostic
+  return dir_sec
+
+PUB debugGetVbrSec() : result                                                   '' DEBUG: Return VBR sector for diagnostic
+  return vbr_sec
+
+PUB debugGetFatSec() : result                                                   '' DEBUG: Return FAT sector for diagnostic
+  return fat_sec
+
+PUB debugGetSecPerFat() : result                                                '' DEBUG: Return sectors per FAT for diagnostic
+  return sec_per_fat
+
+PUB debugClearRootDir() : result                                                '' DEBUG: Clear root directory (fixes corruption)
+  '' Clears the root directory by writing zeros to root_sec.
+  '' Use this to fix a corrupted root directory.
+  '' WARNING: This DELETES all files and folders!
+  '' Returns 0 on success, -1 on error.
+  result := send_command(CMD_DEBUG_CLEAR_ROOT, 0, 0, 0, 0)
+
+PUB debugGetReadSectorDiag(p_sector, p_buftype, p_token, p_b0, p_b1, p_b2, p_b3, p_pbuf) '' DEBUG: Get readSector diagnostic data
+  '' Copies diagnostic data from last readSector call into provided pointers.
+  '' Call this after readSectorRaw() to see what happened inside readSector.
+  long[p_sector] := diag_last_sector
+  long[p_buftype] := diag_last_buftype
+  long[p_token] := diag_last_token
+  long[p_b0] := diag_buf_byte0
+  long[p_b1] := diag_buf_byte1
+  long[p_b2] := diag_buf_byte2
+  long[p_b3] := diag_buf_byte3
+  long[p_pbuf] := diag_p_buf
+
+PUB debugGetReadSectorDiagExt(p_before0, p_before1, p_before2, p_before3, p_spi_period) '' DEBUG: Get extended readSector diagnostic data
+  '' Gets the buffer state BEFORE streamer and SPI timing info.
+  long[p_before0] := diag_before_b0
+  long[p_before1] := diag_before_b1
+  long[p_before2] := diag_before_b2
+  long[p_before3] := diag_before_b3
+  long[p_spi_period] := diag_spi_period
+
+PUB debugReadSectorSlow(sector, p_buffer) : result | data, i, timeout           '' DEBUG: Read sector byte-by-byte (no streamer)
+  '' Reads a sector using byte-by-byte SPI transfers for comparison with streamer.
+  '' This is SLOW but useful for debugging streamer issues.
+  '' Requires worker cog to be running (SPI pins configured).
+  '' Returns 0 on success, -1 on timeout/error.
+  ''
+  '' NOTE: This runs in Cog0 and requires SPI smart pins to be configured for this cog.
+  ''       It will NOT work with the normal V3 driver architecture.
+  ''       This is for DIAGNOSTIC USE ONLY.
+  ''
+  result := send_command(CMD_DEBUG_SLOW_READ, sector, p_buffer, 0, 0)
 
 PRI firstCluster() : result                                                     '' return the 1st cluster location of the currently opened file
   return word[@entry_buffer + $14] << 16 | word[@entry_buffer + $1A]
@@ -2847,6 +3737,13 @@ PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout
   init_phase := $4000_0000                                                      ' Sample mid-bit for stability
   align_delay := spi_period                                                     ' Wait one half-period before streamer
 
+  ' DIAGNOSTIC: Capture buffer state BEFORE streamer
+  diag_before_b0 := byte[p_buf]
+  diag_before_b1 := byte[p_buf+1]
+  diag_before_b2 := byte[p_buf+2]
+  diag_before_b3 := byte[p_buf+3]
+  diag_spi_period := spi_period
+
   ' ════════════════════════════════════════════════════════════════════════════
   ' STREAMER BULK TRANSFER: 512 bytes from MISO to hub via DMA
   ' ════════════════════════════════════════════════════════════════════════════
@@ -2858,6 +3755,16 @@ PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout
         xinit   stream_mode, init_phase           ' Start streamer with phase offset
         waitxfi                                   ' Wait for streamer to complete
   end
+
+  ' DIAGNOSTIC: Capture data for test cog to read
+  diag_last_sector := sector
+  diag_last_buftype := buf_type
+  diag_last_token := data                                                       ' Start token ($FE if success)
+  diag_p_buf := p_buf
+  diag_buf_byte0 := byte[p_buf]
+  diag_buf_byte1 := byte[p_buf+1]
+  diag_buf_byte2 := byte[p_buf+2]
+  diag_buf_byte3 := byte[p_buf+3]
 
   ' Re-enable MISO smart pin for CRC reads (sp_transfer_8 needs it)
   wrpin(_miso, spi_rx_mode)                                                     ' P_SYNC_RX | P_PLUS3_B
@@ -2876,6 +3783,38 @@ PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout
     return -1
 
   result := 0
+
+PRI readSectorSlow(sector, p_buffer) : result | data, i, timeout               '' DEBUG: Read sector byte-by-byte (no streamer)
+  '' Reads a sector using byte-by-byte SPI transfers for streamer debugging.
+  '' This is SLOW (~50x slower than streamer) but helps isolate timing issues.
+  '' Returns 0 on success, -1 on timeout/error.
+
+  ' Send CMD17 (READ_SINGLE_BLOCK)
+  cmd(17, sector << hcs)
+
+  ' Wait for start token ($FE)
+  timeout := getct() + (clkfreq / 100) * card_read_timeout_ms
+  repeat
+    data := sp_transfer_8($FF)
+    if data == $FE
+      quit                                                                      ' Got start token
+    if data <> $FF
+      pinh(cs)
+      return -1                                                                 ' Error token
+    if getct() - timeout > 0
+      pinh(cs)
+      return -1                                                                 ' Timeout
+
+  ' Read 512 bytes one at a time using sp_transfer_8
+  repeat i from 0 to 511
+    byte[p_buffer + i] := sp_transfer_8($FF)
+
+  ' Read and discard 2 CRC bytes
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
+
+  pinh(cs)                                                                      ' Deselect card
+  return 0                                                                      ' Success
 
 PRI readSectors(start_sector, count, p_buffer) : sectors_read | _sck, _miso, p_buf, stream_mode, clk_count, xfrq, init_phase, align_delay, i, resp
   '' Read multiple consecutive sectors using CMD18 (READ_MULTIPLE_BLOCK)
