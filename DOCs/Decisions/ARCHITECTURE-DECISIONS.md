@@ -722,6 +722,162 @@ These decisions work together to create a driver that is:
 
 ---
 
+## Decision 12: CRC Validation for Data Integrity (2026-01-30)
+
+### The Question
+Should the driver validate CRC-16 checksums on sector transfers, or continue accepting data without verification?
+
+### Current Behavior (PROBLEMATIC)
+
+The SD SPI protocol includes CRC-16 checksums on all data transfers:
+- **Reads:** Card sends 512 bytes + 2-byte CRC-16
+- **Writes:** Host sends 512 bytes + 2-byte CRC-16
+
+Currently, the driver:
+1. **Reads:** Receives CRC bytes but discards them without validation
+2. **Writes:** Sends dummy `$FF $FF` instead of calculated CRC
+
+This works because **CRC checking is disabled by default in SPI mode** after card initialization. The card accepts any CRC value on writes and sends valid CRC on reads (which we ignore).
+
+### The Risk: Silent Data Corruption
+
+**The SPI bus is the vulnerable link in the data path:**
+
+```
+┌─────────┐     SPI Bus      ┌─────────┐     Internal     ┌───────┐
+│   P2    │ ←──────────────→ │ SD Card │ ←──────────────→ │ Flash │
+│  (Host) │   CRC protects   │Controller│   ECC protects   │Memory │
+└─────────┘   THIS segment   └─────────┘   THIS segment   └───────┘
+```
+
+- **SD card internal ECC:** Protects flash memory from bit rot - always active
+- **SPI CRC-16:** Protects data in transit - currently NOT validated
+
+**Without CRC validation, corruption goes undetected:**
+
+| Scenario | Consequence |
+|----------|-------------|
+| 270 MHz timing issues | Silent byte mismatches (documented: 3,472+ bytes in tests) |
+| Electrical noise | Random bit flips accepted as valid data |
+| FAT table corruption | Lost files, cross-linked clusters |
+| Directory corruption | Files disappear, wrong metadata |
+| File data corruption | Documents/code silently damaged |
+
+**Cross-platform impact:** When the card is moved to Windows/macOS/Linux, filesystem damage becomes visible. The OS may attempt "repair" that deletes files.
+
+### What Other Systems Do
+
+| System | CRC Handling |
+|--------|--------------|
+| Linux SD driver | CRC enabled, validated |
+| Windows SD driver | CRC enabled, validated |
+| Commercial firmware | CRC enabled for reliability |
+| Hobby/simple drivers | Often disabled for simplicity |
+
+### P2 Hardware CRC Support
+
+The P2 has hardware-accelerated CRC calculation:
+
+```spin2
+' Calculate CRC-16-CCITT over 512 bytes
+crc := GETCRC(@buffer, $1021, 512)
+```
+
+**Performance:** ~8 + (512 × 2) = ~1032 clocks = ~3.2 µs at 320 MHz
+
+**Comparison to transfer time:** Sector transfer at 25 MHz SPI takes ~200 µs. CRC calculation adds only 1.6% overhead.
+
+### CRC-16-CCITT Specification
+
+SD cards use CRC-16-CCITT:
+- **Polynomial:** x^16 + x^12 + x^5 + 1 = `$1021`
+- **Initial value:** `$0000`
+- **Bit order:** MSB-first (matches SD card SPI mode)
+
+### Implementation Plan
+
+**Phase 1: Read-side CRC validation (detect corruption)**
+```spin2
+' After streamer receives 512 bytes:
+calculated_crc := GETCRC(@buf, $1021, 512) & $FFFF
+received_crc := (crc_hi << 8) | crc_lo
+
+if calculated_crc <> received_crc
+  debug("CRC MISMATCH: calc=$", uhex_(calculated_crc), " recv=$", uhex_(received_crc))
+  return E_CRC_ERROR
+```
+
+**Phase 2: Write-side CRC generation (enable card-side validation)**
+```spin2
+' Before sending CRC bytes:
+calculated_crc := GETCRC(@buf, $1021, 512)
+sp_transfer_8(calculated_crc >> 8)    ' CRC high byte
+sp_transfer_8(calculated_crc & $FF)   ' CRC low byte
+```
+
+**Phase 3: Enable card CRC checking**
+```spin2
+' During card init, after ACMD41:
+cmd(59, 1)    ' CMD59: CRC_ON_OFF, arg=1 enables CRC checking
+```
+
+### Decision
+
+**IMPLEMENT full CRC-16 validation for all sector transfers:**
+
+1. **Calculate and validate CRC on reads** - Detect SPI transfer corruption
+2. **Calculate and send valid CRC on writes** - Enable card-side validation
+3. **Enable card CRC checking via CMD59** - Card rejects corrupted writes
+
+**Rationale:**
+- P2 hardware CRC adds negligible overhead (~1.6%)
+- Detects timing-related corruption (270 MHz issues would be caught)
+- Matches production-quality drivers (Linux, Windows)
+- Essential for reliable cross-platform SD card interchange
+- Debugging value: CRC errors pinpoint SPI transfer problems vs. software bugs
+
+**Implementation sequence:**
+1. Add CRC validation to driver
+2. Verify all existing tests pass at 320 MHz
+3. Then explore lower clock frequencies with CRC as a diagnostic tool
+
+### Error Handling
+
+When CRC mismatch is detected:
+```spin2
+E_CRC_ERROR = -4    ' Already defined in error codes
+```
+
+- **Reads:** Return `E_CRC_ERROR`, do not use buffer data
+- **Writes:** Card returns Data Response `$0B` (CRC error), return `E_CRC_ERROR`
+- **Caller decides:** Retry, abort, or report to user
+
+---
+
+## Summary: Why This Architecture
+
+| Component | Decision | P2-Specific Reason |
+|-----------|----------|-------------------|
+| Cog model | Dedicated worker | Per-cog DIR/OUT registers |
+| Worker language | Spin2 + inline PASM2 | SD card is bottleneck, not P2 |
+| State sharing | DAT block singleton | Spin2 memory model |
+| Signaling | COGATN | Zero-cost waiting, instant wake |
+| SPI method | Smart Pins (revised) | Sysclk independence, higher throughput |
+| Multi-block | CMD18/CMD25 | Reduced command overhead |
+| Streamer | Hub DMA for sectors | Zero-CPU bulk transfers |
+| Buffers | 3× hub RAM | Spin2 occupies cog/LUT; streamer needs hub |
+| Errors | Negative codes, per-cog | Thread-safe multi-cog access |
+| Failures | Timeouts, not retries | Caller has context to decide |
+| **CRC validation** | **Full CRC-16** | **P2 hardware CRC, cross-platform reliability** |
+
+These decisions work together to create a driver that is:
+- **Safe**: Multiple cogs can call APIs without conflicts
+- **Efficient**: COGATN signaling, optimal FIFO usage
+- **Reliable**: Timeout protection prevents hangs; **CRC detects corruption**
+- **Maintainable**: Spin2 for logic, PASM2 only where needed
+
+---
+
 *Document created: 2026-01-17*
-*Last updated: 2026-01-29 (added Decision 11: Buffer Architecture)*
+*Last updated: 2026-01-30 (added Decision 12: CRC Validation)*
 *For use by: Implementation agents, code reviewers*
