@@ -841,6 +841,47 @@ cmd(59, 1)    ' CMD59: CRC_ON_OFF, arg=1 enables CRC checking
 2. Verify all existing tests pass at 320 MHz
 3. Then explore lower clock frequencies with CRC as a diagnostic tool
 
+### Implementation Notes (2026-01-30)
+
+**Status: DEFERRED** - Initial implementation attempt revealed complexity.
+
+#### Findings from Implementation Attempt:
+
+1. **P2 GETCRC Bit Order Mismatch:**
+   - SD cards use MSB-first CRC-16-CCITT (bit 7 sent first)
+   - P2's GETCRC function with polynomial `$1021` does not produce matching CRC
+   - The GETCRC likely processes bits LSB-first within each byte
+
+2. **CMD59 Validation Failure:**
+   - Enabling CMD59 (CRC_ON_OFF) with our calculated CRC causes all writes to fail
+   - Card rejects writes with `$0B` (CRC error) data response
+   - Confirms our CRC calculation is incorrect
+
+3. **Correct Implementation Approaches:**
+   - **Option A:** Bit-reverse each byte before CRC calculation, then bit-reverse result
+   - **Option B:** Use reflected polynomial `$8408` (LSB-first form of $1021)
+   - **Option C:** Implement lookup-table based CRC in software
+   - **Option D:** Use inline PASM2 with explicit bit ordering
+
+4. **Driver Still Works Without CRC:**
+   - CRC checking is disabled by default in SPI mode after card init
+   - Card accepts dummy `$FF $FF` CRC on writes
+   - Card sends valid CRC on reads (which we discard)
+   - This matches many hobby/simple drivers
+
+#### Next Steps (Future Enhancement):
+
+1. Study P2 GETCRC bit ordering in detail with test vectors
+2. Implement correct CRC-16-CCITT algorithm
+3. Test with CMD59 CRC enable
+4. Add comprehensive CRC validation tests
+5. Document any performance impact
+
+#### Current Status:
+
+The driver operates **without CRC validation**, matching the original V2 behavior.
+The risk of silent data corruption over the SPI bus remains as documented above.
+
 ### Error Handling
 
 When CRC mismatch is detected:
@@ -868,12 +909,12 @@ E_CRC_ERROR = -4    ' Already defined in error codes
 | Buffers | 3× hub RAM | Spin2 occupies cog/LUT; streamer needs hub |
 | Errors | Negative codes, per-cog | Thread-safe multi-cog access |
 | Failures | Timeouts, not retries | Caller has context to decide |
-| **CRC validation** | **Full CRC-16** | **P2 hardware CRC, cross-platform reliability** |
+| **CRC validation** | **Deferred** | **P2 GETCRC bit order mismatch - future enhancement** |
 
 These decisions work together to create a driver that is:
 - **Safe**: Multiple cogs can call APIs without conflicts
 - **Efficient**: COGATN signaling, optimal FIFO usage
-- **Reliable**: Timeout protection prevents hangs; **CRC detects corruption**
+- **Reliable**: Timeout protection prevents hangs
 - **Maintainable**: Spin2 for logic, PASM2 only where needed
 
 ---
