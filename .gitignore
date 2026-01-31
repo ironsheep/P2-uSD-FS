@@ -188,3 +188,4 @@ __marimo__/
 /.claude/.history
 /tasks/archives
 .vscode/settings.json
+src/backups/
