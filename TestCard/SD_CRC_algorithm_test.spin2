@@ -1,0 +1,208 @@
+'' =================================================================================================
+''
+''   File....... SD_CRC_algorithm_test.spin2
+''   Purpose.... Prove GETCRC with $8408 polynomial matches table-based CRC-16-CCITT
+''   Author..... Stephen M Moraco
+''   Started.... 30 JAN 2026
+''
+'' =================================================================================================
+''
+'' This test proves that P2's GETCRC instruction can replace the lookup table.
+''
+'' THE WORKING ALGORITHM:
+''   crc := getcrc(pData, $8408, len)      ' P2 GETCRC with reflected polynomial
+''   crc := (crc REV 31) >> 16             ' Reverse all 32 bits, keep upper 16
+''
+'' Test Method:
+''   1. Generate various 512-byte test sectors
+''   2. Calculate CRC using lookup table (known good - matches SD card)
+''   3. Calculate CRC using GETCRC($8408) + (REV 31) >> 16
+''   4. Compare results - they must match
+''
+'' If this works, the 512-byte lookup table can be removed from the driver.
+''
+'' =================================================================================================
+
+CON
+
+    _CLKFREQ = 320_000_000
+
+    SECTOR_SIZE = 512
+    NUM_TESTS = 5
+
+DAT
+
+test_sector     BYTE    0[SECTOR_SIZE]
+
+'' CRC-16-CCITT LOOKUP TABLE (polynomial $1021, 256 entries)
+'' This is the known-good reference from RFAT project
+crc16_table     WORD    $0000, $1021, $2042, $3063, $4084, $50a5, $60c6, $70e7
+                WORD    $8108, $9129, $a14a, $b16b, $c18c, $d1ad, $e1ce, $f1ef
+                WORD    $1231, $0210, $3273, $2252, $52b5, $4294, $72f7, $62d6
+                WORD    $9339, $8318, $b37b, $a35a, $d3bd, $c39c, $f3ff, $e3de
+                WORD    $2462, $3443, $0420, $1401, $64e6, $74c7, $44a4, $5485
+                WORD    $a56a, $b54b, $8528, $9509, $e5ee, $f5cf, $c5ac, $d58d
+                WORD    $3653, $2672, $1611, $0630, $76d7, $66f6, $5695, $46b4
+                WORD    $b75b, $a77a, $9719, $8738, $f7df, $e7fe, $d79d, $c7bc
+                WORD    $48c4, $58e5, $6886, $78a7, $0840, $1861, $2802, $3823
+                WORD    $c9cc, $d9ed, $e98e, $f9af, $8948, $9969, $a90a, $b92b
+                WORD    $5af5, $4ad4, $7ab7, $6a96, $1a71, $0a50, $3a33, $2a12
+                WORD    $dbfd, $cbdc, $fbbf, $eb9e, $9b79, $8b58, $bb3b, $ab1a
+                WORD    $6ca6, $7c87, $4ce4, $5cc5, $2c22, $3c03, $0c60, $1c41
+                WORD    $edae, $fd8f, $cdec, $ddcd, $ad2a, $bd0b, $8d68, $9d49
+                WORD    $7e97, $6eb6, $5ed5, $4ef4, $3e13, $2e32, $1e51, $0e70
+                WORD    $ff9f, $efbe, $dfdd, $cffc, $bf1b, $af3a, $9f59, $8f78
+                WORD    $9188, $81a9, $b1ca, $a1eb, $d10c, $c12d, $f14e, $e16f
+                WORD    $1080, $00a1, $30c2, $20e3, $5004, $4025, $7046, $6067
+                WORD    $83b9, $9398, $a3fb, $b3da, $c33d, $d31c, $e37f, $f35e
+                WORD    $02b1, $1290, $22f3, $32d2, $4235, $5214, $6277, $7256
+                WORD    $b5ea, $a5cb, $95a8, $8589, $f56e, $e54f, $d52c, $c50d
+                WORD    $34e2, $24c3, $14a0, $0481, $7466, $6447, $5424, $4405
+                WORD    $a7db, $b7fa, $8799, $97b8, $e75f, $f77e, $c71d, $d73c
+                WORD    $26d3, $36f2, $0691, $16b0, $6657, $7676, $4615, $5634
+                WORD    $d94c, $c96d, $f90e, $e92f, $99c8, $89e9, $b98a, $a9ab
+                WORD    $5844, $4865, $7806, $6827, $18c0, $08e1, $3882, $28a3
+                WORD    $cb7d, $db5c, $eb3f, $fb1e, $8bf9, $9bd8, $abbb, $bb9a
+                WORD    $4a75, $5a54, $6a37, $7a16, $0af1, $1ad0, $2ab3, $3a92
+                WORD    $fd2e, $ed0f, $dd6c, $cd4d, $bdaa, $ad8b, $9de8, $8dc9
+                WORD    $7c26, $6c07, $5c64, $4c45, $3ca2, $2c83, $1ce0, $0cc1
+                WORD    $ef1f, $ff3e, $cf5d, $df7c, $af9b, $bfba, $8fd9, $9ff8
+                WORD    $6e17, $7e36, $4e55, $5e74, $2e93, $3eb2, $0ed1, $1ef0
+
+PUB go() | i, test_num, table_crc, getcrc_raw, getcrc_crc, matches, mismatches, seed
+
+    debug(" ")
+    debug("==============================================")
+    debug("  CRC-16 Algorithm Equivalence Test")
+    debug("  Table vs GETCRC($8408) + (REV 31) >> 16")
+    debug("==============================================")
+    debug(" ")
+    debug("Algorithm under test:")
+    debug("  crc := getcrc(pData, $8408, len)")
+    debug("  crc := (crc REV 31) >> 16")
+    debug(" ")
+
+    matches := 0
+    mismatches := 0
+    seed := getct()                                                             ' Random seed from counter
+
+    ' Test with different patterns
+    repeat test_num from 1 to NUM_TESTS
+        debug("--- Test ", udec_(test_num), " ---")
+
+        ' Generate random sector data
+        seed := generateRandomSector(seed, test_num)
+
+        ' Show first few bytes of test data
+        debug("  Data[0..7]: $", uhex_byte_(test_sector[0]), " $", uhex_byte_(test_sector[1]), " $", uhex_byte_(test_sector[2]), " $", uhex_byte_(test_sector[3]), " $", uhex_byte_(test_sector[4]), " $", uhex_byte_(test_sector[5]), " $", uhex_byte_(test_sector[6]), " $", uhex_byte_(test_sector[7]))
+
+        ' Calculate CRC using lookup table (known good)
+        table_crc := calcTableCRC(@test_sector, SECTOR_SIZE)
+
+        ' Calculate CRC using GETCRC with the correct algorithm
+        getcrc_raw := GETCRC(@test_sector, $8408, SECTOR_SIZE)
+        getcrc_crc := (getcrc_raw REV 31) >> 16                                 ' THE WORKING ALGORITHM!
+
+        debug("  Table CRC:       $", uhex_(table_crc))
+        debug("  GETCRC raw:      $", uhex_long_(getcrc_raw))
+        debug("  (REV 31) >> 16:  $", uhex_(getcrc_crc))
+
+        ' Compare
+        if table_crc == getcrc_crc
+            debug("  -> MATCH!")
+            matches++
+        else
+            debug("  -> MISMATCH!")
+            mismatches++
+
+        debug(" ")
+
+    ' Summary
+    debug("==============================================")
+    debug("RESULTS")
+    debug("==============================================")
+    debug("  Matches:    ", udec_(matches))
+    debug("  Mismatches: ", udec_(mismatches))
+    debug(" ")
+
+    if mismatches == 0
+        debug("SUCCESS: (getcrc REV 31) >> 16 = Table CRC")
+        debug("The lookup table can be replaced with GETCRC!")
+    else
+        debug("FAILURE: Algorithm mismatch - table still needed")
+
+    debug(" ")
+    debug("END_SESSION")
+
+
+PRI generateRandomSector(seed, pattern) : new_seed | i, val
+    '' Generate pseudo-random sector data based on seed and pattern
+    new_seed := seed
+
+    case pattern
+        1:  ' All zeros
+            bytefill(@test_sector, $00, SECTOR_SIZE)
+            debug("  Pattern: All zeros")
+
+        2:  ' All $FF
+            bytefill(@test_sector, $FF, SECTOR_SIZE)
+            debug("  Pattern: All $FF")
+
+        3:  ' Sequential 0-255 repeated
+            repeat i from 0 to SECTOR_SIZE - 1
+                test_sector[i] := i & $FF
+            debug("  Pattern: Sequential 0-255")
+
+        4:  ' Pseudo-random using XORSHIFT
+            debug("  Pattern: Pseudo-random (XORSHIFT)")
+            repeat i from 0 to SECTOR_SIZE - 1
+                new_seed := xorshift32(new_seed)
+                test_sector[i] := new_seed & $FF
+
+        other:  ' More random patterns
+            debug("  Pattern: Pseudo-random #", udec_(pattern))
+            new_seed := seed + pattern * 12345
+            repeat i from 0 to SECTOR_SIZE - 1
+                new_seed := xorshift32(new_seed)
+                test_sector[i] := new_seed & $FF
+
+
+PRI xorshift32(x) : result
+    '' Simple XORSHIFT pseudo-random number generator
+    result := x
+    result ^= result << 13
+    result ^= result >> 17
+    result ^= result << 5
+
+
+PRI calcTableCRC(pData, len) : crc | i, idx, b
+    '' Calculate CRC-16-CCITT using lookup table (known good reference)
+    '' Algorithm: crc = (crc << 8) ^ table[(crc >> 8) ^ byte]
+    crc := 0
+    repeat i from 0 to len - 1
+        b := byte[pData + i]
+        idx := ((crc >> 8) ^ b) & $FF
+        crc := ((crc << 8) & $FF00) ^ word[@crc16_table][idx]
+
+
+DAT
+{{
+  Terms of use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+}}

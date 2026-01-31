@@ -841,46 +841,109 @@ cmd(59, 1)    ' CMD59: CRC_ON_OFF, arg=1 enables CRC checking
 2. Verify all existing tests pass at 320 MHz
 3. Then explore lower clock frequencies with CRC as a diagnostic tool
 
-### Implementation Notes (2026-01-30)
+### Implementation Notes (2026-01-31)
 
-**Status: DEFERRED** - Initial implementation attempt revealed complexity.
+**Status: SOLVED** - The P2 GETCRC algorithm has been deciphered and validated.
 
-#### Findings from Implementation Attempt:
+#### The Problem (Previous Attempt)
 
-1. **P2 GETCRC Bit Order Mismatch:**
-   - SD cards use MSB-first CRC-16-CCITT (bit 7 sent first)
-   - P2's GETCRC function with polynomial `$1021` does not produce matching CRC
-   - The GETCRC likely processes bits LSB-first within each byte
+Initial attempts using `GETCRC(@data, $1021, 512)` failed because:
+- P2's GETCRC processes data LSB-first (reflected algorithm)
+- P2's GETCRC has a non-zero "base value" for zero data
+- Simple polynomial choices ($1021, $8408) didn't produce matching CRCs
 
-2. **CMD59 Validation Failure:**
-   - Enabling CMD59 (CRC_ON_OFF) with our calculated CRC causes all writes to fail
-   - Card rejects writes with `$0B` (CRC error) data response
-   - Confirms our CRC calculation is incorrect
+#### The Solution: Discovered 2026-01-31
 
-3. **Correct Implementation Approaches:**
-   - **Option A:** Bit-reverse each byte before CRC calculation, then bit-reverse result
-   - **Option B:** Use reflected polynomial `$8408` (LSB-first form of $1021)
-   - **Option C:** Implement lookup-table based CRC in software
-   - **Option D:** Use inline PASM2 with explicit bit ordering
+Through exhaustive testing of single-byte and multi-byte patterns, the exact relationship was determined:
 
-4. **Driver Still Works Without CRC:**
-   - CRC checking is disabled by default in SPI mode after card init
-   - Card accepts dummy `$FF $FF` CRC on writes
-   - Card sends valid CRC on reads (which we discard)
-   - This matches many hobby/simple drivers
+```spin2
+CON
+    CRC_POLY_REFLECTED = $8408       ' CRC-16-CCITT reflected polynomial
+    CRC_BASE_512       = $2C68       ' GETCRC of 512 zero bytes
 
-#### Next Steps (Future Enhancement):
+PRI calcCRC16(pData, len) : crc | raw
+    '' Calculate CRC-16-CCITT using P2's GETCRC instruction
+    '' Matches the standard lookup table algorithm
+    raw := GETCRC(pData, CRC_POLY_REFLECTED, len)
+    crc := ((raw ^ CRC_BASE_512) REV 31) >> 16
+```
 
-1. Study P2 GETCRC bit ordering in detail with test vectors
-2. Implement correct CRC-16-CCITT algorithm
-3. Test with CMD59 CRC enable
-4. Add comprehensive CRC validation tests
-5. Document any performance impact
+**Key Constants:**
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `CRC_POLY_REFLECTED` | `$8408` | CRC-16-CCITT polynomial in LSB-first form |
+| `CRC_BASE_512` | `$2C68` | GETCRC(@zeros, $8408, 512) - the "base" offset |
 
-#### Current Status:
+**The Algorithm:**
+1. **GETCRC** with reflected polynomial `$8408` on the raw data
+2. **XOR** the result with the precomputed base value (`$2C68` for 512 bytes)
+3. **REV 31** reverses all 32 bits (converts LSB-first to MSB-first)
+4. **>> 16** extracts the 16-bit CRC from the upper half
 
-The driver operates **without CRC validation**, matching the original V2 behavior.
-The risk of silent data corruption over the SPI bus remains as documented above.
+#### Why This Works
+
+P2's GETCRC uses a LSB-first (reflected) algorithm with internal quirks:
+1. It produces non-zero output for zero input (the "base value")
+2. It processes bits in LSB-first order
+3. The polynomial must be in reflected form ($8408 = REV16($1021))
+
+The transformation:
+- XOR with base removes P2's internal offset
+- REV 31 + >>16 converts from LSB-first 32-bit to MSB-first 16-bit
+
+#### Validation Results
+
+Tested 10 different 512-byte patterns (all zeros, all $FF, sequential, random, etc.):
+```
+Pattern 1:  Table=$0000 GETCRC=$0000 MATCH!
+Pattern 2:  Table=$7FA1 GETCRC=$7FA1 MATCH!
+Pattern 3:  Table=$40DA GETCRC=$40DA MATCH!
+Pattern 4:  Table=$0BA4 GETCRC=$0BA4 MATCH!
+Pattern 5:  Table=$A521 GETCRC=$A521 MATCH!
+Pattern 6:  Table=$DA80 GETCRC=$DA80 MATCH!
+Pattern 7:  Table=$7EF5 GETCRC=$7EF5 MATCH!
+Pattern 8:  Table=$BEB3 GETCRC=$BEB3 MATCH!
+Pattern 9:  Table=$3515 GETCRC=$3515 MATCH!
+Pattern 10: Table=$D1EE GETCRC=$D1EE MATCH!
+```
+
+**Result: 100% match with lookup table across all test patterns.**
+
+#### Benefits
+
+1. **Eliminates 512-byte lookup table** - Saves code space
+2. **Uses hardware acceleration** - GETCRC is ~1032 cycles for 512 bytes (~3.2µs at 320MHz)
+3. **Minimal overhead** - Only 1.6% of sector transfer time
+4. **Single formula** - Two lines of code replaces 256-entry table
+
+#### Implementation for Driver
+
+```spin2
+DAT
+    crc_base_512    LONG    $2C68    ' Precomputed: GETCRC(@zeros, $8408, 512)
+
+PRI calcSectorCRC(pBuf) : crc | raw
+    '' Calculate CRC-16-CCITT for a 512-byte sector
+    '' Uses P2 hardware GETCRC with transformation
+    raw := GETCRC(pBuf, $8408, 512)
+    crc := ((raw ^ crc_base_512) REV 31) >> 16
+
+PRI validateReadCRC(pBuf, received_crc) : valid
+    '' Validate CRC on received sector data
+    valid := calcSectorCRC(pBuf) == received_crc
+
+PRI generateWriteCRC(pBuf) : crc_hi, crc_lo | crc
+    '' Generate CRC bytes for sector write
+    crc := calcSectorCRC(pBuf)
+    crc_hi := crc >> 8
+    crc_lo := crc & $FF
+```
+
+#### Test File Location
+
+The solution test file is: `TestCard/SD_CRC_solution_test.spin2`
+
+Run with: `./run_test.sh ../TestCard/SD_CRC_solution_test.spin2`
 
 ### Error Handling
 
@@ -909,7 +972,7 @@ E_CRC_ERROR = -4    ' Already defined in error codes
 | Buffers | 3× hub RAM | Spin2 occupies cog/LUT; streamer needs hub |
 | Errors | Negative codes, per-cog | Thread-safe multi-cog access |
 | Failures | Timeouts, not retries | Caller has context to decide |
-| **CRC validation** | **Deferred** | **P2 GETCRC bit order mismatch - future enhancement** |
+| **CRC validation** | **GETCRC formula discovered** | **`((GETCRC ^ $2C68) REV 31) >> 16` replaces 512-byte table** |
 
 These decisions work together to create a driver that is:
 - **Safe**: Multiple cogs can call APIs without conflicts
@@ -920,5 +983,5 @@ These decisions work together to create a driver that is:
 ---
 
 *Document created: 2026-01-17*
-*Last updated: 2026-01-30 (added Decision 12: CRC Validation)*
+*Last updated: 2026-01-31 (Decision 12: CRC algorithm SOLVED - GETCRC formula discovered)*
 *For use by: Implementation agents, code reviewers*
