@@ -383,6 +383,7 @@ PUB stop()                                                                      
     api_lock := -1
 
   ' Clear state
+  driver_mode := MODE_NONE   ' Reset mode so next init/mount starts fresh
   flags := 0
   sec_in_buf := -1
 
