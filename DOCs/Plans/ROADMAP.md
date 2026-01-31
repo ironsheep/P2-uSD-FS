@@ -58,11 +58,25 @@ Project roadmap for SD card driver development and testing.
 - [x] FAT32 audit tool for validation
 - [x] 46 format validation tests passing
 
+### Phase 5: V3 Multi-File Handle API (Complete - 2026-01-30)
+- [x] Handle table for up to 4 simultaneous file opens
+- [x] Single-writer policy enforcement (3 read + 1 read-write)
+- [x] Per-handle independent file positions
+- [x] Singleton architecture with DAT-based shared state
+- [x] Worker cog pattern for serialized SPI access
+- [x] Handle allocation/deallocation with proper cleanup
+- [x] V3 format utility (SD_format_utility_v3.spin2)
+- [x] V3 testcard validation (SD_RT_testcard_validation_v3.spin2)
+- [x] Critical bug fixes:
+  - [x] Command code conflict (CMD_INIT_CARD_ONLY vs debug commands)
+  - [x] Singleton driver_mode state not reset in stop()
+- [x] Full V3 regression tests passing (83/83 tests)
+
 ---
 
 ## Current Status
 
-**V2 Driver Certification**: PASS (129/129 tests at 320 MHz)
+### V2 Driver Certification: PASS (129/129 tests at 320 MHz)
 
 | Test Suite | Pass | Total |
 |------------|------|-------|
@@ -72,17 +86,27 @@ Project roadmap for SD card driver development and testing.
 | Directory | 22 | 22 |
 | Seek | 36 | 36 |
 
+### V3 Driver Certification: PASS (83/83 tests at 320 MHz)
+
+| Test Suite | Pass | Total |
+|------------|------|-------|
+| Mount | 17 | 17 |
+| File Ops | 20 | 20 |
+| Format | 46 | 46 |
+
+---
+
+## Driver Versions
+
+| Driver | File | Purpose |
+|--------|------|---------|
+| V1 (Original) | `SD_card_driver.spin2` | Bit-bang SPI, single file API |
+| V2 (Performance) | `SD_card_driver_v2.spin2` | Smart pin SPI, streamer DMA, multi-sector |
+| V3 (Multi-Handle) | `SD_card_driver_v3.spin2` | Handle-based API, 4 simultaneous files, singleton |
+
 ---
 
 ## Future Phases
-
-### Phase 5: Multiple File Handles (Deferred)
-**Status**: Future (user requested deferral)
-
-- [ ] Handle table in DAT section (8 handles)
-- [ ] Refactor do_open/close/read/write/seek for handle parameter
-- [ ] Handle allocation/deallocation logic
-- [ ] Multi-cog file independence
 
 ### Phase 6: Safe FSCK Utility
 **Status**: Future
@@ -115,6 +139,12 @@ Create a filesystem check/repair utility for SD cards:
 | `SPRINT-PLAN-driver-performance.md` | Performance sprint details |
 | `PHASE1-SMARTPIN-SPI.md` | Phase 1 implementation plan |
 
+### Validation Results
+| Document | Purpose |
+|----------|---------|
+| `VALIDATION-RESULTS-V2.md` | V2 driver test results and known issues |
+| `VALIDATION-RESULTS-V3.md` | V3 driver test results and architecture notes |
+
 ### Reference
 | Document | Purpose |
 |----------|---------|
@@ -136,9 +166,10 @@ Create a filesystem check/repair utility for SD cards:
 | Phase 3 (Multi-Sector) | 2026-01-29 | Complete |
 | Phase 4 (Format Utility) | 2026-01-28 | Complete |
 | V2 Driver Certified | 2026-01-29 | Complete (129/129 tests) |
-| Phase 5 (Multiple Handles) | TBD | Deferred |
+| Phase 5 (V3 Multi-Handle) | 2026-01-30 | Complete (83/83 tests) |
 | Phase 6 (FSCK Utility) | TBD | Future |
+| Phase 7 (Advanced Features) | TBD | Future |
 
 ---
 
-*Last updated: 2026-01-29*
+*Last updated: 2026-01-30*
