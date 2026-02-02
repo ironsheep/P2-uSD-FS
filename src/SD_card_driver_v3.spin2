@@ -62,6 +62,8 @@ CON '' command codes for worker cog
   CMD_WRITE_SECTOR_RAW = 21 ' Raw single sector write: param0=sector, param1=buffer ptr
   CMD_DEBUG_SLOW_READ  = 25 ' DEBUG: Byte-by-byte sector read (no streamer)
   CMD_DEBUG_CLEAR_ROOT = 26 ' DEBUG: Clear root directory (fixes corruption)
+  CMD_READ_CID         = 27 ' Read CID register: param0=buffer ptr
+  CMD_READ_CSD         = 28 ' Read CSD register: param0=buffer ptr
 
   ' ═══════════════════════════════════════════════════════════════════════════
   ' V3 Handle-Based File Commands (multi-file support)
@@ -591,6 +593,12 @@ PRI fs_worker() | cur_cmd                                                       
       CMD_READ_SCR:
         pb_status := do_read_scr(pb_param0)
 
+      CMD_READ_CID:
+        pb_status := do_read_cid(pb_param0)
+
+      CMD_READ_CSD:
+        pb_status := do_read_csd(pb_param0)
+
       ' ═══════════════════════════════════════════════════════════════════════
       ' V3 Handle-Based File Commands
       ' ═══════════════════════════════════════════════════════════════════════
@@ -915,6 +923,30 @@ PRI do_read_scr(p_buf) : result                                                 
     return SUCCESS
   else
     debug("  [do_read_scr] SCR read failed")
+    return E_IO_ERROR
+
+PRI do_read_cid(p_buf) : result                                                 '' Internal read CID operation
+'' Reads the 16-byte CID register into the provided buffer.
+'' Runs on worker cog where smart pins are configured.
+'' @param p_buf - pointer to 16-byte buffer to receive CID data
+'' @return SUCCESS on success, error code on failure
+  if readCID(p_buf)
+    debug("  [do_read_cid] CID read successfully")
+    return SUCCESS
+  else
+    debug("  [do_read_cid] CID read failed")
+    return E_IO_ERROR
+
+PRI do_read_csd(p_buf) : result                                                 '' Internal read CSD operation
+'' Reads the 16-byte CSD register into the provided buffer.
+'' Runs on worker cog where smart pins are configured.
+'' @param p_buf - pointer to 16-byte buffer to receive CSD data
+'' @return SUCCESS on success, error code on failure
+  if readCSD(p_buf)
+    debug("  [do_read_csd] CSD read successfully")
+    return SUCCESS
+  else
+    debug("  [do_read_csd] CSD read failed")
     return E_IO_ERROR
 
 PRI do_open(name_ptr) : result | search_result                                  '' Internal open file operation
@@ -2056,26 +2088,32 @@ CON '' ════════════════════════�
     '' Call initCardOnly() or mount() before using these methods.
     '' ═══════════════════════════════════════════════════════════════════════════
 
-PUB readCIDRaw(p_buf) : result                                                  '' read CID register (16 bytes) into buffer
+PUB readCIDRaw(p_buf) : result | status                                         '' read CID register (16 bytes) into buffer
 '' Reads the Card Identification register containing manufacturer, product name,
 '' serial number, and manufacturing date.
+'' Routes through worker cog which owns the SPI pins.
 '' @param p_buf - pointer to 16-byte buffer to receive CID data
 '' @return true on success, false on failure
-  result := readCID(p_buf)
-  if result
+  status := send_command(CMD_READ_CID, p_buf, 0, 0, 0)
+  if status == SUCCESS
     debug("  [readCIDRaw] CID read successfully")
+    result := true
   else
     debug("  [readCIDRaw] CID read FAILED")
+    result := false
 
-PUB readCSDRaw(p_buf) : result                                                  '' read CSD register (16 bytes) into buffer
+PUB readCSDRaw(p_buf) : result | status                                         '' read CSD register (16 bytes) into buffer
 '' Reads the Card Specific Data register containing capacity, speed, and features.
+'' Routes through worker cog which owns the SPI pins.
 '' @param p_buf - pointer to 16-byte buffer to receive CSD data
 '' @return true on success, false on failure
-  result := readCSD(p_buf)
-  if result
+  status := send_command(CMD_READ_CSD, p_buf, 0, 0, 0)
+  if status == SUCCESS
     debug("  [readCSDRaw] CSD read successfully")
+    result := true
   else
     debug("  [readCSDRaw] CSD read FAILED")
+    result := false
 
 PUB readSCRRaw(p_buf) : result | status                                         '' read SCR register (8 bytes) into buffer
 '' Reads the SD Configuration Register containing SD spec version and bus widths.
