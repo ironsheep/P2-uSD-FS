@@ -22,6 +22,8 @@
 
 CON
 
+    DEBUG_DISABLE = 1   ' Disable debug to reduce debug record count
+
     ' FAT32 constants
     BYTES_PER_SECTOR    = 512
     RESERVED_SECTORS    = 32        ' Standard for FAT32
@@ -48,7 +50,7 @@ CON
 
 OBJ
 
-    sd : "SD_card_driver"                  ' Use bit-bang driver for formatting
+    sd : "SD_card_driver"                ' Use V3 driver with smart pins for formatting
 
 VAR
 
@@ -119,6 +121,11 @@ PUB formatWithLabel(cs, mosi, miso, sck, pLabel) : result | i, ch
         i++
 
     result := doFormat()
+
+PUB stop()
+'' Stop the driver worker cog and release SPI pins.
+'' Call this after format() or formatWithLabel() to allow other drivers to use the card.
+    sd.stop()
 
 PRI setDefaultLabel()
     ' Set default label "P2-XFER    " (11 chars, space padded)

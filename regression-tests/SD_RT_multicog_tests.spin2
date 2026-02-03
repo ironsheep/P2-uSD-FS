@@ -13,7 +13,7 @@
 
 CON
 
-     _CLKFREQ        = 320_000_000
+     _CLKFREQ        = 270_000_000
 
      ' Pin configuration for P2 Edge with SD card
      SD_CS   = 60
@@ -130,11 +130,13 @@ PUB go() | result, i, firstCogId, allSame, totalErrors
 
     ' Release workers
     sync_barrier := 1
+    utils.recordPass()  ' Workers launched successfully
 
     ' Wait for all workers to complete
     waitForWorkers()
 
     ' Verify all workers got the same cog ID
+    utils.startTest(@"All workers see same cog ID (singleton)")
     allSame := true
     repeat i from 0 to NUM_WORKER_COGS - 1
         if worker_cogid[i] <> firstCogId
@@ -177,6 +179,7 @@ PUB go() | result, i, firstCogId, allSame, totalErrors
 
     ' Release workers
     sync_barrier := 1
+    utils.recordPass()  ' Workers launched successfully
 
     ' Wait for all workers to complete
     waitForWorkers()
@@ -223,6 +226,7 @@ PUB go() | result, i, firstCogId, allSame, totalErrors
 
     ' Release workers
     sync_barrier := 1
+    utils.recordPass()  ' Workers launched successfully
 
     ' Wait for all workers to complete
     waitForWorkers()
@@ -251,7 +255,7 @@ PUB go() | result, i, firstCogId, allSame, totalErrors
     ' This tests that error() uses COGID() correctly
     result := sd.error()  ' Should return 0 (SUCCESS) or last error
     debug("  Main cog error(): ", sdec_(result))
-    debug("   -> pass")
+    utils.recordPass()
 
     ' ----------------------------------
     ' TEST GROUP: Cleanup
@@ -268,7 +272,7 @@ PUB go() | result, i, firstCogId, allSame, totalErrors
     utils.startTest(@"stop() releases resources")
     sd.stop()
     debug("  stop(): completed")
-    debug("   -> pass")
+    utils.recordPass()
 
     ' ----------------------------------
     ' Summary
@@ -361,10 +365,10 @@ PRI worker_stress_test(worker_id) | iter, result, bytesRead, expectedLen
 ' HELPER METHODS
 ' ═══════════════════════════════════════════════════════════════════════════
 
-PRI waitForWorkers() | i, allDone, timeout
-    '' Wait for all worker cogs to complete (or timeout)
-
-    timeout := getct() + clkfreq * 30  ' 30 second timeout
+PRI waitForWorkers() | i, allDone
+    '' Wait for all worker cogs to complete
+    '' No internal timeout - if workers hang, that's a driver bug to expose.
+    '' External test runner provides CI safety timeout.
 
     repeat
         allDone := true
@@ -374,14 +378,6 @@ PRI waitForWorkers() | i, allDone, timeout
                 quit
 
         if allDone
-            quit
-
-        if getct() - timeout > 0
-            debug("  TIMEOUT waiting for workers!")
-            ' Mark running workers as failed
-            repeat i from 0 to NUM_WORKER_COGS - 1
-                if worker_status[i] == STATUS_RUNNING
-                    worker_status[i] := STATUS_FAIL
             quit
 
         waitms(10)

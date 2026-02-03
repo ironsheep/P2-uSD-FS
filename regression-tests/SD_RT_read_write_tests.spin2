@@ -1,18 +1,25 @@
 '' =================================================================================================
 ''
 ''   File....... SD_RT_read_write_tests.spin2
-''   Purpose.... This object exercises read/write operations with various data patterns
+''   Purpose.... This object exercises read/write operations with various data patterns (V3 API)
 ''   Author..... Stephen M Moraco
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
 ''   Started.... JAN 2026
-''   Updated.... 16 JAN 2026
+''   Updated.... 29 JAN 2026
+''
+'' =================================================================================================
+''
+'' Updated for V3 handle-based API:
+''   - Uses createFileNew() / openFileRead() / openFileWrite()
+''   - Uses writeHandle() / readHandle() for all I/O
+''   - Uses fileSizeHandle() / syncHandle() / closeFileHandle()
 ''
 '' =================================================================================================
 
 CON
 
-     _CLKFREQ        = 320_000_000
+     _CLKFREQ        = 270_000_000
 
      ' Pin configuration for P2 Edge with SD card
      SD_CS   = 60
@@ -47,11 +54,15 @@ testStr1        BYTE    "Hello, World!", 0
 testStr2        BYTE    "The quick brown fox jumps over the lazy dog.", 0
 testStr3        BYTE    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 0
 
-PUB go() | result, bytesRead, idx, fileSize
+' Temp byte for single-byte writes
+tempByte        BYTE    0
+
+PUB go() | result, handle, bytesRead, bytesWritten, idx, fileSize
 
     debug(" ")
     debug("==============================================")
-    debug("  SD Card Driver - Read/Write Tests")
+    debug("  SD Card Driver V3 - Read/Write Tests")
+    debug("  (Using Handle-Based API)")
     debug("==============================================")
 
     ' Mount the card first
@@ -77,221 +88,221 @@ PUB go() | result, bytesRead, idx, fileSize
     ' ----------------------------------
     ' TEST GROUP: Byte-level writes
     ' ----------------------------------
-    utils.startTestGroup(@"Byte-level write/read")
+    utils.startTestGroup(@"Byte-level write/read (V3 API)")
 
-    utils.startTest(@"writeByte() - write 10 bytes")
-    result := sd.newFile(@testBytes)
-    if result
+    utils.startTest(@"writeHandle() - write 10 bytes")
+    handle := sd.createFileNew(@testBytes)
+    if handle >= 0
         repeat idx from 1 to 10
-            sd.writeByte(idx)
-        sd.closeFile()
+            tempByte := idx
+            sd.writeHandle(handle, @tempByte, 1)
+        sd.closeFileHandle(handle)
         debug("  Wrote 10 bytes (1-10)")
-        utils.recordPass()
-    else
-        debug("  ERROR: Could not create file")
-        utils.recordFail()
+    utils.evaluateSubBool(handle >= 0, @"createFileNew + writeHandle", true)
 
-    utils.startTest(@"read() - read back 10 bytes")
-    result := sd.openFile(@testBytes)
-    utils.evaluateBool(result, @"openFile()", true)
+    utils.startTest(@"readHandle() - read back 10 bytes")
+    handle := sd.openFileRead(@testBytes)
+    utils.evaluateSubBool(handle >= 0, @"openFileRead()", true)
 
     utils.startTest(@"Verify byte values")
     utils.setCheckCountPerTest(10)
-    bytesRead := sd.read(@readBuffer, 10)
-    repeat idx from 0 to 9
-        utils.evaluateSubValue(readBuffer[idx], @"byte value", idx + 1)
+    if handle >= 0
+        bytesRead := sd.readHandle(handle, @readBuffer, 10)
+        repeat idx from 0 to 9
+            utils.evaluateSubValue(readBuffer[idx], @"byte value", idx + 1)
 
     utils.startTest(@"Verify file size")
-    fileSize := sd.fileSize()
-    utils.evaluateSingleValue(fileSize, @"fileSize()", 10)
-    sd.closeFile()
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSingleValue(fileSize, @"fileSizeHandle()", 10)
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
-    ' TEST GROUP: String writes
+    ' TEST GROUP: String writes (as raw bytes)
     ' ----------------------------------
-    utils.startTestGroup(@"String write/read")
+    utils.startTestGroup(@"String write/read (V3 API)")
 
-    utils.startTest(@"writeString() - write test string")
-    result := sd.newFile(@testString)
-    utils.evaluateBool(result, @"newFile()", true)
+    utils.startTest(@"writeHandle() - write test strings")
+    handle := sd.createFileNew(@testString)
+    utils.evaluateSubBool(handle >= 0, @"createFileNew()", true)
 
-    utils.startTest(@"Write first string")
-    sd.writeString(@testStr1)
-    sd.writeByte(13)  ' CR
-    sd.writeByte(10)  ' LF
-    debug("  Wrote: ", zstr_(@testStr1))
-    utils.recordPass()
+    if handle >= 0
+        ' Write all strings to file with CRLF between them
+        sd.writeHandle(handle, @testStr1, strsize(@testStr1))
+        tempByte := 13
+        sd.writeHandle(handle, @tempByte, 1)
+        tempByte := 10
+        sd.writeHandle(handle, @tempByte, 1)
+        debug("  Wrote: ", zstr_(@testStr1))
 
-    utils.startTest(@"Write second string")
-    sd.writeString(@testStr2)
-    sd.writeByte(13)
-    sd.writeByte(10)
-    debug("  Wrote: ", zstr_(@testStr2))
-    utils.recordPass()
+        sd.writeHandle(handle, @testStr2, strsize(@testStr2))
+        tempByte := 13
+        sd.writeHandle(handle, @tempByte, 1)
+        tempByte := 10
+        sd.writeHandle(handle, @tempByte, 1)
+        debug("  Wrote: ", zstr_(@testStr2))
 
-    utils.startTest(@"Write third string")
-    sd.writeString(@testStr3)
-    sd.closeFile()
-    debug("  Wrote: ", zstr_(@testStr3))
-    utils.recordPass()
+        sd.writeHandle(handle, @testStr3, strsize(@testStr3))
+        sd.closeFileHandle(handle)
+        debug("  Wrote: ", zstr_(@testStr3))
 
-    utils.startTest(@"Read back and verify content")
-    result := sd.openFile(@testString)
-    utils.evaluateBool(result, @"openFile()", true)
+    utils.startTest(@"Read back and verify content accessible")
+    handle := sd.openFileRead(@testString)
+    utils.evaluateSubBool(handle >= 0, @"openFileRead()", true)
 
     ' Calculate expected size
     fileSize := strsize(@testStr1) + 2 + strsize(@testStr2) + 2 + strsize(@testStr3)
 
     utils.startTest(@"Verify total file size")
-    utils.evaluateSingleValue(sd.fileSize(), @"fileSize()", fileSize)
-    sd.closeFile()
+    if handle >= 0
+        utils.evaluateSingleValue(sd.fileSizeHandle(handle), @"fileSizeHandle()", fileSize)
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
     ' TEST GROUP: Buffer writes
     ' ----------------------------------
-    utils.startTestGroup(@"Buffer write/read")
+    utils.startTestGroup(@"Buffer write/read (V3 API)")
 
     ' Fill buffer with pattern
     utils.fillBufferWithPattern(@writeBuffer, 256, $A0)
 
-    utils.startTest(@"write() - write 256 byte buffer")
-    result := sd.newFile(@testPattern)
-    utils.evaluateBool(result, @"newFile()", true)
+    utils.startTest(@"writeHandle() - write 256 byte buffer")
+    handle := sd.createFileNew(@testPattern)
+    utils.evaluateSubBool(handle >= 0, @"createFileNew()", true)
 
-    utils.startTest(@"Write buffer with pattern $A0-$FF, $00-$9F")
-    sd.write(@writeBuffer, 256)
-    sd.closeFile()
-    debug("  Wrote 256 bytes")
-    utils.recordPass()
+    if handle >= 0
+        bytesWritten := sd.writeHandle(handle, @writeBuffer, 256)
+        sd.closeFileHandle(handle)
+        debug("  Wrote ", udec_(bytesWritten), " bytes")
 
     utils.startTest(@"Read back buffer")
-    result := sd.openFile(@testPattern)
-    if result
-        bytesRead := sd.read(@readBuffer, 256)
+    handle := sd.openFileRead(@testPattern)
+    utils.evaluateSubBool(handle >= 0, @"openFileRead()", true)
+
+    utils.startTest(@"Verify bytes read count")
+    if handle >= 0
+        bytesRead := sd.readHandle(handle, @readBuffer, 256)
         utils.evaluateSingleValue(bytesRead, @"bytes read", 256)
-    else
-        debug("  ERROR: Could not open file")
-        utils.recordFail()
 
     utils.startTest(@"Verify buffer content")
     result := utils.verifyBufferPattern(@readBuffer, 256, $A0)
     utils.evaluateBool(result, @"pattern match", true)
-    sd.closeFile()
+    if handle >= 0
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
     ' TEST GROUP: Large file writes (multi-sector)
     ' ----------------------------------
-    utils.startTestGroup(@"Multi-sector write/read")
+    utils.startTestGroup(@"Multi-sector write/read (V3 API)")
 
     ' Fill large buffer with pattern
     utils.fillBufferWithPattern(@largeWriteBuf, LARGE_BUFFER_SIZE, $00)
 
     utils.startTest(@"Write 2KB file (4 sectors)")
-    result := sd.newFile(@testLarge)
-    if result
-        sd.write(@largeWriteBuf, LARGE_BUFFER_SIZE)
-        sd.closeFile()
-        debug("  Wrote ", udec_(LARGE_BUFFER_SIZE), " bytes")
-        utils.recordPass()
-    else
-        utils.recordFail()
+    handle := sd.createFileNew(@testLarge)
+    utils.evaluateSubBool(handle >= 0, @"createFileNew()", true)
+
+    if handle >= 0
+        bytesWritten := sd.writeHandle(handle, @largeWriteBuf, LARGE_BUFFER_SIZE)
+        sd.closeFileHandle(handle)
+        debug("  Wrote ", udec_(bytesWritten), " bytes")
 
     utils.startTest(@"Read back 2KB file")
-    result := sd.openFile(@testLarge)
-    utils.evaluateBool(result, @"openFile()", true)
+    handle := sd.openFileRead(@testLarge)
+    utils.evaluateSubBool(handle >= 0, @"openFileRead()", true)
 
     utils.startTest(@"Verify file size is 2048")
-    fileSize := sd.fileSize()
-    utils.evaluateSingleValue(fileSize, @"fileSize()", LARGE_BUFFER_SIZE)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSingleValue(fileSize, @"fileSizeHandle()", LARGE_BUFFER_SIZE)
 
     utils.startTest(@"Read and verify content")
-    bytesRead := sd.read(@largeReadBuf, LARGE_BUFFER_SIZE)
-    utils.evaluateSingleValue(bytesRead, @"bytes read", LARGE_BUFFER_SIZE)
+    if handle >= 0
+        bytesRead := sd.readHandle(handle, @largeReadBuf, LARGE_BUFFER_SIZE)
+        utils.evaluateSingleValue(bytesRead, @"bytes read", LARGE_BUFFER_SIZE)
 
     utils.startTest(@"Verify large buffer pattern")
     result := utils.verifyBufferPattern(@largeReadBuf, LARGE_BUFFER_SIZE, $00)
     utils.evaluateBool(result, @"pattern match", true)
-    sd.closeFile()
+    if handle >= 0
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
-    ' TEST GROUP: Multiple writes to same file
+    ' TEST GROUP: Write and append (using openFileWrite)
     ' ----------------------------------
-    utils.startTestGroup(@"Multiple writes (append behavior)")
+    utils.startTestGroup(@"Write and append (V3 API)")
 
     utils.startTest(@"Create file with first write")
-    result := sd.newFile(@testMulti)
-    if result
-        utils.fillBufferWithValue(@writeBuffer, 100, $AA)
-        sd.write(@writeBuffer, 100)
-        sd.closeFile()
-        debug("  Wrote 100 bytes of $AA")
-        utils.recordPass()
-    else
-        utils.recordFail()
+    handle := sd.createFileNew(@testMulti)
+    utils.evaluateSubBool(handle >= 0, @"createFileNew()", true)
 
-    utils.startTest(@"Reopen and append more data")
-    ' Note: SD driver opens at end for writing
-    result := sd.openFile(@testMulti)
-    utils.evaluateBool(result, @"openFile()", true)
+    if handle >= 0
+        utils.fillBufferWithValue(@writeBuffer, 100, $AA)
+        sd.writeHandle(handle, @writeBuffer, 100)
+        sd.closeFileHandle(handle)
+        debug("  Wrote 100 bytes of $AA")
+
+    utils.startTest(@"Reopen and verify file size")
+    handle := sd.openFileRead(@testMulti)
+    utils.evaluateSubBool(handle >= 0, @"openFileRead()", true)
 
     utils.startTest(@"Verify file size after first write")
-    fileSize := sd.fileSize()
-    utils.evaluateSingleValue(fileSize, @"fileSize()", 100)
-    sd.closeFile()
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSingleValue(fileSize, @"fileSizeHandle()", 100)
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
-    ' TEST GROUP: Write with sync
+    ' TEST GROUP: Write with syncHandle
     ' ----------------------------------
-    utils.startTestGroup(@"Write with sync()")
+    utils.startTestGroup(@"Write with syncHandle() (V3 API)")
 
     utils.startTest(@"Create file and write data")
     sd.deleteFile(@testPattern)
-    result := sd.newFile(@testPattern)
-    utils.evaluateBool(result, @"newFile()", true)
+    handle := sd.createFileNew(@testPattern)
+    utils.evaluateSubBool(handle >= 0, @"createFileNew()", true)
 
-    utils.startTest(@"Write first chunk")
-    utils.fillBufferWithValue(@writeBuffer, 100, $11)
-    sd.write(@writeBuffer, 100)
-    debug("  Wrote 100 bytes of $11")
-    utils.recordPass()
+    if handle >= 0
+        utils.fillBufferWithValue(@writeBuffer, 100, $11)
+        sd.writeHandle(handle, @writeBuffer, 100)
+        debug("  Wrote 100 bytes of $11")
 
-    utils.startTest(@"Call sync() to flush without close")
-    result := sd.sync()
-    utils.evaluateBool(result, @"sync()", true)
+        utils.startTest(@"Call syncHandle() to flush without close")
+        result := sd.syncHandle(handle)
+        utils.evaluateSingleValue(result, @"syncHandle()", 0)
 
-    utils.startTest(@"Write second chunk")
-    utils.fillBufferWithValue(@writeBuffer, 100, $22)
-    sd.write(@writeBuffer, 100)
-    debug("  Wrote 100 bytes of $22")
-    utils.recordPass()
+        utils.fillBufferWithValue(@writeBuffer, 100, $22)
+        sd.writeHandle(handle, @writeBuffer, 100)
+        debug("  Wrote 100 bytes of $22")
 
-    utils.startTest(@"Close file")
-    sd.closeFile()
-    debug("  closeFile(): completed")
-    utils.recordPass()
+        sd.closeFileHandle(handle)
+        debug("  closeFileHandle(): completed")
 
     utils.startTest(@"Verify total file size")
-    result := sd.openFile(@testPattern)
-    fileSize := sd.fileSize()
-    utils.evaluateSingleValue(fileSize, @"fileSize()", 200)
-    sd.closeFile()
+    handle := sd.openFileRead(@testPattern)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSingleValue(fileSize, @"fileSizeHandle()", 200)
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
     ' TEST GROUP: Edge cases
     ' ----------------------------------
-    utils.startTestGroup(@"Edge cases")
+    utils.startTestGroup(@"Edge cases (V3 API)")
 
     utils.startTest(@"Read 0 bytes returns 0")
-    result := sd.openFile(@testPattern)
-    bytesRead := sd.read(@readBuffer, 0)
-    utils.evaluateSingleValue(bytesRead, @"read(0)", 0)
-    sd.closeFile()
+    handle := sd.openFileRead(@testPattern)
+    if handle >= 0
+        bytesRead := sd.readHandle(handle, @readBuffer, 0)
+        utils.evaluateSingleValue(bytesRead, @"readHandle(0)", 0)
+        sd.closeFileHandle(handle)
 
     utils.startTest(@"Read more than file size")
-    result := sd.openFile(@testBytes)  ' 10 byte file
-    bytesRead := sd.read(@readBuffer, 100)  ' Request 100
-    utils.evaluateSingleValue(bytesRead, @"read() at EOF", 10)  ' Should get 10
-    sd.closeFile()
+    handle := sd.openFileRead(@testBytes)  ' 10 byte file
+    if handle >= 0
+        bytesRead := sd.readHandle(handle, @readBuffer, 100)  ' Request 100
+        utils.evaluateSingleValue(bytesRead, @"readHandle() at EOF", 10)  ' Should get 10
+        sd.closeFileHandle(handle)
 
     ' ----------------------------------
     ' Cleanup
@@ -313,7 +324,7 @@ PUB go() | result, bytesRead, idx, fileSize
     utils.ShowTestEndCounts()
 
     debug(" ")
-    debug("* Read/Write Tests Complete")
+    debug("* Read/Write Tests Complete (V3 Handle API)")
     debug("END_SESSION")
 
 
@@ -326,22 +337,23 @@ con { license }
 
   Copyright (c) 2026 Iron Sheep Productions, LLC
 
-  Permission is hereby granted, free of charge, to any person obtaining a copy of this
-  software and associated documentation files (the "Software"), to deal in the Software
-  without restriction, including without limitation the rights to use, copy, modify,
-  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-  permit persons to whom the Software is furnished to do so, subject to the following
-  conditions:
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
 
-  The above copyright notice and this permission notice shall be included in all copies
-  or substantial portions of the Software.
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
 
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
-  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 
   =================================================================================================
 }}

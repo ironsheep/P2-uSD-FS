@@ -1,7 +1,7 @@
 '' =================================================================================================
 ''
 ''   File....... SD_RT_testcard_validation.spin2
-''   Purpose.... Validate driver can read pre-formatted test card (cross-OS compatibility)
+''   Purpose.... Validate V3 driver can read pre-formatted test card (read-only test)
 ''   Author..... Stephen M Moraco
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
@@ -61,12 +61,13 @@ PUB go() | result
 
     debug(" ")
     debug("==============================================")
-    debug("  SD Card Driver - Test Card Validation")
-    debug("  (Cross-OS Compatibility Tests)")
+    debug("  SD Card Driver V2 - Test Card Validation")
+    debug("  (READ-ONLY Test for Directory Debug)")
     debug("==============================================")
     debug(" ")
     debug("NOTE: This test requires the pre-formatted test card!")
     debug("      See TestCard/TEST-CARD-SPECIFICATION.md")
+    debug("      This test does NOT write to the card.")
     debug(" ")
 
     ' Mount the card
@@ -105,7 +106,7 @@ PUB go() | result
     utils.ShowTestEndCounts()
 
     debug(" ")
-    debug("* Test Card Validation Complete")
+    debug("* Test Card Validation V2 Complete")
     debug("END_SESSION")
 
 
@@ -173,7 +174,8 @@ PRI test_exact_sector() | result, i, allMatch
     utils.evaluateSingleValue(sd.fileSize(), @"fileSize()", 512)
 
     utils.startTest(@"Read 512 bytes")
-    sd.read(@mediumBuf, 512)
+    result := sd.read(@mediumBuf, 512)
+    utils.evaluateSingleValue(result, @"bytes read", 512)
 
     utils.startTest(@"Verify all bytes are 0x58 ('X')")
     allMatch := true
@@ -406,7 +408,7 @@ PRI test_benchmark_sequential() | start, elapsed, bytesRead, i, bytesPerSec
 
     debug("  64KB read time: ", udec_(elapsed / (clkfreq / 1000000)), " microseconds")
     debug("  Throughput: ~", udec_(bytesPerSec / 1024), " KB/sec")
-    debug("   -> pass (benchmark complete)")
+    utils.evaluateBool(elapsed > 0, @"benchmark complete", true)
 
 
 con { license }

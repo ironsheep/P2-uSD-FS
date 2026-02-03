@@ -106,10 +106,63 @@ Project roadmap for SD card driver development and testing.
 
 ---
 
-## Future Phases
+## Upcoming Phases (Release Preparation)
 
-### Phase 6: Safe FSCK Utility
-**Status**: Future
+### Phase 6: Exhaustive Error & Exception Testing
+**Status**: UPCOMING
+
+Expand regression test coverage to thoroughly exercise error paths and edge cases:
+
+- [ ] Invalid handle operations (E_INVALID_HANDLE paths)
+- [ ] File not found scenarios (E_NOT_FOUND)
+- [ ] Disk full conditions (E_DISK_FULL)
+- [ ] Read-only file violations
+- [ ] Directory vs file confusion errors
+- [ ] Invalid filename handling
+- [ ] Seek beyond EOF behavior
+- [ ] Handle exhaustion recovery (open 4, close 1, reopen)
+- [ ] Cluster chain corruption detection
+- [ ] FAT boundary edge cases
+- [ ] Multi-cog error isolation (per-cog error storage)
+- [ ] Card removal during operation (if detectable)
+
+### Phase 7: Multi-Clock Validation (270 MHz)
+**Status**: UPCOMING
+
+Verify sysclk-independent operation at alternate clock speeds:
+
+- [ ] Configure test harness for 270 MHz sysclk
+- [ ] Run full V3 regression suite at 270 MHz
+- [ ] Verify SPI timing remains correct (smart pin independence)
+- [ ] Compare performance metrics (should be similar KB/s)
+- [ ] Test card initialization at 270 MHz
+- [ ] Document any clock-specific issues discovered
+- [ ] Add 270 MHz results to certification documentation
+
+### Phase 8: Documentation & Release Preparation
+**Status**: UPCOMING
+
+Prepare driver package for public release:
+
+- [ ] **API Reference**: Complete method documentation with signatures, parameters, return values
+- [ ] **Quick Start Guide**: Minimal example to mount, read, write, unmount
+- [ ] **Migration Guide**: V1 → V2 → V3 upgrade path documentation
+- [ ] **Error Code Reference**: All E_* codes with descriptions and recovery suggestions
+- [ ] **Performance Guide**: Tuning tips, multi-sector usage, buffer sizing
+- [ ] **Hardware Setup**: Pin assignments, wiring diagrams, supported cards
+- [ ] **Known Limitations**: Document any remaining constraints
+- [ ] **README.md**: Project overview suitable for GitHub/OBEX
+- [ ] **LICENSE**: Confirm MIT license text
+- [ ] **CHANGELOG.md**: Version history with breaking changes noted
+- [ ] **Clean up src/**: Remove deprecated V1/V2 if V3 is the release target
+- [ ] **OBEX submission preparation**: Package structure, metadata
+
+---
+
+## Future Phases (Post-Release)
+
+### Phase 9: Safe FSCK Utility
+**Status**: Future (post-release)
 
 Create a filesystem check/repair utility for SD cards:
 
@@ -120,8 +173,8 @@ Create a filesystem check/repair utility for SD cards:
 - [ ] Update FSInfo next-free cluster hint
 - [ ] Validate and fix directory . and .. entries
 
-### Phase 7: Advanced Features
-**Status**: Future
+### Phase 10: Advanced Features
+**Status**: Future (post-release)
 
 - [ ] Long filename (LFN) support
 - [ ] Read-ahead caching
@@ -136,8 +189,16 @@ Create a filesystem check/repair utility for SD cards:
 | Document | Purpose |
 |----------|---------|
 | `ROADMAP.md` | High-level project timeline (this file) |
-| `SPRINT-PLAN-driver-performance.md` | Performance sprint details |
-| `PHASE1-SMARTPIN-SPI.md` | Phase 1 implementation plan |
+| `TEST-COVERAGE-IMPROVEMENT-PLAN.md` | Error/exception test coverage expansion |
+
+### Archived Plans (Complete)
+| Document | Purpose |
+|----------|---------|
+| `Archive/SPRINT-PLAN-driver-performance.md` | Performance sprint (Phases 1-6 complete) |
+| `Archive/PHASE1-SMARTPIN-SPI.md` | Phase 1 smart pin implementation |
+| `Archive/SPRINT-PLAN-multicog.md` | Multi-cog architecture |
+| `Archive/SPRINT-PLAN-highspeed.md` | High-speed SPI implementation |
+| `Archive/SPRINT-PLAN-card-characterization.md` | Card compatibility testing |
 
 ### Validation Results
 | Document | Purpose |
@@ -158,18 +219,31 @@ Create a filesystem check/repair utility for SD cards:
 
 ## Milestones
 
+### Completed
+| Milestone | Date | Status |
+|-----------|------|--------|
+| Baseline documented | 2026-01-21 | ✅ Complete |
+| Phase 1 (Smart Pin SPI) | 2026-01-29 | ✅ Complete |
+| Phase 2 (Adaptive Timing) | 2026-01-29 | ✅ Complete |
+| Phase 3 (Multi-Sector) | 2026-01-29 | ✅ Complete |
+| Phase 4 (Format Utility) | 2026-01-28 | ✅ Complete |
+| V2 Driver Certified | 2026-01-29 | ✅ Complete (129/129 tests) |
+| Phase 5 (V3 Multi-Handle) | 2026-01-30 | ✅ Complete (83/83 tests) |
+
+### Release Preparation (Upcoming)
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Baseline documented | 2026-01-21 | Complete |
-| Phase 1 (Smart Pin SPI) | 2026-01-29 | Complete |
-| Phase 2 (Adaptive Timing) | 2026-01-29 | Complete |
-| Phase 3 (Multi-Sector) | 2026-01-29 | Complete |
-| Phase 4 (Format Utility) | 2026-01-28 | Complete |
-| V2 Driver Certified | 2026-01-29 | Complete (129/129 tests) |
-| Phase 5 (V3 Multi-Handle) | 2026-01-30 | Complete (83/83 tests) |
-| Phase 6 (FSCK Utility) | TBD | Future |
-| Phase 7 (Advanced Features) | TBD | Future |
+| Phase 6 (Error/Exception Testing) | TBD | 🔲 Upcoming |
+| Phase 7 (270 MHz Validation) | TBD | 🔲 Upcoming |
+| Phase 8 (Documentation & Release) | TBD | 🔲 Upcoming |
+| **V3 Driver Public Release** | TBD | 🔲 Upcoming |
+
+### Post-Release (Future)
+| Milestone | Target | Status |
+|-----------|--------|--------|
+| Phase 9 (FSCK Utility) | TBD | ⏳ Future |
+| Phase 10 (Advanced Features) | TBD | ⏳ Future |
 
 ---
 
-*Last updated: 2026-01-30*
+*Last updated: 2026-02-01*

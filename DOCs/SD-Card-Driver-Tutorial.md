@@ -2,39 +2,83 @@
 
 **A practical guide to FAT32 file operations on the Parallax Propeller 2**
 
-This tutorial shows how to perform common filesystem operations using the `SD_card_driver.spin2` driver. If you're familiar with standard FAT32 APIs (FatFs, POSIX file I/O), this guide maps those concepts to our driver's interface.
+This tutorial shows how to perform common filesystem operations using the SD card drivers. If you're familiar with standard FAT32 APIs (FatFs, POSIX file I/O), this guide maps those concepts to our driver's interface.
 
 > **Reference:** For background on FAT32 internals and standard API concepts, see [FAT32-API-Concepts-Reference.md](Reference/FAT32-API-Concepts-Reference.md)
+
+---
+
+## Driver Versions
+
+| Driver | File | Features |
+|--------|------|----------|
+| **V1 (Bitbang)** | `SD_card_driver.spin2` | Basic bit-banged SPI, single file open |
+| **V2 (Smart Pins)** | `SD_card_driver_v2.spin2` | High-performance smart pin SPI, single file open |
+| **V3 (Worker Cog)** | `SD_card_driver_v3.spin2` | Smart pin SPI via dedicated worker cog, **multi-file handles** (up to 4 files open simultaneously), singleton architecture |
+
+**Recommendation:** Use V3 for new projects. It provides the best performance and multi-file capability.
 
 ---
 
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Mounting the Card](#mounting-the-card)
-3. [Working with Directories](#working-with-directories)
-4. [Searching for Files](#searching-for-files)
-5. [Reading Files](#reading-files)
-6. [Writing Files](#writing-files)
-7. [Seeking and Random Access](#seeking-and-random-access)
-8. [File Information](#file-information)
-9. [Error Handling](#error-handling)
-10. [Complete Examples](#complete-examples)
+2. [V3 Handle-Based API](#v3-handle-based-api) *(NEW)*
+3. [Mounting the Card](#mounting-the-card)
+4. [Working with Directories](#working-with-directories)
+5. [Searching for Files](#searching-for-files)
+6. [Reading Files](#reading-files)
+7. [Writing Files](#writing-files)
+8. [Seeking and Random Access](#seeking-and-random-access)
+9. [File Information](#file-information)
+10. [Error Handling](#error-handling)
+11. [Complete Examples](#complete-examples)
 
 ---
 
 ## Quick Start
 
+### V3 Driver (Recommended)
+
 ```spin2
 OBJ
-  sd : "SD_card_driver"
+  sd : "SD_card_driver_v3"
 
 CON
-  ' Define your SD card pins
-  SD_CS   = 61
+  ' Define your SD card pins (P2 Edge Module)
+  SD_CS   = 60
   SD_MOSI = 59
   SD_MISO = 58
-  SD_SCK  = 60
+  SD_SCK  = 61
+
+PUB main() | handle, buf[128], bytes_read
+  ' Mount the card
+  if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    debug("Mount failed!")
+    return
+
+  ' Open file for reading (V3 handle-based API)
+  handle := sd.openFileRead(string("TEST.TXT"))
+  if handle >= 0
+    bytes_read := sd.readHandle(handle, @buf, 512)
+    sd.closeFileHandle(handle)
+    debug("Read ", udec(bytes_read), " bytes")
+
+  ' Clean shutdown
+  sd.unmount()
+```
+
+### V1/V2 Driver (Legacy API)
+
+```spin2
+OBJ
+  sd : "SD_card_driver"      ' or "SD_card_driver_v2"
+
+CON
+  SD_CS   = 60
+  SD_MOSI = 59
+  SD_MISO = 58
+  SD_SCK  = 61
 
 PUB main() | buf[128], bytes_read
   ' Mount the card
@@ -42,7 +86,7 @@ PUB main() | buf[128], bytes_read
     debug("Mount failed!")
     return
 
-  ' Open and read a file
+  ' Open and read a file (legacy single-file API)
   if sd.openFile(string("TEST.TXT"))
     bytes_read := sd.read(@buf, 512)
     sd.closeFile()
@@ -51,6 +95,114 @@ PUB main() | buf[128], bytes_read
   ' Clean shutdown
   sd.unmount()
 ```
+
+---
+
+## V3 Handle-Based API
+
+The V3 driver introduces a handle-based file API that supports **up to 4 files open simultaneously** (3 read-only + 1 read-write). This enables use cases like:
+- Reading a configuration file while writing a log
+- Copying data between files
+- Comparing file contents
+
+### Key V3 Concepts
+
+**File Handles:** Each open file returns a handle (0-3). Use this handle for all subsequent operations on that file.
+
+**Single-Writer Policy:** Only ONE file can be open for writing at a time. This prevents data corruption from concurrent writes.
+
+**Singleton Architecture:** The V3 driver uses a singleton pattern - all instances share the same worker cog. Calling `stop()` from any instance affects all instances.
+
+### Opening Files (V3)
+
+```spin2
+' Open for reading (returns handle or negative error code)
+handle := sd.openFileRead(string("DATA.TXT"))
+if handle < 0
+  debug("Open failed, error: ", sdec(handle))
+
+' Open for writing (existing file, truncates to zero length)
+handle := sd.openFileWrite(string("OUTPUT.TXT"))
+
+' Create new file for writing (fails if exists)
+handle := sd.createFileNew(string("NEWFILE.TXT"))
+```
+
+### Reading/Writing with Handles (V3)
+
+```spin2
+' Read using handle
+bytes_read := sd.readHandle(handle, @buffer, count)
+
+' Write using handle
+sd.writeHandle(handle, @buffer, count)
+
+' Write string using handle
+sd.writeStringHandle(handle, string("Hello!"))
+```
+
+### Closing Files (V3)
+
+```spin2
+' Close specific handle
+sd.closeFileHandle(handle)
+
+' Close all open handles
+sd.closeAllFiles()
+```
+
+### File Operations with Handles (V3)
+
+```spin2
+' Get file size
+size := sd.fileSizeHandle(handle)
+
+' Seek to position
+sd.seekHandle(handle, position)
+
+' Flush writes without closing
+sd.syncHandle(handle)
+```
+
+### V3 Multi-File Example
+
+```spin2
+PUB copyFile(src_name, dest_name) | src_h, dest_h, buf[128], bytes
+  ' Open source for reading
+  src_h := sd.openFileRead(src_name)
+  if src_h < 0
+    return false
+
+  ' Create destination for writing
+  dest_h := sd.createFileNew(dest_name)
+  if dest_h < 0
+    sd.closeFileHandle(src_h)
+    return false
+
+  ' Copy in chunks
+  repeat
+    bytes := sd.readHandle(src_h, @buf, 512)
+    if bytes == 0
+      quit
+    sd.writeHandle(dest_h, @buf, bytes)
+
+  ' Clean up both files
+  sd.closeFileHandle(src_h)
+  sd.closeFileHandle(dest_h)
+  return true
+```
+
+### V3 Error Codes (Additional)
+
+| Code | Constant | Description |
+|------|----------|-------------|
+| -90 | `E_TOO_MANY_FILES` | All 4 file handles in use |
+| -91 | `E_INVALID_HANDLE` | Handle not valid or not open |
+| -92 | `E_FILE_ALREADY_OPEN` | File already open (same path) |
+
+### Backward Compatibility
+
+V3 also supports the legacy single-file API (`openFile()`, `read()`, `write()`, `closeFile()`) for backward compatibility with existing code.
 
 ---
 
@@ -854,53 +1006,73 @@ PUB appendRecord(filename, p_src) : success
 ## API Quick Reference
 
 ### Lifecycle
-| Method | Description |
-|--------|-------------|
-| `mount(cs, mosi, miso, sck)` | Mount card, returns true/false |
-| `unmount()` | Unmount card cleanly |
-| `sync()` | Flush pending writes |
+| Method | Description | V1/V2 | V3 |
+|--------|-------------|:-----:|:--:|
+| `mount(cs, mosi, miso, sck)` | Mount card, returns true/false | Yes | Yes |
+| `unmount()` | Unmount card cleanly | Yes | Yes |
+| `sync()` | Flush pending writes | Yes | Yes |
+| `stop()` | Stop worker cog (V3 singleton) | - | Yes |
 
 ### Directories
-| Method | Description |
-|--------|-------------|
-| `changeDirectory(name)` | Change current directory |
-| `newDirectory(name)` | Create new directory |
-| `readDirectory(index)` | Get entry at index |
+| Method | Description | V1/V2 | V3 |
+|--------|-------------|:-----:|:--:|
+| `changeDirectory(name)` | Change current directory | Yes | Yes |
+| `newDirectory(name)` | Create new directory | Yes | Yes |
+| `readDirectory(index)` | Get entry at index | Yes | Yes |
 
-### Files
-| Method | Description |
-|--------|-------------|
-| `openFile(name)` | Open existing file |
-| `newFile(name)` | Create and open new file |
-| `closeFile()` | Close current file |
-| `deleteFile(name)` | Delete file |
-| `rename(old, new)` | Rename file/directory |
-| `moveFile(name, dest)` | Move file to directory |
+### Files (Legacy Single-File API)
+| Method | Description | V1/V2 | V3 |
+|--------|-------------|:-----:|:--:|
+| `openFile(name)` | Open existing file | Yes | Yes |
+| `newFile(name)` | Create and open new file | Yes | Yes |
+| `closeFile()` | Close current file | Yes | Yes |
+| `deleteFile(name)` | Delete file | Yes | Yes |
+| `rename(old, new)` | Rename file/directory | Yes | Yes |
+| `moveFile(name, dest)` | Move file to directory | Yes | Yes |
 
-### Read/Write
-| Method | Description |
-|--------|-------------|
-| `read(buffer, count)` | Read bytes, returns count read |
-| `write(buffer, count)` | Write bytes |
-| `readByte(address)` | Read single byte at position |
-| `writeByte(char)` | Write single byte |
-| `writeString(str)` | Write null-terminated string |
-| `seek(pos)` | Set file position |
+### Files (V3 Handle-Based API)
+| Method | Description | V3 |
+|--------|-------------|:--:|
+| `openFileRead(name)` | Open for reading, returns handle | Yes |
+| `openFileWrite(name)` | Open for writing, returns handle | Yes |
+| `createFileNew(name)` | Create new file, returns handle | Yes |
+| `closeFileHandle(handle)` | Close specific handle | Yes |
+| `closeAllFiles()` | Close all open handles | Yes |
+
+### Read/Write (Legacy)
+| Method | Description | V1/V2 | V3 |
+|--------|-------------|:-----:|:--:|
+| `read(buffer, count)` | Read bytes, returns count read | Yes | Yes |
+| `write(buffer, count)` | Write bytes | Yes | Yes |
+| `readByte(address)` | Read single byte at position | Yes | Yes |
+| `writeByte(char)` | Write single byte | Yes | Yes |
+| `writeString(str)` | Write null-terminated string | Yes | Yes |
+| `seek(pos)` | Set file position | Yes | Yes |
+
+### Read/Write (V3 Handle-Based)
+| Method | Description | V3 |
+|--------|-------------|:--:|
+| `readHandle(handle, buffer, count)` | Read from handle | Yes |
+| `writeHandle(handle, buffer, count)` | Write to handle | Yes |
+| `writeStringHandle(handle, str)` | Write string to handle | Yes |
+| `seekHandle(handle, pos)` | Seek on handle | Yes |
+| `syncHandle(handle)` | Flush writes on handle | Yes |
 
 ### Information
-| Method | Description |
-|--------|-------------|
-| `fileSize()` | Size of open file |
-| `fileName()` | Name of open file |
-| `attributes()` | Attributes of open file |
-| `volumeLabel()` | Card volume label |
-| `freeSpace()` | Free sectors on card |
-| `error()` | Last error code |
+| Method | Description | V1/V2 | V3 |
+|--------|-------------|:-----:|:--:|
+| `fileSize()` | Size of open file (legacy) | Yes | Yes |
+| `fileSizeHandle(handle)` | Size of file by handle | - | Yes |
+| `fileName()` | Name of open file | Yes | Yes |
+| `attributes()` | Attributes of open file | Yes | Yes |
+| `volumeLabel()` | Card volume label | Yes | Yes |
+| `freeSpace()` | Free sectors on card | Yes | Yes |
+| `error()` | Last error code | Yes | Yes |
 
 ### Timestamps
-| Method | Description |
-|--------|-------------|
-| `setDate(y,m,d,h,mi,s)` | Set date for new files |
+| Method | Description | V1/V2 | V3 |
+|--------|-------------|:-----:|:--:|
+| `setDate(y,m,d,h,mi,s)` | Set date for new files | Yes | Yes |
 
 ---
 
@@ -913,6 +1085,45 @@ The driver abstracts away all FAT32 complexity:
 - **Sector buffering:** Managing the 512-byte sector buffer
 - **Directory parsing:** Converting 8.3 names and navigating entries
 - **Path resolution:** Walking the directory tree for absolute paths
-- **Multi-cog safety:** Serializing access through a worker cog
+- **Multi-cog safety:** Serializing access through a worker cog (V3)
+- **Multiple file handles:** Track up to 4 open files simultaneously (V3)
+- **Single-writer enforcement:** Prevent data corruption from concurrent writes (V3)
 
 You just work with files and bytes; the driver handles the rest.
+
+---
+
+## V3 Architecture Notes
+
+### Singleton Pattern
+
+The V3 driver uses a singleton pattern: all object instances share the same worker cog and state. This has important implications:
+
+```spin2
+OBJ
+  sd1 : "SD_card_driver_v3"    ' First instance
+  sd2 : "SD_card_driver_v3"    ' Second instance - shares same driver!
+
+PUB example()
+  sd1.mount(CS, MOSI, MISO, SCK)
+  ' sd2 can now use the mounted card too - same driver instance
+  handle := sd2.openFileRead(string("TEST.TXT"))
+
+  ' WARNING: stop() from ANY instance affects ALL instances
+  sd1.stop()   ' This will also stop sd2's access!
+```
+
+### Worker Cog
+
+All SPI operations are performed by a dedicated worker cog. This:
+- Isolates timing-sensitive SPI operations from your application code
+- Provides multi-cog safety through a hardware lock
+- Allows the main cog to continue other work during SD operations
+
+### Memory Usage
+
+| Resource | V1/V2 | V3 |
+|----------|-------|-----|
+| Cogs | 0 (inline) | 1 (worker) |
+| Locks | 1 | 1 |
+| Hub RAM | ~2KB | ~4KB (handles + worker stack) |

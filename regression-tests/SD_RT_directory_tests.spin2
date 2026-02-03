@@ -12,7 +12,7 @@
 
 CON
 
-     _CLKFREQ        = 320_000_000
+     _CLKFREQ        = 270_000_000
 
      ' Pin configuration for P2 Edge with SD card
      SD_CS   = 60

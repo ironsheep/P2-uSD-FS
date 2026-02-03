@@ -152,6 +152,19 @@ pub evaluateSubBool(result, pMessage, expectedResult) | bPassed, pPassFail
         debug("   -> ", zstr_(pPassFail))
 
 
+pub evaluateBool(result, pMessage, expectedResult) | bPassed, pPassFail
+'' Evaluate a boolean result (true/false)
+    bPassed := (result <> 0) == (expectedResult <> 0)
+    pPassFail := !bPassed ? @"FAIL" : @"pass"
+    ifnot bPassed
+        debug("  ", zstr_(pMessage), ": ", udec_(result <> 0), " (expected ", udec_(expectedResult <> 0), ")")
+        failCount++
+    else
+        debug("  ", zstr_(pMessage), ": ", udec_(result <> 0))
+        passCount++
+    debug("   -> ", zstr_(pPassFail))
+
+
 pub recordPass()
 '' Record a pass for a test that doesn't use evaluate functions
 '' Use after startTest() when the test verifies success implicitly
@@ -164,18 +177,6 @@ pub recordFail()
     initIfNotAlready()
     failCount++
     debug("   -> FAIL")
-
-pub evaluateBool(result, pMessage, expectedResult) | bPassed, pPassFail
-'' Evaluate a boolean result (true/false)
-    bPassed := (result <> 0) == (expectedResult <> 0)
-    pPassFail := !bPassed ? @"FAIL" : @"pass"
-    ifnot bPassed
-        debug("  ", zstr_(pMessage), ": ", udec_(result <> 0), " (expected ", udec_(expectedResult <> 0), ")")
-        failCount++
-    else
-        debug("  ", zstr_(pMessage), ": ", udec_(result <> 0))
-        passCount++
-    debug("   -> ", zstr_(pPassFail))
 
 
 pub evaluateSingleValue(result, pMessage, expectedResult) | bPassed, pPassFail
