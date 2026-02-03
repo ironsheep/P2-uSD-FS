@@ -4,7 +4,7 @@ This document describes the comprehensive regression test suite for the P2 SD Ca
 
 ## Overview
 
-The regression test suite consists of **6 specialized test files** covering different aspects of SD card functionality, supported by a test utilities framework and automated test runner. All tests execute on actual P2 hardware with a physical SD card, ensuring real-world validation.
+The regression test suite consists of **12 specialized test files** covering different aspects of SD card functionality, supported by a test utilities framework and automated test runner. All tests execute on actual P2 hardware with a physical SD card, ensuring real-world validation.
 
 ### Test Summary
 
@@ -16,7 +16,12 @@ The regression test suite consists of **6 specialized test files** covering diff
 | **Directory Tests** | Directory listing, navigation, attributes | 22 |
 | **Seek Tests** | Random access, cross-sector seeks, position | 36 |
 | **Format Tests** | FAT32 structure validation, cross-OS compatibility | 43 |
-| **Total** | | **172** |
+| **Multiblock Tests** | Multi-sector streamer DMA transfers | 12 |
+| **Multicog Tests** | Singleton pattern, concurrent access, lock serialization | 18 |
+| **Multihandle Tests** | Multiple simultaneous file handles | 28 |
+| **Raw Sector Tests** | Direct sector read/write (bypassing filesystem) | 15 |
+| **Frequency Sweep** | Sysclk timing boundaries | 14 |
+| **Total** | | **259+** |
 
 ---
 
@@ -25,24 +30,38 @@ The regression test suite consists of **6 specialized test files** covering diff
 ### Directory Structure
 
 ```
-P2-uSD-Study/
-├── regression-tests/           # Test source files
-│   ├── SD_RT_utilities.spin2   # Test framework (shared)
+P2-SD-Card-Driver/
+├── regression-tests/               # Test source files
+│   ├── SD_RT_utilities.spin2           # Test framework (shared)
 │   ├── SD_RT_mount_tests.spin2
 │   ├── SD_RT_file_ops_tests.spin2
 │   ├── SD_RT_read_write_tests.spin2
 │   ├── SD_RT_directory_tests.spin2
 │   ├── SD_RT_seek_tests.spin2
 │   ├── SD_RT_format_tests.spin2
-│   └── logs/                   # Per-test logs (pnut-term-ts)
+│   ├── SD_RT_multiblock_tests.spin2
+│   ├── SD_RT_multicog_tests.spin2
+│   ├── SD_RT_multihandle_tests.spin2
+│   ├── SD_RT_raw_sector_tests.spin2
+│   ├── SD_RT_frequency_sweep.spin2
+│   ├── logs/                           # Per-test logs (pnut-term-ts)
+│   └── TestCard/                       # Test card validation
+│       ├── TEST-CARD-SPECIFICATION.md      # Test card requirements
+│       ├── SD_RT_testcard_validation.spin2 # Card validation test
+│       └── TESTROOT/                       # Files to copy to test card
 │
-├── tools/                      # Test execution tools
-│   ├── run_test.sh             # Automated test runner
-│   └── logs/                   # Archived test logs
+├── tools/                          # Test execution tools
+│   ├── run_test.sh                     # Automated test runner
+│   └── logs/                           # Archived test logs
 │
-└── src/                        # Driver under test
-    ├── SD_card_driver.spin2
-    └── SD_format_utility.spin2
+└── src/                            # Driver under test
+    ├── SD_card_driver.spin2            # The SD card driver
+    └── UTILS/                          # Utility programs
+        ├── SD_format_utility.spin2         # FAT32 formatter
+        ├── SD_card_characterize.spin2      # Card register reader
+        ├── SD_speed_characterize.spin2     # SPI speed testing
+        ├── SD_performance_benchmark.spin2  # Throughput measurement
+        └── SD_FAT32_audit.spin2            # Filesystem validator
 ```
 
 ### Test Runner (`run_test.sh`)
@@ -133,9 +152,9 @@ PUB testExample()
 **Purpose:** Validate basic file creation, opening, closing, deletion, and renaming.
 
 **Test Groups:**
-- **File Creation** - `newFile()` creates files in root directory
-- **File Opening** - `openFile()` locates and opens existing files
-- **File Closing** - `closeFile()` flushes buffers and updates directory
+- **File Creation** - `createFileNew()` creates files in root directory
+- **File Opening** - `openFileRead()` / `openFileWrite()` locates and opens files
+- **File Closing** - `closeFileHandle()` flushes buffers and updates directory
 - **File Deletion** - `deleteFile()` removes files and frees clusters
 - **File Existence** - `fileExists()` correctly reports file presence
 - **File Renaming** - Rename operations preserve file content
@@ -175,8 +194,9 @@ PUB testExample()
 **Purpose:** Validate directory listing and file attribute operations.
 
 **Test Groups:**
-- **Directory Enumeration** - `firstFile()`, `nextFile()` iteration
+- **Directory Enumeration** - `readDirectory()` iteration
 - **File Attributes** - Name, size, date/time retrieval
+- **Directory Navigation** - `changeDirectory()` operations
 - **Multiple Files** - Listing with many directory entries
 - **Special Entries** - Volume label, dot entries handling
 
@@ -194,10 +214,10 @@ PUB testExample()
 **Purpose:** Validate random access and seek operations within files.
 
 **Test Groups:**
-- **Basic Seek** - `seek()` to specific positions
+- **Basic Seek** - `seekHandle()` to specific positions
 - **Cross-Sector Seek** - Seeking across 512-byte boundaries
 - **Random Access Pattern** - Non-sequential position jumps
-- **readByte() with Position** - Single-byte random reads
+- **Single-Byte Reads** - Random reads at specific positions
 - **Seek Edge Cases** - EOF boundary, seek beyond EOF
 - **Sequential vs Seek** - Verify seek doesn't affect sequential reads
 
@@ -273,6 +293,112 @@ PUB testExample()
 
 ---
 
+### 7. Multiblock Tests (`SD_RT_multiblock_tests.spin2`)
+
+**Purpose:** Validate multi-sector streamer DMA operations for high-throughput transfers.
+
+**Test Groups:**
+- **Round-trip Multi-block** - `writeSectorsRaw(8)` → `readSectorsRaw(8)` → verify
+- **Mixed Operations** - Multi-write with single-reads, single-writes with multi-read
+- **Edge Cases** - count=1 (fallback), count=0 (immediate return)
+- **Large Transfers** - 64 sectors (32KB) round-trip
+
+**Key Validations:**
+- Multi-sector writes maintain data integrity
+- Multi-sector reads return correct data
+- Mixing multi/single operations works correctly
+- Edge case counts handled appropriately
+- Large transfers complete without errors
+
+---
+
+### 8. Multicog Tests (`SD_RT_multicog_tests.spin2`)
+
+**Purpose:** Validate multi-cog safety including singleton pattern and lock serialization.
+
+**Test Groups:**
+- **Singleton Pattern** - All cogs share same worker cog instance
+- **Concurrent Mount** - Multiple cogs calling mount() simultaneously
+- **Lock Serialization** - Concurrent file operations properly serialized
+- **Stress Testing** - Rapid concurrent operations from multiple cogs
+
+**Key Validations:**
+- Worker cog ID identical across all client cogs
+- No data corruption under concurrent access
+- Lock contention handled correctly
+- Resource cleanup works with multiple clients
+
+---
+
+### 9. Multihandle Tests (`SD_RT_multihandle_tests.spin2`)
+
+**Purpose:** Validate handle-based multi-file API supporting up to 4 simultaneous files.
+
+**Test Groups:**
+- **Handle Allocation** - Opening up to 4 files simultaneously
+- **Independent Positions** - Each handle maintains separate file position
+- **Single-Writer Policy** - Only one write handle allowed per file
+- **Handle Release** - Closing handles frees slots for reuse
+- **Data Persistence** - Write → close → reopen → read cycle
+- **Overflow Handling** - Attempting to open 5th file returns error
+
+**Key Validations:**
+- Can open 4 files simultaneously (3 read + 1 write)
+- Each handle tracks position independently
+- Write handle exclusivity enforced
+- Closed handles properly released
+- Written data persists through close/reopen cycle
+
+---
+
+### 10. Raw Sector Tests (`SD_RT_raw_sector_tests.spin2`)
+
+**Purpose:** Validate low-level sector read/write bypassing the filesystem.
+
+**Test Groups:**
+- **Pattern Writes** - Multiple test patterns with boundary markers
+- **Round-trip Verification** - Write → read → compare
+- **Pattern Types** - Sequential, alternating, all-FF, all-00, incrementing
+
+**Test Sectors (100000+):**
+- Pattern A: Sequential bytes with boundary markers
+- Pattern B: Alternating $AA/$55
+- Pattern C: All $FF (except markers)
+- Pattern D: All $00 (except markers)
+- Pattern E: Incrementing with sector offset
+
+**Key Validations:**
+- Raw sector writes complete successfully
+- Raw sector reads return exact data written
+- Boundary markers preserved correctly
+- All pattern types verified
+
+---
+
+### 11. Frequency Sweep (`SD_RT_frequency_sweep.spin2`)
+
+**Purpose:** Find sysclk frequency boundaries for reliable streamer timing.
+
+**Test Frequencies:**
+- 320 MHz - Baseline
+- 300 MHz - Exact 25 MHz SPI division
+- 270 MHz - Standard test frequency
+- 250 MHz - HDMI target frequency
+- 200 MHz - Exact 25 MHz SPI division
+
+**Test Method:**
+- Dynamic sysclk change via `clkset()`
+- Multi-block write/read at each frequency
+- Data integrity verification
+- Reports pass/fail per frequency
+
+**Key Validations:**
+- Identifies reliable frequency ranges
+- Documents timing-sensitive boundaries
+- Verifies operation at common frequencies
+
+---
+
 ## Running the Full Test Suite
 
 To run all regression tests:
@@ -280,29 +406,46 @@ To run all regression tests:
 ```bash
 cd tools/
 
-# Run each test suite
+# Core functionality tests
 ./run_test.sh ../regression-tests/SD_RT_mount_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_file_ops_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_read_write_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_directory_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_seek_tests.spin2
+
+# Advanced feature tests
+./run_test.sh ../regression-tests/SD_RT_multihandle_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_multiblock_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_raw_sector_tests.spin2
+
+# Multi-cog and timing tests (extended timeout)
+./run_test.sh ../regression-tests/SD_RT_multicog_tests.spin2 -t 120
+./run_test.sh ../regression-tests/SD_RT_frequency_sweep.spin2 -t 180
+
+# Format test (destructive - erases card!)
 ./run_test.sh ../regression-tests/SD_RT_format_tests.spin2 -t 120
 ```
 
-**Note:** Format tests require extended timeout (`-t 120`) due to FAT initialization time on large cards.
+**Note:** Format tests and frequency sweep require extended timeout. Format tests will **erase all data** on the card.
 
 ---
 
 ## Test Card Requirements
 
-Tests are designed to run on any FAT32-formatted SD card. The format tests will **erase all data** on the card.
+Tests are designed to run on any FAT32-formatted SD card. Some tests (format, raw sector) may **erase data**.
 
-**Recommended Test Card:**
-- 32GB or 64GB SDHC/SDXC card
-- FAT32 formatted (or will be formatted by format tests)
-- No critical data (tests create/delete files)
+### Recommended Test Card
+- 32GB SDHC card (FAT32 formatted)
+- Dedicated test card (no critical data)
+- See `regression-tests/TestCard/TEST-CARD-SPECIFICATION.md` for detailed requirements
 
-**Hardware Configuration:**
+### Test Card Validation
+Run the test card validation to verify your card meets requirements:
+```bash
+./run_test.sh ../regression-tests/TestCard/SD_RT_testcard_validation.spin2
+```
+
+### Hardware Configuration
 ```spin2
 CON
     SD_CS   = 60    ' Chip Select
@@ -391,9 +534,10 @@ The test suite is designed for automated CI execution. The test runner returns a
 
 | Date | Changes |
 |------|---------|
-| Jan 2026 | Initial test framework and 5 test suites |
+| Feb 2026 | Consolidated test suite, added TestCard validation |
+| Jan 2026 | Added multiblock, multicog, multihandle tests |
 | Jan 2026 | Added comprehensive FAT32 format tests (43 tests) |
-| Jan 2026 | Fixed backup FSInfo write in formatter |
+| Jan 2026 | Initial test framework and core test suites |
 
 ---
 

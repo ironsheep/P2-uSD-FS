@@ -2,28 +2,16 @@
 
 **A practical guide to FAT32 file operations on the Parallax Propeller 2**
 
-This tutorial shows how to perform common filesystem operations using the SD card drivers. If you're familiar with standard FAT32 APIs (FatFs, POSIX file I/O), this guide maps those concepts to our driver's interface.
+This tutorial shows how to perform common filesystem operations using the SD card driver. If you're familiar with standard FAT32 APIs (FatFs, POSIX file I/O), this guide maps those concepts to our driver's interface.
 
 > **Reference:** For background on FAT32 internals and standard API concepts, see [FAT32-API-Concepts-Reference.md](Reference/FAT32-API-Concepts-Reference.md)
-
----
-
-## Driver Versions
-
-| Driver | File | Features |
-|--------|------|----------|
-| **V1 (Bitbang)** | `SD_card_driver.spin2` | Basic bit-banged SPI, single file open |
-| **V2 (Smart Pins)** | `SD_card_driver_v2.spin2` | High-performance smart pin SPI, single file open |
-| **V3 (Worker Cog)** | `SD_card_driver_v3.spin2` | Smart pin SPI via dedicated worker cog, **multi-file handles** (up to 4 files open simultaneously), singleton architecture |
-
-**Recommendation:** Use V3 for new projects. It provides the best performance and multi-file capability.
 
 ---
 
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [V3 Handle-Based API](#v3-handle-based-api) *(NEW)*
+2. [Handle-Based File API](#handle-based-file-api)
 3. [Mounting the Card](#mounting-the-card)
 4. [Working with Directories](#working-with-directories)
 5. [Searching for Files](#searching-for-files)
@@ -33,16 +21,16 @@ This tutorial shows how to perform common filesystem operations using the SD car
 9. [File Information](#file-information)
 10. [Error Handling](#error-handling)
 11. [Complete Examples](#complete-examples)
+12. [Architecture Notes](#architecture-notes)
+13. [API Quick Reference](#api-quick-reference)
 
 ---
 
 ## Quick Start
 
-### V3 Driver (Recommended)
-
 ```spin2
 OBJ
-  sd : "SD_card_driver_v3"
+  sd : "SD_card_driver"
 
 CON
   ' Define your SD card pins (P2 Edge Module)
@@ -57,7 +45,7 @@ PUB main() | handle, buf[128], bytes_read
     debug("Mount failed!")
     return
 
-  ' Open file for reading (V3 handle-based API)
+  ' Open file for reading (handle-based API)
   handle := sd.openFileRead(string("TEST.TXT"))
   if handle >= 0
     bytes_read := sd.readHandle(handle, @buf, 512)
@@ -68,52 +56,24 @@ PUB main() | handle, buf[128], bytes_read
   sd.unmount()
 ```
 
-### V1/V2 Driver (Legacy API)
-
-```spin2
-OBJ
-  sd : "SD_card_driver"      ' or "SD_card_driver_v2"
-
-CON
-  SD_CS   = 60
-  SD_MOSI = 59
-  SD_MISO = 58
-  SD_SCK  = 61
-
-PUB main() | buf[128], bytes_read
-  ' Mount the card
-  if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
-    debug("Mount failed!")
-    return
-
-  ' Open and read a file (legacy single-file API)
-  if sd.openFile(string("TEST.TXT"))
-    bytes_read := sd.read(@buf, 512)
-    sd.closeFile()
-    debug("Read ", udec(bytes_read), " bytes")
-
-  ' Clean shutdown
-  sd.unmount()
-```
-
 ---
 
-## V3 Handle-Based API
+## Handle-Based File API
 
-The V3 driver introduces a handle-based file API that supports **up to 4 files open simultaneously** (3 read-only + 1 read-write). This enables use cases like:
+The driver uses a handle-based file API that supports **up to 4 files open simultaneously** (3 read-only + 1 read-write). This enables use cases like:
 - Reading a configuration file while writing a log
 - Copying data between files
 - Comparing file contents
 
-### Key V3 Concepts
+### Key Concepts
 
 **File Handles:** Each open file returns a handle (0-3). Use this handle for all subsequent operations on that file.
 
 **Single-Writer Policy:** Only ONE file can be open for writing at a time. This prevents data corruption from concurrent writes.
 
-**Singleton Architecture:** The V3 driver uses a singleton pattern - all instances share the same worker cog. Calling `stop()` from any instance affects all instances.
+**Singleton Architecture:** The driver uses a singleton pattern - all OBJ instances share the same worker cog. Calling `stop()` from any instance affects all instances.
 
-### Opening Files (V3)
+### Opening Files
 
 ```spin2
 ' Open for reading (returns handle or negative error code)
@@ -124,38 +84,42 @@ if handle < 0
 ' Open for writing (existing file, truncates to zero length)
 handle := sd.openFileWrite(string("OUTPUT.TXT"))
 
-' Create new file for writing (fails if exists)
+' Create new file for writing (fails if file already exists)
 handle := sd.createFileNew(string("NEWFILE.TXT"))
 ```
 
-### Reading/Writing with Handles (V3)
+### Reading/Writing with Handles
 
 ```spin2
 ' Read using handle
 bytes_read := sd.readHandle(handle, @buffer, count)
 
 ' Write using handle
-sd.writeHandle(handle, @buffer, count)
-
-' Write string using handle
-sd.writeStringHandle(handle, string("Hello!"))
+bytes_written := sd.writeHandle(handle, @buffer, count)
 ```
 
-### Closing Files (V3)
+### Closing Files
 
 ```spin2
 ' Close specific handle
 sd.closeFileHandle(handle)
 
-' Close all open handles
-sd.closeAllFiles()
+' Sync all open handles without closing
+sd.syncAllHandles()
 ```
 
-### File Operations with Handles (V3)
+### File Operations with Handles
 
 ```spin2
 ' Get file size
 size := sd.fileSizeHandle(handle)
+
+' Get current position
+pos := sd.tellHandle(handle)
+
+' Check for end of file
+if sd.eofHandle(handle)
+  debug("At end of file")
 
 ' Seek to position
 sd.seekHandle(handle, position)
@@ -164,7 +128,7 @@ sd.seekHandle(handle, position)
 sd.syncHandle(handle)
 ```
 
-### V3 Multi-File Example
+### Multi-File Example
 
 ```spin2
 PUB copyFile(src_name, dest_name) | src_h, dest_h, buf[128], bytes
@@ -192,17 +156,13 @@ PUB copyFile(src_name, dest_name) | src_h, dest_h, buf[128], bytes
   return true
 ```
 
-### V3 Error Codes (Additional)
+### Handle Error Codes
 
 | Code | Constant | Description |
 |------|----------|-------------|
 | -90 | `E_TOO_MANY_FILES` | All 4 file handles in use |
 | -91 | `E_INVALID_HANDLE` | Handle not valid or not open |
 | -92 | `E_FILE_ALREADY_OPEN` | File already open (same path) |
-
-### Backward Compatibility
-
-V3 also supports the legacy single-file API (`openFile()`, `read()`, `write()`, `closeFile()`) for backward compatibility with existing code.
 
 ---
 
@@ -212,12 +172,7 @@ V3 also supports the legacy single-file API (`openFile()`, `read()`, `write()`, 
 
 Before any filesystem operations, you must mount the card. This initializes the SPI interface, reads the boot sector, and locates the FAT and root directory.
 
-### Standard API Equivalent
-```
-mount(volume_id, callbacks, &fs_object)
-```
-
-### Our Driver
+### API
 
 ```spin2
 PUB mount(_cs, _mosi, _miso, _sck) : result
@@ -236,10 +191,10 @@ PUB mount(_cs, _mosi, _miso, _sck) : result
 **Example:**
 ```spin2
 CON
-  SD_CS   = 61
+  SD_CS   = 60
   SD_MOSI = 59
   SD_MISO = 58
-  SD_SCK  = 60
+  SD_SCK  = 61
 
 PUB setup()
   if sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
@@ -269,12 +224,6 @@ The driver maintains a "current directory" that affects all file operations. You
 
 ### Changing the Current Directory
 
-**Standard API Equivalent:**
-```
-chdir(path)
-```
-
-**Our Driver:**
 ```spin2
 PUB changeDirectory(name_ptr) : result
 ```
@@ -296,12 +245,6 @@ sd.changeDirectory(string(".."))
 
 ### Creating a New Directory
 
-**Standard API Equivalent:**
-```
-mkdir(path)
-```
-
-**Our Driver:**
 ```spin2
 PUB newDirectory(name_ptr) : result
 ```
@@ -317,13 +260,6 @@ else
 
 ### Enumerating Directory Contents
 
-**Standard API Equivalent:**
-```
-opendir(path, &dir)
-readdir(&dir, &info)
-```
-
-**Our Driver:**
 ```spin2
 PUB readDirectory(entry) : result
 ```
@@ -374,14 +310,15 @@ PUB listDirectory() | entry_num, p_entry
 
 ### Concept
 
-Unlike some APIs that provide a separate search function, our driver combines searching with opening. When you call `openFile()` with a path, the driver walks the directory tree to find the file.
+Unlike some APIs that provide a separate search function, our driver combines searching with opening. When you call `openFileRead()` with a path, the driver walks the directory tree to find the file.
 
 ### Search for a File in Current Directory
 
 ```spin2
-if sd.openFile(string("CONFIG.TXT"))
+handle := sd.openFileRead(string("CONFIG.TXT"))
+if handle >= 0
   ' File found and opened
-  sd.closeFile()
+  sd.closeFileHandle(handle)
 else
   debug("File not found")
 ```
@@ -392,9 +329,10 @@ The driver supports absolute paths starting with `/`:
 
 ```spin2
 ' Search from root, regardless of current directory
-if sd.openFile(string("/SETTINGS/USER.CFG"))
+handle := sd.openFileRead(string("/SETTINGS/USER.CFG"))
+if handle >= 0
   ' Found it
-  sd.closeFile()
+  sd.closeFileHandle(handle)
 ```
 
 ### Check if Directory Exists
@@ -405,44 +343,6 @@ if sd.changeDirectory(string("LOGS"))
   sd.changeDirectory(string(".."))          ' Go back up
 else
   debug("LOGS directory not found")
-```
-
-### Recursive Directory Search (Manual Implementation)
-
-The driver doesn't have built-in recursive search, but you can implement it:
-
-```spin2
-VAR
-  byte search_name[13]
-  byte found_path[64]
-
-PUB findFileRecursive(name, current_path) : found | entry_num, p_entry, attr
-  ' Save the search name
-  bytemove(@search_name, name, strsize(name) + 1)
-
-  entry_num := 0
-  repeat
-    p_entry := sd.readDirectory(entry_num)
-    if p_entry == 0
-      return false
-
-    attr := sd.attributes()
-
-    ' Check for match (case-insensitive handled by driver)
-    if strcomp(sd.fileName(), @search_name)
-      ' Found it!
-      return true
-
-    ' If it's a directory (not . or ..), recurse into it
-    if (attr & $10) and (byte[sd.fileName()] <> ".")
-      if sd.changeDirectory(sd.fileName())
-        if findFileRecursive(@search_name, 0)
-          return true
-        sd.changeDirectory(string(".."))
-
-    entry_num++
-
-  return false
 ```
 
 ---
@@ -456,26 +356,22 @@ File reading is byte-oriented. You provide a buffer and a count, and the driver 
 ### Opening a File for Reading
 
 ```spin2
-PUB openFile(name_ptr) : result
+handle := sd.openFileRead(string("DATA.TXT"))
+if handle < 0
+  debug("Open failed")
+  return
 ```
-
-Returns `true` if the file was found and opened, `false` otherwise.
 
 ### Reading Data
 
-**Standard API Equivalent:**
-```
-read(file_handle, buffer, count, &bytes_read)
-```
-
-**Our Driver:**
 ```spin2
-PUB read(p_buffer, count) : bytes_read
+PUB readHandle(handle, p_buffer, count) : bytes_read
 ```
 
 **Parameters:**
 | Parameter | Description |
 |-----------|-------------|
+| `handle` | File handle from openFileRead() |
 | `p_buffer` | Pointer to your receive buffer |
 | `count` | Maximum bytes to read |
 
@@ -488,12 +384,16 @@ PUB read(p_buffer, count) : bytes_read
 VAR
   byte buffer[512]
 
-PUB readSmallFile()
-  if sd.openFile(string("MESSAGE.TXT"))
-    sd.read(@buffer, sd.fileSize())
-    buffer[sd.fileSize()] := 0              ' Null-terminate for string use
-    debug(zstr(@buffer))
-    sd.closeFile()
+PUB readSmallFile() | handle, size
+  handle := sd.openFileRead(string("MESSAGE.TXT"))
+  if handle < 0
+    return
+
+  size := sd.fileSizeHandle(handle)
+  sd.readHandle(handle, @buffer, size)
+  buffer[size] := 0                           ' Null-terminate for string use
+  debug(zstr(@buffer))
+  sd.closeFileHandle(handle)
 ```
 
 **Read Large File in Chunks:**
@@ -504,15 +404,16 @@ CON
 VAR
   byte chunk[CHUNK_SIZE]
 
-PUB readLargeFile() | total_read, bytes_this_read
-  if not sd.openFile(string("BIGFILE.DAT"))
+PUB readLargeFile() | handle, total_read, bytes_this_read
+  handle := sd.openFileRead(string("BIGFILE.DAT"))
+  if handle < 0
     return
 
   total_read := 0
   repeat
-    bytes_this_read := sd.read(@chunk, CHUNK_SIZE)
+    bytes_this_read := sd.readHandle(handle, @chunk, CHUNK_SIZE)
     if bytes_this_read == 0
-      quit                                  ' End of file
+      quit                                    ' End of file
 
     ' Process chunk here...
     processData(@chunk, bytes_this_read)
@@ -520,16 +421,8 @@ PUB readLargeFile() | total_read, bytes_this_read
     total_read += bytes_this_read
 
   debug("Total bytes read: ", udec(total_read))
-  sd.closeFile()
+  sd.closeFileHandle(handle)
 ```
-
-**Read Single Byte at Specific Position:**
-```spin2
-PUB readByteAt(position) : value
-  value := sd.readByte(position)
-```
-
-Note: `readByte()` combines seek and read internally.
 
 ---
 
@@ -537,37 +430,27 @@ Note: `readByte()` combines seek and read internally.
 
 ### Concept
 
-Writing works similarly to reading. For new files, use `newFile()` which creates the file and leaves it open for writing. For existing files, open them, seek to the desired position, and write.
+Writing works similarly to reading. For new files, use `createFileNew()` which creates the file and returns a handle for writing. For existing files, use `openFileWrite()`.
 
 ### Creating a New File
 
-**Standard API Equivalent:**
-```
-open(path, O_CREAT | O_WRONLY)
-```
-
-**Our Driver:**
 ```spin2
-PUB newFile(name_ptr) : result
+handle := sd.createFileNew(string("NEWFILE.TXT"))
+if handle < 0
+  debug("Could not create file")
+  return
 ```
-
-Creates a new file and opens it for writing. Returns `false` if file already exists.
 
 ### Writing Data
 
-**Standard API Equivalent:**
-```
-write(file_handle, buffer, count, &bytes_written)
-```
-
-**Our Driver:**
 ```spin2
-PUB write(p_buffer, count) : result
+PUB writeHandle(handle, p_buffer, count) : bytes_written
 ```
 
 **Parameters:**
 | Parameter | Description |
 |-----------|-------------|
+| `handle` | File handle from createFileNew() or openFileWrite() |
 | `p_buffer` | Pointer to data to write |
 | `count` | Number of bytes to write |
 
@@ -575,13 +458,14 @@ PUB write(p_buffer, count) : result
 
 **Create and Write a Small File:**
 ```spin2
-PUB createTextFile()
-  if sd.newFile(string("HELLO.TXT"))
-    sd.writeString(string("Hello, World!"))
-    sd.closeFile()
+PUB createTextFile() | handle
+  handle := sd.createFileNew(string("HELLO.TXT"))
+  if handle >= 0
+    sd.writeHandle(handle, string("Hello, World!"), 13)
+    sd.closeFileHandle(handle)
     debug("File created successfully")
   else
-    debug("Could not create file (may already exist)")
+    debug("Could not create file")
 ```
 
 **Write Binary Data:**
@@ -589,54 +473,48 @@ PUB createTextFile()
 VAR
   long sensor_data[100]
 
-PUB saveSensorData()
-  if sd.newFile(string("SENSOR.DAT"))
-    sd.write(@sensor_data, 100 * 4)         ' 100 longs = 400 bytes
-    sd.closeFile()
-```
-
-**Append to Existing File:**
-```spin2
-PUB appendToLog(message)
-  if sd.openFile(string("LOG.TXT"))
-    sd.seek(sd.fileSize())                  ' Move to end
-    sd.writeString(message)
-    sd.writeString(string(13, 10))          ' CR+LF
-    sd.closeFile()
+PUB saveSensorData() | handle
+  handle := sd.createFileNew(string("SENSOR.DAT"))
+  if handle >= 0
+    sd.writeHandle(handle, @sensor_data, 100 * 4)   ' 100 longs = 400 bytes
+    sd.closeFileHandle(handle)
 ```
 
 **Write Large Data in Chunks:**
 ```spin2
-PUB writeLargeData(p_data, total_bytes) | offset, chunk_size
-  if not sd.newFile(string("DUMP.BIN"))
+PUB writeLargeData(p_data, total_bytes) | handle, offset, chunk_size
+  handle := sd.createFileNew(string("DUMP.BIN"))
+  if handle < 0
     return false
 
   offset := 0
   repeat while offset < total_bytes
     chunk_size := (total_bytes - offset) <# 512
-    sd.write(p_data + offset, chunk_size)
+    sd.writeHandle(handle, p_data + offset, chunk_size)
     offset += chunk_size
 
-  sd.closeFile()
+  sd.closeFileHandle(handle)
   return true
 ```
 
 ### Flushing Data Without Closing
 
-Use `sync()` to flush pending writes without closing the file:
+Use `syncHandle()` to flush pending writes without closing the file:
 
 ```spin2
-PUB longRunningWrite() | i
-  if sd.newFile(string("DATA.LOG"))
-    repeat i from 0 to 999
-      sd.writeString(string("Data point "))
-      ' ... write data ...
+PUB longRunningWrite() | handle, i
+  handle := sd.createFileNew(string("DATA.LOG"))
+  if handle < 0
+    return
 
-      ' Checkpoint every 100 entries
-      if i // 100 == 99
-        sd.sync()
+  repeat i from 0 to 999
+    sd.writeHandle(handle, @data_point, DATA_SIZE)
 
-    sd.closeFile()
+    ' Checkpoint every 100 entries
+    if i // 100 == 99
+      sd.syncHandle(handle)
+
+  sd.closeFileHandle(handle)
 ```
 
 ---
@@ -645,23 +523,18 @@ PUB longRunningWrite() | i
 
 ### Concept
 
-The driver maintains a file position that advances automatically with each read/write. You can change this position with `seek()`.
+The driver maintains a file position that advances automatically with each read/write. You can change this position with `seekHandle()`.
 
 ### Seek to Position
 
-**Standard API Equivalent:**
-```
-lseek(fd, offset, SEEK_SET)
-```
-
-**Our Driver:**
 ```spin2
-PUB seek(pos) : result
+PUB seekHandle(handle, pos) : result
 ```
 
 **Parameters:**
 | Parameter | Description |
 |-----------|-------------|
+| `handle` | File handle |
 | `pos` | Byte offset from start of file |
 
 **Returns:** `true` on success, `false` if position is beyond end of file
@@ -673,31 +546,26 @@ PUB seek(pos) : result
 VAR
   byte header[64]
 
-PUB readFileHeader()
-  if sd.openFile(string("DATA.BIN"))
-    sd.seek(256)                            ' Skip first 256 bytes
-    sd.read(@header, 64)                    ' Read 64-byte header
-    sd.closeFile()
+PUB readFileHeader() | handle
+  handle := sd.openFileRead(string("DATA.BIN"))
+  if handle < 0
+    return
+
+  sd.seekHandle(handle, 256)                  ' Skip first 256 bytes
+  sd.readHandle(handle, @header, 64)          ' Read 64-byte header
+  sd.closeFileHandle(handle)
 ```
 
 **Random Access Read:**
 ```spin2
-PUB readRecordAt(record_num) | record[16]
+PUB readRecordAt(record_num) | handle, record[16]
   ' Assuming 64-byte records
-  if sd.openFile(string("DATABASE.DAT"))
-    sd.seek(record_num * 64)
-    sd.read(@record, 64)
-    sd.closeFile()
+  handle := sd.openFileRead(string("DATABASE.DAT"))
+  if handle >= 0
+    sd.seekHandle(handle, record_num * 64)
+    sd.readHandle(handle, @record, 64)
+    sd.closeFileHandle(handle)
   return @record
-```
-
-**Modify Data in Middle of File:**
-```spin2
-PUB updateRecord(record_num, p_new_data)
-  if sd.openFile(string("DATABASE.DAT"))
-    sd.seek(record_num * 64)
-    sd.write(p_new_data, 64)
-    sd.closeFile()
 ```
 
 ---
@@ -707,32 +575,25 @@ PUB updateRecord(record_num, p_new_data)
 ### Getting File Size
 
 ```spin2
-PUB fileSize() : result
+size := sd.fileSizeHandle(handle)
 ```
 
-Returns the size of the currently open file in bytes.
+Returns the size of the file in bytes.
+
+### Getting Current Position
 
 ```spin2
-if sd.openFile(string("IMAGE.BMP"))
-  debug("File size: ", udec(sd.fileSize()), " bytes")
-  sd.closeFile()
+pos := sd.tellHandle(handle)
 ```
 
-### Getting File Name
+Returns the current read/write position.
+
+### Checking for End of File
 
 ```spin2
-PUB fileName() : result
+if sd.eofHandle(handle)
+  debug("Reached end of file")
 ```
-
-Returns pointer to 8.3 formatted filename of currently open file.
-
-### Getting Attributes
-
-```spin2
-PUB attributes() : result
-```
-
-Returns attribute byte (see attribute flags table above).
 
 ### Volume Information
 
@@ -741,7 +602,8 @@ Returns attribute byte (see attribute flags table above).
 debug("Volume: ", zstr(sd.volumeLabel()))
 
 ' Get free space (returns sectors, not bytes)
-debug("Free sectors: ", udec(sd.freeSpace()))
+free_bytes := sd.freeSpace() * 512
+debug("Free space: ", udec(free_bytes), " bytes")
 ```
 
 ### Setting Timestamps
@@ -754,9 +616,9 @@ PUB setDate(year, month, day, hour, minute, second)
 
 ```spin2
 ' Set timestamp before creating files
-sd.setDate(2026, 1, 26, 14, 30, 0)
-sd.newFile(string("TIMESTAMPED.TXT"))
-sd.closeFile()
+sd.setDate(2026, 2, 3, 14, 30, 0)
+handle := sd.createFileNew(string("TIMESTAMPED.TXT"))
+sd.closeFileHandle(handle)
 ```
 
 ---
@@ -794,11 +656,14 @@ Returns the error code from the most recent operation. Thread-safe (each cog has
 | -46 | `E_END_OF_FILE` | Read past end of file |
 | -60 | `E_DISK_FULL` | No free clusters |
 | -64 | `E_NO_LOCK` | Couldn't allocate hardware lock |
+| -90 | `E_TOO_MANY_FILES` | All 4 file handles in use |
+| -91 | `E_INVALID_HANDLE` | Handle not valid or not open |
+| -92 | `E_FILE_ALREADY_OPEN` | File already open (same path) |
 
 ### Error Handling Pattern
 
 ```spin2
-PUB safeFileOperation()
+PUB safeFileOperation() | handle
   if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
     case sd.error()
       sd.E_TIMEOUT:
@@ -809,14 +674,16 @@ PUB safeFileOperation()
         debug("Mount failed, error: ", sdec(sd.error()))
     return
 
-  if not sd.openFile(string("DATA.TXT"))
+  handle := sd.openFileRead(string("DATA.TXT"))
+  if handle < 0
     if sd.error() == sd.E_FILE_NOT_FOUND
       ' Create the file
-      sd.newFile(string("DATA.TXT"))
+      handle := sd.createFileNew(string("DATA.TXT"))
 
-  ' ... continue operations ...
+  if handle >= 0
+    ' ... perform operations ...
+    sd.closeFileHandle(handle)
 
-  sd.closeFile()
   sd.unmount()
 ```
 
@@ -828,7 +695,7 @@ PUB safeFileOperation()
 
 ```spin2
 CON
-  SD_CS = 61, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 60
+  SD_CS = 60, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 61
   MAX_LINE = 80
 
 OBJ
@@ -837,11 +704,12 @@ OBJ
 VAR
   byte line_buffer[MAX_LINE]
 
-PUB readConfig() | bytes, i, ch
+PUB readConfig() | handle, i, ch
   if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
     return false
 
-  if not sd.openFile(string("CONFIG.INI"))
+  handle := sd.openFileRead(string("CONFIG.INI"))
+  if handle < 0
     sd.unmount()
     return false
 
@@ -849,22 +717,22 @@ PUB readConfig() | bytes, i, ch
   repeat
     i := 0
     repeat
-      if sd.read(@ch, 1) == 0               ' End of file
+      if sd.readHandle(handle, @ch, 1) == 0   ' End of file
         quit
-      if ch == 10                           ' Newline
+      if ch == 10                             ' Newline
         quit
-      if ch <> 13 and i < MAX_LINE - 1      ' Skip CR, check buffer
+      if ch <> 13 and i < MAX_LINE - 1        ' Skip CR, check buffer
         line_buffer[i++] := ch
 
-    line_buffer[i] := 0                     ' Null terminate
+    line_buffer[i] := 0                       ' Null terminate
 
     if i > 0
       processConfigLine(@line_buffer)
 
-    if ch == 0                              ' EOF reached
+    if sd.eofHandle(handle)
       quit
 
-  sd.closeFile()
+  sd.closeFileHandle(handle)
   sd.unmount()
   return true
 ```
@@ -873,21 +741,21 @@ PUB readConfig() | bytes, i, ch
 
 ```spin2
 CON
-  SD_CS = 61, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 60
+  SD_CS = 60, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 61
 
 OBJ
   sd : "SD_card_driver"
 
 VAR
   byte log_name[13]
-  long log_count
+  long log_handle
 
-PUB startLogging()
+PUB startLogging() | handle
   if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
     return false
 
   ' Set timestamp
-  sd.setDate(2026, 1, 26, 12, 0, 0)
+  sd.setDate(2026, 2, 3, 12, 0, 0)
 
   ' Create logs directory if needed
   if not sd.changeDirectory(string("LOGS"))
@@ -895,30 +763,38 @@ PUB startLogging()
     sd.changeDirectory(string("LOGS"))
 
   ' Find next available log number
-  log_count := 0
-  repeat
-    formatLogName(log_count)
-    if not sd.openFile(@log_name)
-      quit                                  ' Found unused name
-    sd.closeFile()
-    log_count++
+  findNextLogName()
 
   ' Create the new log file
-  sd.newFile(@log_name)
-  sd.writeString(string("=== Log Started ===", 13, 10))
+  log_handle := sd.createFileNew(@log_name)
+  if log_handle < 0
+    sd.unmount()
+    return false
 
+  sd.writeHandle(log_handle, string("=== Log Started ===", 13, 10), 21)
   return true
 
-PUB logEntry(message)
-  sd.writeString(message)
-  sd.writeString(string(13, 10))
-  sd.sync()                                 ' Ensure data is saved
+PUB logEntry(message) | len
+  len := strsize(message)
+  sd.writeHandle(log_handle, message, len)
+  sd.writeHandle(log_handle, string(13, 10), 2)
+  sd.syncHandle(log_handle)                   ' Ensure data is saved
 
 PUB stopLogging()
-  sd.writeString(string("=== Log Ended ===", 13, 10))
-  sd.closeFile()
+  sd.writeHandle(log_handle, string("=== Log Ended ===", 13, 10), 19)
+  sd.closeFileHandle(log_handle)
   sd.changeDirectory(string("/"))
   sd.unmount()
+
+PRI findNextLogName() | num, handle
+  num := 0
+  repeat
+    formatLogName(num)
+    handle := sd.openFileRead(@log_name)
+    if handle < 0
+      quit                                    ' Found unused name
+    sd.closeFileHandle(handle)
+    num++
 
 PRI formatLogName(num) | tens, ones
   ' Format as "LOG00.TXT" through "LOG99.TXT"
@@ -929,180 +805,73 @@ PRI formatLogName(num) | tens, ones
   log_name[4] := "0" + ones
 ```
 
-### Example 3: Binary File Handler
+### Example 3: Binary Record File
 
 ```spin2
 CON
-  SD_CS = 61, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 60
+  SD_CS = 60, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 61
   RECORD_SIZE = 32
 
 OBJ
   sd : "SD_card_driver"
 
-VAR
-  byte record[RECORD_SIZE]
-
-PUB readRecord(filename, record_num, p_dest) : success
+PUB readRecord(filename, record_num, p_dest) : success | handle
   if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
     return false
 
-  if not sd.openFile(filename)
+  handle := sd.openFileRead(filename)
+  if handle < 0
     sd.unmount()
     return false
 
   ' Check if record exists
-  if (record_num + 1) * RECORD_SIZE > sd.fileSize()
-    sd.closeFile()
+  if (record_num + 1) * RECORD_SIZE > sd.fileSizeHandle(handle)
+    sd.closeFileHandle(handle)
     sd.unmount()
     return false
 
   ' Seek to record position and read
-  sd.seek(record_num * RECORD_SIZE)
-  sd.read(p_dest, RECORD_SIZE)
+  sd.seekHandle(handle, record_num * RECORD_SIZE)
+  sd.readHandle(handle, p_dest, RECORD_SIZE)
 
-  sd.closeFile()
+  sd.closeFileHandle(handle)
   sd.unmount()
   return true
 
-PUB writeRecord(filename, record_num, p_src) : success
+PUB appendRecord(filename, p_src) : success | handle
   if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
     return false
 
-  ' Open existing or create new
-  if not sd.openFile(filename)
-    if not sd.newFile(filename)
+  ' Try to open existing, or create new
+  handle := sd.openFileWrite(filename)
+  if handle < 0
+    handle := sd.createFileNew(filename)
+    if handle < 0
       sd.unmount()
       return false
-
-  ' Seek to record position and write
-  sd.seek(record_num * RECORD_SIZE)
-  sd.write(p_src, RECORD_SIZE)
-
-  sd.closeFile()
-  sd.unmount()
-  return true
-
-PUB appendRecord(filename, p_src) : success
-  if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
-    return false
-
-  ' Open existing or create new
-  if sd.openFile(filename)
-    sd.seek(sd.fileSize())                  ' Go to end
   else
-    if not sd.newFile(filename)
-      sd.unmount()
-      return false
+    ' Seek to end for append
+    sd.seekHandle(handle, sd.fileSizeHandle(handle))
 
-  sd.write(p_src, RECORD_SIZE)
+  sd.writeHandle(handle, p_src, RECORD_SIZE)
 
-  sd.closeFile()
+  sd.closeFileHandle(handle)
   sd.unmount()
   return true
 ```
 
 ---
 
-## API Quick Reference
-
-### Lifecycle
-| Method | Description | V1/V2 | V3 |
-|--------|-------------|:-----:|:--:|
-| `mount(cs, mosi, miso, sck)` | Mount card, returns true/false | Yes | Yes |
-| `unmount()` | Unmount card cleanly | Yes | Yes |
-| `sync()` | Flush pending writes | Yes | Yes |
-| `stop()` | Stop worker cog (V3 singleton) | - | Yes |
-
-### Directories
-| Method | Description | V1/V2 | V3 |
-|--------|-------------|:-----:|:--:|
-| `changeDirectory(name)` | Change current directory | Yes | Yes |
-| `newDirectory(name)` | Create new directory | Yes | Yes |
-| `readDirectory(index)` | Get entry at index | Yes | Yes |
-
-### Files (Legacy Single-File API)
-| Method | Description | V1/V2 | V3 |
-|--------|-------------|:-----:|:--:|
-| `openFile(name)` | Open existing file | Yes | Yes |
-| `newFile(name)` | Create and open new file | Yes | Yes |
-| `closeFile()` | Close current file | Yes | Yes |
-| `deleteFile(name)` | Delete file | Yes | Yes |
-| `rename(old, new)` | Rename file/directory | Yes | Yes |
-| `moveFile(name, dest)` | Move file to directory | Yes | Yes |
-
-### Files (V3 Handle-Based API)
-| Method | Description | V3 |
-|--------|-------------|:--:|
-| `openFileRead(name)` | Open for reading, returns handle | Yes |
-| `openFileWrite(name)` | Open for writing, returns handle | Yes |
-| `createFileNew(name)` | Create new file, returns handle | Yes |
-| `closeFileHandle(handle)` | Close specific handle | Yes |
-| `closeAllFiles()` | Close all open handles | Yes |
-
-### Read/Write (Legacy)
-| Method | Description | V1/V2 | V3 |
-|--------|-------------|:-----:|:--:|
-| `read(buffer, count)` | Read bytes, returns count read | Yes | Yes |
-| `write(buffer, count)` | Write bytes | Yes | Yes |
-| `readByte(address)` | Read single byte at position | Yes | Yes |
-| `writeByte(char)` | Write single byte | Yes | Yes |
-| `writeString(str)` | Write null-terminated string | Yes | Yes |
-| `seek(pos)` | Set file position | Yes | Yes |
-
-### Read/Write (V3 Handle-Based)
-| Method | Description | V3 |
-|--------|-------------|:--:|
-| `readHandle(handle, buffer, count)` | Read from handle | Yes |
-| `writeHandle(handle, buffer, count)` | Write to handle | Yes |
-| `writeStringHandle(handle, str)` | Write string to handle | Yes |
-| `seekHandle(handle, pos)` | Seek on handle | Yes |
-| `syncHandle(handle)` | Flush writes on handle | Yes |
-
-### Information
-| Method | Description | V1/V2 | V3 |
-|--------|-------------|:-----:|:--:|
-| `fileSize()` | Size of open file (legacy) | Yes | Yes |
-| `fileSizeHandle(handle)` | Size of file by handle | - | Yes |
-| `fileName()` | Name of open file | Yes | Yes |
-| `attributes()` | Attributes of open file | Yes | Yes |
-| `volumeLabel()` | Card volume label | Yes | Yes |
-| `freeSpace()` | Free sectors on card | Yes | Yes |
-| `error()` | Last error code | Yes | Yes |
-
-### Timestamps
-| Method | Description | V1/V2 | V3 |
-|--------|-------------|:-----:|:--:|
-| `setDate(y,m,d,h,mi,s)` | Set date for new files | Yes | Yes |
-
----
-
-## What The Driver Handles For You
-
-The driver abstracts away all FAT32 complexity:
-
-- **Cluster chains:** Following and allocating clusters automatically
-- **FAT updates:** Maintaining both FAT copies
-- **Sector buffering:** Managing the 512-byte sector buffer
-- **Directory parsing:** Converting 8.3 names and navigating entries
-- **Path resolution:** Walking the directory tree for absolute paths
-- **Multi-cog safety:** Serializing access through a worker cog (V3)
-- **Multiple file handles:** Track up to 4 open files simultaneously (V3)
-- **Single-writer enforcement:** Prevent data corruption from concurrent writes (V3)
-
-You just work with files and bytes; the driver handles the rest.
-
----
-
-## V3 Architecture Notes
+## Architecture Notes
 
 ### Singleton Pattern
 
-The V3 driver uses a singleton pattern: all object instances share the same worker cog and state. This has important implications:
+The driver uses a singleton pattern: all object instances share the same worker cog and state. This has important implications:
 
 ```spin2
 OBJ
-  sd1 : "SD_card_driver_v3"    ' First instance
-  sd2 : "SD_card_driver_v3"    ' Second instance - shares same driver!
+  sd1 : "SD_card_driver"    ' First instance
+  sd2 : "SD_card_driver"    ' Second instance - shares same driver!
 
 PUB example()
   sd1.mount(CS, MOSI, MISO, SCK)
@@ -1122,8 +891,77 @@ All SPI operations are performed by a dedicated worker cog. This:
 
 ### Memory Usage
 
-| Resource | V1/V2 | V3 |
-|----------|-------|-----|
-| Cogs | 0 (inline) | 1 (worker) |
-| Locks | 1 | 1 |
-| Hub RAM | ~2KB | ~4KB (handles + worker stack) |
+| Resource | Usage |
+|----------|-------|
+| Cogs | 1 (worker) |
+| Locks | 1 |
+| Hub RAM | ~4KB (handles + worker stack + sector buffers) |
+
+---
+
+## API Quick Reference
+
+### Lifecycle
+| Method | Description |
+|--------|-------------|
+| `mount(cs, mosi, miso, sck)` | Mount card, returns true/false |
+| `unmount()` | Unmount card cleanly |
+| `stop()` | Stop worker cog |
+
+### Directories
+| Method | Description |
+|--------|-------------|
+| `changeDirectory(name)` | Change current directory |
+| `newDirectory(name)` | Create new directory |
+| `readDirectory(index)` | Get entry at index |
+
+### File Operations
+| Method | Description |
+|--------|-------------|
+| `openFileRead(name)` | Open for reading, returns handle |
+| `openFileWrite(name)` | Open for writing (truncates), returns handle |
+| `createFileNew(name)` | Create new file, returns handle |
+| `closeFileHandle(handle)` | Close specific handle |
+| `deleteFile(name)` | Delete file |
+| `rename(old, new)` | Rename file/directory |
+| `moveFile(name, dest)` | Move file to directory |
+
+### Read/Write
+| Method | Description |
+|--------|-------------|
+| `readHandle(handle, buffer, count)` | Read from handle, returns bytes read |
+| `writeHandle(handle, buffer, count)` | Write to handle, returns bytes written |
+| `seekHandle(handle, pos)` | Set file position |
+| `tellHandle(handle)` | Get current position |
+| `eofHandle(handle)` | Check if at end of file |
+| `syncHandle(handle)` | Flush writes on handle |
+| `syncAllHandles()` | Flush all handles |
+
+### Information
+| Method | Description |
+|--------|-------------|
+| `fileSizeHandle(handle)` | Size of file by handle |
+| `fileName()` | Name of last directory entry |
+| `attributes()` | Attributes of last directory entry |
+| `volumeLabel()` | Card volume label |
+| `freeSpace()` | Free sectors on card |
+| `error()` | Last error code |
+| `setDate(y,m,d,h,mi,s)` | Set date for new files |
+
+---
+
+## What The Driver Handles For You
+
+The driver abstracts away all FAT32 complexity:
+
+- **Cluster chains:** Following and allocating clusters automatically
+- **FAT updates:** Maintaining both FAT copies
+- **Sector buffering:** Managing the 512-byte sector buffer
+- **Directory parsing:** Converting 8.3 names and navigating entries
+- **Path resolution:** Walking the directory tree for absolute paths
+- **Multi-cog safety:** Serializing access through a worker cog
+- **Multiple file handles:** Track up to 4 open files simultaneously
+- **Single-writer enforcement:** Prevent data corruption from concurrent writes
+- **CRC validation:** Hardware-accelerated CRC-16 on all data transfers
+
+You just work with files and bytes; the driver handles the rest.
