@@ -4,7 +4,7 @@ This document describes the comprehensive regression test suite for the P2 SD Ca
 
 ## Overview
 
-The regression test suite consists of **12 specialized test files** covering different aspects of SD card functionality, supported by a test utilities framework and automated test runner. All tests execute on actual P2 hardware with a physical SD card, ensuring real-world validation.
+The regression test suite consists of **10 specialized test files** covering different aspects of SD card functionality, supported by a test utilities framework and automated test runner. All tests execute on actual P2 hardware with a physical SD card, ensuring real-world validation.
 
 ### Test Summary
 
@@ -20,8 +20,7 @@ The regression test suite consists of **12 specialized test files** covering dif
 | **Multicog Tests** | Singleton pattern, concurrent access, lock serialization | 18 |
 | **Multihandle Tests** | Multiple simultaneous file handles | 28 |
 | **Raw Sector Tests** | Direct sector read/write (bypassing filesystem) | 15 |
-| **Frequency Sweep** | Sysclk timing boundaries | 14 |
-| **Total** | | **259+** |
+| **Total** | | **245+** |
 
 ---
 
@@ -43,7 +42,6 @@ P2-SD-Card-Driver/
 │   ├── SD_RT_multicog_tests.spin2
 │   ├── SD_RT_multihandle_tests.spin2
 │   ├── SD_RT_raw_sector_tests.spin2
-│   ├── SD_RT_frequency_sweep.spin2
 │   ├── logs/                           # Per-test logs (pnut-term-ts)
 │   └── TestCard/                       # Test card validation
 │       ├── TEST-CARD-SPECIFICATION.md      # Test card requirements
@@ -375,30 +373,6 @@ PUB testExample()
 
 ---
 
-### 11. Frequency Sweep (`SD_RT_frequency_sweep.spin2`)
-
-**Purpose:** Find sysclk frequency boundaries for reliable streamer timing.
-
-**Test Frequencies:**
-- 320 MHz - Baseline
-- 300 MHz - Exact 25 MHz SPI division
-- 270 MHz - Standard test frequency
-- 250 MHz - HDMI target frequency
-- 200 MHz - Exact 25 MHz SPI division
-
-**Test Method:**
-- Dynamic sysclk change via `clkset()`
-- Multi-block write/read at each frequency
-- Data integrity verification
-- Reports pass/fail per frequency
-
-**Key Validations:**
-- Identifies reliable frequency ranges
-- Documents timing-sensitive boundaries
-- Verifies operation at common frequencies
-
----
-
 ## Running the Full Test Suite
 
 To run all regression tests:
@@ -418,15 +392,14 @@ cd tools/
 ./run_test.sh ../regression-tests/SD_RT_multiblock_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_raw_sector_tests.spin2
 
-# Multi-cog and timing tests (extended timeout)
+# Multi-cog tests (extended timeout)
 ./run_test.sh ../regression-tests/SD_RT_multicog_tests.spin2 -t 120
-./run_test.sh ../regression-tests/SD_RT_frequency_sweep.spin2 -t 180
 
 # Format test (destructive - erases card!)
 ./run_test.sh ../regression-tests/SD_RT_format_tests.spin2 -t 120
 ```
 
-**Note:** Format tests and frequency sweep require extended timeout. Format tests will **erase all data** on the card.
+**Note:** Format tests require extended timeout and will **erase all data** on the card.
 
 ---
 

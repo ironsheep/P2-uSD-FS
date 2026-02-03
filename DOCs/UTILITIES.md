@@ -14,6 +14,7 @@ The utilities are located in `src/UTILS/` and can be run independently using the
 | **SD_format_card.spin2** | Format runner (standalone) | Yes |
 | **SD_card_characterize.spin2** | Card register reader | No |
 | **SD_speed_characterize.spin2** | SPI speed tester | No |
+| **SD_frequency_characterize.spin2** | Sysclk frequency tester | No |
 | **SD_performance_benchmark.spin2** | Throughput measurement | Yes* |
 | **SD_FAT32_audit.spin2** | Filesystem validator | No |
 
@@ -208,7 +209,45 @@ Recommended Maximum Speed: 30 MHz
 
 ---
 
-### 5. SD_performance_benchmark.spin2
+### 5. SD_frequency_characterize.spin2
+
+**Purpose:** Find sysclk frequency boundaries for reliable streamer timing.
+
+**Usage:**
+```bash
+./run_test.sh ../src/UTILS/SD_frequency_characterize.spin2 -t 300
+```
+
+**Test Method:**
+This utility dynamically changes the P2 sysclk frequency using `clkset()` to identify exactly where multi-block operations fail. It helps find timing-sensitive frequency ranges and quantization boundaries.
+
+**Test Frequencies:**
+- 320 MHz (baseline)
+- 310 MHz, 305 MHz, 300 MHz
+- 295 MHz, 290 MHz, 280 MHz, 270 MHz
+- 260 MHz, 255 MHz, 250 MHz, 240 MHz
+- 220 MHz, 200 MHz
+
+At each frequency, the test performs:
+1. `writeSectorsRaw(8)` - Write 8 sectors (4KB)
+2. `readSectorsRaw(8)` - Read 8 sectors back
+3. Data integrity verification
+
+**Output Includes:**
+- Half-period value at each frequency
+- Pass/fail status for multi-block operations
+- Data integrity verification results
+- Identification of working vs failing frequencies
+
+**Use Cases:**
+- Determine safe sysclk frequencies for production
+- Identify timing boundaries for streamer operations
+- Debug frequency-related failures
+- Validate driver timing across frequency ranges
+
+---
+
+### 6. SD_performance_benchmark.spin2
 
 **Purpose:** Measure read/write throughput for real-world performance data.
 
@@ -271,7 +310,7 @@ Filesystem Performance:
 
 ---
 
-### 6. SD_FAT32_audit.spin2
+### 7. SD_FAT32_audit.spin2
 
 **Purpose:** Verify FAT32 filesystem integrity without modifying the card.
 
@@ -344,6 +383,7 @@ src/UTILS/
 ├── SD_format_card.spin2            # Format runner (standalone)
 ├── SD_card_characterize.spin2      # Card register reader
 ├── SD_speed_characterize.spin2     # SPI speed tester
+├── SD_frequency_characterize.spin2 # Sysclk frequency tester
 ├── SD_performance_benchmark.spin2  # Throughput measurement
 ├── SD_FAT32_audit.spin2            # Filesystem validator
 └── logs/                           # Utility output logs
