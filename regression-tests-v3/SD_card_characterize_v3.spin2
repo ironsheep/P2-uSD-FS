@@ -226,15 +226,16 @@ PUB main() | result
   debug("##############################################")
   debug(" ")
 
-  ' Mount the card (starts worker cog and initializes card)
-  debug("Mounting SD card...")
-  result := sd.mount(CS_PIN, MOSI_PIN, MISO_PIN, SCK_PIN)
+  ' Initialize card WITHOUT mounting filesystem
+  ' This allows characterization of cards with any filesystem (exFAT, NTFS, etc.)
+  debug("Initializing SD card (no-mount mode)...")
+  result := sd.initCardOnly(CS_PIN, MOSI_PIN, MISO_PIN, SCK_PIN)
   if not result
-    debug("FATAL: Failed to mount SD card!")
+    debug("FATAL: Failed to initialize SD card!")
     debug("Check card insertion and wiring.")
     repeat  ' halt
 
-  debug("Card mounted successfully.")
+  debug("Card initialized successfully.")
   debug(" ")
 
   ' Read all registers
