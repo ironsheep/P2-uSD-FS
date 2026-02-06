@@ -51,6 +51,9 @@ manyFilesDir    BYTE    "RTMANY", 0
 genFileName     BYTE    0[16]
 
 PUB go() | result, pEntry, pFilename, attrs, fileCount, idx
+'' Main entry point for directory regression tests
+''
+'' Tests directory creation, navigation, listing, and nested directories
 
     debug(" ")
     debug("==============================================")
@@ -342,8 +345,9 @@ PUB go() | result, pEntry, pFilename, attrs, fileCount, idx
 
 
 PRI cleanupTestItems()
-    ' Delete test files and directories
-    ' Note: Must delete files before directories, and nested items first
+' Delete test files and directories
+'
+' Note: Must delete files before directories, and nested items first
 
     ' Clean nested items
     sd.changeDirectory(@"/")

@@ -37,6 +37,9 @@ writeBuffer     BYTE    0[TEST_FILE_SIZE]
 readBuffer      BYTE    0[64]
 
 PUB go() | result, bytesRead, idx, fileSize, expectedByte, actualByte
+'' Main entry point for seek operation regression tests
+''
+'' Tests seek operations and random access reading
 
     debug(" ")
     debug("==============================================")
@@ -343,7 +346,10 @@ PUB go() | result, bytesRead, idx, fileSize, expectedByte, actualByte
 
 
 PRI testSeekPosition(position) | result, bytesRead, expectedByte
-    ' Helper to test seek to a position and verify content
+' Helper to test seek to a position and verify content
+'
+' @param position - file position to seek to and verify
+
     result := sd.seek(position)
     expectedByte := position & $FF
     bytesRead := sd.read(@readBuffer, 1)

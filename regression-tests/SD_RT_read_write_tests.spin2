@@ -59,6 +59,9 @@ testStr3        BYTE    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 0
 tempByte        BYTE    0
 
 PUB go() | result, handle, bytesRead, bytesWritten, idx, fileSize
+'' Main entry point for read/write regression tests
+''
+'' Tests various data patterns and file sizes using V3 handle API
 
     debug(" ")
     debug("==============================================")

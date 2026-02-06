@@ -63,6 +63,9 @@ content4        BYTE    "Content for file FOUR - fourth test file", 0
 readBuffer      BYTE    0[256]
 
 PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
+'' Main entry point for multi-handle regression tests
+''
+'' Tests V3 handle-based file API with multiple simultaneous file handles
 
     debug(" ")
     debug("==============================================")
@@ -423,7 +426,8 @@ PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
     debug("END_SESSION")
 
 PRI cleanupTestFiles()
-    '' Delete all test files (ignore errors for non-existent files)
+' Delete all test files (ignore errors for non-existent files)
+
     sd.deleteFile(@testfile1)
     sd.deleteFile(@testfile2)
     sd.deleteFile(@testfile3)
@@ -431,7 +435,7 @@ PRI cleanupTestFiles()
     sd.deleteFile(@testfile5)
 
 PRI createTestFiles() | h
-    '' Create test files with known content
+' Create test files with known content
 
     debug(" ")
     debug("* Creating test files...")
@@ -476,7 +480,13 @@ PRI createTestFiles() | h
     debug(" ")
 
 PRI strncmp(p1, p2, n) : match | i
-    '' Compare first n bytes of two strings
+' Compare first n bytes of two strings
+'
+' @param p1 - pointer to first string
+' @param p2 - pointer to second string
+' @param n - number of bytes to compare
+' @returns match - true if first n bytes match
+
     match := true
     repeat i from 0 to n - 1
         if BYTE[p1][i] <> BYTE[p2][i]

@@ -57,6 +57,9 @@ readBuffer      BYTE    0[128]
 sectorBuffer    BYTE    0[512]        ' For reading raw sectors during diagnostics
 
 PUB go() | result, handle, h1, h2, h3, pFilename, fileSize, attrs, bytesWritten, bytesRead, root_sec, i, pEntry, d_sec, d_buftype, d_token, d_b0, d_b1, d_b2, d_b3, d_pbuf, d_bef0, d_bef1, d_bef2, d_bef3, d_spi
+'' Main entry point for file operations regression tests
+''
+'' Tests file create, open, close, delete, rename using V3 handle API
 
     debug(" ")
     debug("==============================================")

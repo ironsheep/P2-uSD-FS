@@ -37,6 +37,9 @@ testfile2       BYTE    "TEST2.BIN", 0
 sectorBuffer    BYTE    0[512]
 
 PUB go() | result, pLabel, freeSpace, handle
+'' Main entry point for mount/unmount regression tests
+''
+'' Tests SD card mount, unmount, and basic card operations
 
     debug(" ")
     debug("==============================================")

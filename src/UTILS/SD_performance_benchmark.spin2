@@ -104,6 +104,8 @@ pnm_MSSD0           BYTE    "MSSD0", 0       ' Lexar 64GB
 card_name_ptr       LONG    0
 
 PUB go() | result
+'' Main entry point - runs comprehensive SD card performance benchmark.
+'' Measures mount/unmount, multi-sector, and filesystem operations.
 
     debug(" ")
     debug("======================================================")
@@ -177,6 +179,9 @@ PUB go() | result
 
 
 PRI runMountBenchmark() : result | start_ct, elapsed_ct, elapsed_us
+' Run mount timing benchmark and return mount success status.
+'
+' @returns result - TRUE if mount succeeded, FALSE otherwise
 
     debug("MOUNT:")
     start_ct := getct()
@@ -188,6 +193,7 @@ PRI runMountBenchmark() : result | start_ct, elapsed_ct, elapsed_us
 
 
 PRI runUnmountBenchmark() | start_ct, elapsed_ct, elapsed_ms
+' Run unmount timing benchmark and display results.
 
     debug("UNMOUNT:")
     start_ct := getct()
@@ -201,9 +207,10 @@ PRI runUnmountBenchmark() | start_ct, elapsed_ct, elapsed_ms
 
 
 PRI identifyCard() : result | mid, pnm[2]
-    '' Initialize card and identify it by reading CID before mount.
-    '' Sets card_name_ptr to appropriate card name string.
-    '' Returns true if card identified (even if unknown), false if init failed.
+' Initialize card and identify it by reading CID before mount.
+' Sets card_name_ptr to appropriate card name string.
+'
+' @returns result - TRUE if card identified (even if unknown), FALSE if init failed
 
     ' Initialize card (does NOT start worker cog)
     result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
@@ -250,13 +257,14 @@ PRI identifyCard() : result | mid, pnm[2]
 
 
 PRI showCID() | i
-    '' Display the CID register bytes
+' Display the CID register bytes in hexadecimal format.
+
     debug("  CID: ", uhex_byte_(cid_buf[0]), " ", uhex_byte_(cid_buf[1]), " ", uhex_byte_(cid_buf[2]), " ", uhex_byte_(cid_buf[3]), " ", uhex_byte_(cid_buf[4]), " ", uhex_byte_(cid_buf[5]), " ", uhex_byte_(cid_buf[6]), " ", uhex_byte_(cid_buf[7]))
     debug("       ", uhex_byte_(cid_buf[8]), " ", uhex_byte_(cid_buf[9]), " ", uhex_byte_(cid_buf[10]), " ", uhex_byte_(cid_buf[11]), " ", uhex_byte_(cid_buf[12]), " ", uhex_byte_(cid_buf[13]), " ", uhex_byte_(cid_buf[14]), " ", uhex_byte_(cid_buf[15]))
 
 
 PRI showVolumeInfo() | free_sectors, free_mb
-    '' Display volume information from mounted filesystem
+' Display volume information from mounted filesystem.
 
     debug("  Volume Label: ", zstr_(sd.volumeLabel()))
 
@@ -269,6 +277,7 @@ PRI showVolumeInfo() | free_sectors, free_mb
 
 
 PRI runFilesystemBenchmarks()
+' Run all filesystem benchmark tests including open/close, read, and write.
 
     ' Delete test file if exists
     sd.deleteFile(@testFile)
@@ -313,6 +322,7 @@ PRI runFilesystemBenchmarks()
 
 
 PRI runFileOpenCloseTest() | iter, start_ct, elapsed_ct, open_min, open_max, open_total, close_min, close_max, close_total, open_avg, close_avg
+' Measure file open/close overhead with min/avg/max timing.
 
     ' First create a small test file
     if sd.newFile(@testFile)
@@ -358,6 +368,9 @@ PRI runFileOpenCloseTest() | iter, start_ct, elapsed_ct, open_min, open_max, ope
 
 
 PRI runFileWriteTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps
+' Run file write benchmark for specified size.
+'
+' @param size - Number of bytes to write per iteration
 
     fillBuffer(size, $5A)
 
@@ -394,6 +407,9 @@ PRI runFileWriteTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_u
 
 
 PRI runFileReadTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, bytesRead
+' Run file read benchmark for specified size.
+'
+' @param size - Number of bytes to read per iteration
 
     ' First create a file of the required size
     sd.deleteFile(@testFile)
@@ -432,6 +448,10 @@ PRI runFileReadTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us
 
 
 PRI fillBuffer(size, value) | idx
+' Fill the test buffer with a specified value.
+'
+' @param size - Number of bytes to fill
+' @param value - Byte value to fill with
 
     bytefill(@testBuffer, value, size)
 
@@ -441,7 +461,7 @@ PRI fillBuffer(size, value) | idx
 ' ════════════════════════════════════════════════════════════════════════════════
 
 PRI runMultiSectorBenchmarks()
-    '' Run all multi-sector benchmark tests
+' Run all multi-sector benchmark tests (CMD18/CMD25 bulk transfers).
 
     debug(" ")
     debug("Multi-Sector Write (CMD25):")
@@ -461,6 +481,9 @@ PRI runMultiSectorBenchmarks()
 
 
 PRI runMultiWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, written
+' Run multi-sector write benchmark (CMD25).
+'
+' @param count - Number of sectors to write per operation
 
     size := count * SECTOR_SIZE
     fillBuffer(size, $5A)
@@ -496,6 +519,9 @@ PRI runMultiWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total
 
 
 PRI runMultiReadTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, readCt
+' Run multi-sector read benchmark (CMD18).
+'
+' @param count - Number of sectors to read per operation
 
     size := count * SECTOR_SIZE
 
@@ -534,6 +560,9 @@ PRI runMultiReadTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_
 
 
 PRI runComparisonTest(count) | i, start_ct, elapsed_ct, single_us, multi_us, size, improvement
+' Compare single-sector vs multi-sector read performance.
+'
+' @param count - Number of sectors to use for comparison
 
     size := count * SECTOR_SIZE
 

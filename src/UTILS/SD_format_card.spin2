@@ -24,6 +24,8 @@ OBJ
     fmt : "SD_format_utility"
 
 PUB go() | result
+'' Main entry point - formats SD card with label "P2-BENCH".
+'' WARNING: This will ERASE ALL DATA on the card!
 
     debug(" ")
     debug("======================================================")

@@ -222,6 +222,8 @@ DAT
   card_id_str   BYTE    0[64]
 
 PUB main() | result
+'' Main entry point - runs comprehensive SD card characterization.
+'' Reads all card registers and displays detailed field information.
 
   debug("##############################################")
   debug("#  SD Card Characterization Report V3       #")
@@ -280,6 +282,7 @@ PUB main() | result
   repeat  ' halt
 
 PRI readAllRegisters() | result
+' Read all card registers (CID, CSD, SCR, OCR) from the SD card.
 
   debug("--- Reading Card Registers ---")
 
@@ -315,17 +318,17 @@ PRI readAllRegisters() | result
 ' ============================================================
 
 PRI parseCID() | i
-  '' Parse all CID register fields
-  '' CID structure (128 bits = 16 bytes):
-  ''   [127:120] MID - Manufacturer ID (8 bits)
-  ''   [119:104] OID - OEM/Application ID (16 bits, 2 ASCII chars)
-  ''   [103:64]  PNM - Product Name (40 bits, 5 ASCII chars)
-  ''   [63:56]   PRV - Product Revision (8 bits, BCD n.m)
-  ''   [55:24]   PSN - Product Serial Number (32 bits)
-  ''   [23:20]   reserved (4 bits)
-  ''   [19:8]    MDT - Manufacturing Date (12 bits)
-  ''   [7:1]     CRC7 checksum (7 bits)
-  ''   [0]       always 1
+' Parse all CID register fields.
+' CID structure (128 bits = 16 bytes):
+'   [127:120] MID - Manufacturer ID (8 bits)
+'   [119:104] OID - OEM/Application ID (16 bits, 2 ASCII chars)
+'   [103:64]  PNM - Product Name (40 bits, 5 ASCII chars)
+'   [63:56]   PRV - Product Revision (8 bits, BCD n.m)
+'   [55:24]   PSN - Product Serial Number (32 bits)
+'   [23:20]   reserved (4 bits)
+'   [19:8]    MDT - Manufacturing Date (12 bits)
+'   [7:1]     CRC7 checksum (7 bits)
+'   [0]       always 1
 
   cid_mid := cid_buf[0]
   cid_oid := (cid_buf[1] << 8) | cid_buf[2]
@@ -345,6 +348,8 @@ PRI parseCID() | i
   cid_crc := cid_buf[15] >> 1
 
 PRI displayCID() | p_mfr, oid_c1, oid_c2
+' Display parsed CID register fields with [USED]/[INFO] annotations.
+
   debug(" ")
   debug("======== CID REGISTER (Card Identification) ========")
   debug("[USED] = Field used by V3 driver")
@@ -373,6 +378,11 @@ PRI displayCID() | p_mfr, oid_c1, oid_c2
   debug("[INFO] CRC7:                      $", uhex_byte_(cid_crc))
 
 PRI lookupManufacturer(mid) : p_name | p_entry, entry_id
+' Look up manufacturer name from manufacturer ID.
+'
+' @param mid - Manufacturer ID byte from CID
+' @returns p_name - Pointer to manufacturer name string
+
   p_entry := @mfr_table
   repeat
     entry_id := BYTE[p_entry]
@@ -390,7 +400,8 @@ PRI lookupManufacturer(mid) : p_name | p_entry, entry_id
 ' ============================================================
 
 PRI parseCSD() | time_val, time_unit, c_size
-  '' Parse all CSD register fields
+' Parse all CSD register fields.
+' Handles both CSD v1.0 (SDSC) and v2.0 (SDHC/SDXC) formats.
 
   ' CSD Structure [127:126]
   csd_structure := (csd_buf[0] >> 6) & $03
@@ -504,6 +515,8 @@ PRI parseCSD() | time_val, time_unit, c_size
     csd_write_timeout_ms := 250
 
 PRI displayCSD() | cap_gb, total_sectors, i
+' Display parsed CSD register fields with timing and capacity information.
+
   debug(" ")
   debug("======== CSD REGISTER (Card Specific Data) ========")
   debug(" ")
@@ -596,7 +609,7 @@ PRI displayCSD() | cap_gb, total_sectors, i
 ' ============================================================
 
 PRI parseOCR()
-  '' Parse all OCR register fields
+' Parse all OCR register fields including voltage window and card status.
 
   ocr_busy := (ocr_val >> 31) & 1
   ocr_ccs := (ocr_val >> 30) & 1
@@ -614,6 +627,8 @@ PRI parseOCR()
   ocr_voltage_27_28 := (ocr_val >> 15) & 1
 
 PRI displayOCR()
+' Display parsed OCR register fields including voltage support and CCS bit.
+
   debug(" ")
   debug("======== OCR REGISTER (Operating Conditions) ========")
   debug(" ")
@@ -652,8 +667,8 @@ PRI displayOCR()
 ' ============================================================
 
 PRI parseSCR()
-  '' Parse all SCR register fields
-  '' SCR structure (64 bits = 8 bytes)
+' Parse all SCR register fields.
+' SCR structure (64 bits = 8 bytes).
 
   ' SCR_STRUCTURE [63:60]
   scr_structure := (scr_buf[0] >> 4) & $0F
@@ -686,6 +701,8 @@ PRI parseSCR()
   scr_cmd_support := scr_buf[4] & $03
 
 PRI displaySCR() | sd_version
+' Display parsed SCR register fields including SD version and bus width support.
+
   debug(" ")
   debug("======== SCR REGISTER (SD Configuration) ========")
   debug(" ")
@@ -749,6 +766,8 @@ PRI displaySCR() | sd_version
 ' ============================================================
 
 PRI displayRawRegisters() | i
+' Display raw register data in hexadecimal format for verification.
+
   debug(" ")
   debug("======== RAW REGISTER DATA ========")
   debug(" ")
@@ -770,6 +789,7 @@ PRI displayRawRegisters() | i
 ' ============================================================
 
 PRI findAndReadVBR() | mbr_buf[128], vbr_sector, type_code
+' Find and read the Volume Boot Record (VBR) from the partition table.
 
   debug(" ")
   debug("======== FILESYSTEM INFORMATION ========")
@@ -803,7 +823,7 @@ PRI findAndReadVBR() | mbr_buf[128], vbr_sector, type_code
   sd.readSectorRaw(vbr_sector, @vbr_buf)
 
 PRI parseVBR() | i
-  '' Parse VBR/BPB fields
+' Parse VBR/BPB fields including filesystem parameters.
 
   ' OEM Name at offset 0x03 (8 bytes)
   bytemove(@vbr_oem_name, @vbr_buf + $03, 8)
@@ -842,6 +862,8 @@ PRI parseVBR() | i
   vbr_fs_type[8] := 0
 
 PRI displayVBR() | cluster_size, data_region, total_clusters
+' Display parsed VBR/BPB fields for FAT32 filesystem.
+
   if vbr_bytes_per_sec == 0
     return  ' VBR not read
 
@@ -879,6 +901,8 @@ PRI displayVBR() | cluster_size, data_region, total_clusters
 ' ============================================================
 
 PRI generateCardID() | p_dst, p_mfr, i, c
+' Generate a unique card ID string from CID fields.
+' Format: Manufacturer_ProductName_Revision_SerialNumber_ManufacturingDate
 
   p_dst := @card_id_str
 
@@ -920,6 +944,12 @@ PRI generateCardID() | p_dst, p_mfr, i, c
   BYTE[p_dst] := 0
 
 PRI hexLong(p_dst, val) : p_out | i, nibble
+' Convert a LONG value to 8-character hex string.
+'
+' @param p_dst - Destination buffer pointer
+' @param val - Value to convert
+' @returns p_out - Pointer to next position after written string
+
   repeat i from 7 to 0
     nibble := (val >> (i * 4)) & $0F
     if nibble < 10
@@ -929,6 +959,12 @@ PRI hexLong(p_dst, val) : p_out | i, nibble
   return p_dst
 
 PRI decWord(p_dst, val) : p_out | digits[5], i, started
+' Convert a WORD value to decimal string.
+'
+' @param p_dst - Destination buffer pointer
+' @param val - Value to convert
+' @returns p_out - Pointer to next position after written string
+
   repeat i from 0 to 4
     digits[i] := val // 10
     val := val / 10
@@ -940,6 +976,12 @@ PRI decWord(p_dst, val) : p_out | digits[5], i, started
   return p_dst
 
 PRI decByte(p_dst, val) : p_out | digits[3], i, started
+' Convert a BYTE value to decimal string.
+'
+' @param p_dst - Destination buffer pointer
+' @param val - Value to convert
+' @returns p_out - Pointer to next position after written string
+
   repeat i from 0 to 2
     digits[i] := val // 10
     val := val / 10
@@ -951,6 +993,8 @@ PRI decByte(p_dst, val) : p_out | digits[3], i, started
   return p_dst
 
 PRI displayCardID()
+' Display the generated unique card ID string.
+
   debug(" ")
   debug("##############################################")
   debug("  UNIQUE CARD ID: ", zstr_(@card_id_str))
@@ -961,6 +1005,8 @@ PRI displayCardID()
 ' ============================================================
 
 PRI displayDriverUsage()
+' Display summary of which register fields are used by the V3 driver.
+
   debug(" ")
   debug("======== V3 DRIVER USAGE SUMMARY ========")
   debug(" ")

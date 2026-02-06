@@ -15,8 +15,7 @@ OBJ { Objects Used by this Object }
     nstr        : "jm_nstr"                                 ' number-to-string
 
 PUB null()
-
-  '' This is not a top level object
+'' This is not a top level object
 
 CON { pst formatting }
 
@@ -78,7 +77,7 @@ CON { formatted strings }
 }}
 
 PUB sFormatStr0(pUserBuff, p_str) : nPlaced
-'' Format string w/o-args into {pUserBuff} with formatting characters, zero terminated
+'' Format string without args into {pUserBuff} with formatting characters, zero terminated
 ''
 '' @param pUserBuff - buffer to receive formatted string
 '' @param p_str - pointer to the format control string
@@ -87,53 +86,129 @@ PUB sFormatStr0(pUserBuff, p_str) : nPlaced
     nPlaced := sFormat(pUserBuff, p_str, 0)
 
 
-PUB sFormatStr1(pUserBuff, p_str, arg1): nPlaced
+PUB sFormatStr1(pUserBuff, p_str, arg1) : nPlaced
 '' Format string and 1-arg into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr2(pUserBuff, p_str, arg1, arg2): nPlaced
+PUB sFormatStr2(pUserBuff, p_str, arg1, arg2) : nPlaced
 '' Format string and 2-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr3(pUserBuff, p_str, arg1, arg2, arg3): nPlaced
+PUB sFormatStr3(pUserBuff, p_str, arg1, arg2, arg3) : nPlaced
 '' Format string and 3-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @param arg3 - third argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr4(pUserBuff, p_str, arg1, arg2, arg3, arg4): nPlaced
+PUB sFormatStr4(pUserBuff, p_str, arg1, arg2, arg3, arg4) : nPlaced
 '' Format string and 4-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @param arg3 - third argument value
+'' @param arg4 - fourth argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr5(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5): nPlaced
+PUB sFormatStr5(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5) : nPlaced
 '' Format string and 5-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @param arg3 - third argument value
+'' @param arg4 - fourth argument value
+'' @param arg5 - fifth argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr6(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5, arg6): nPlaced
+PUB sFormatStr6(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5, arg6) : nPlaced
 '' Format string and 6-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @param arg3 - third argument value
+'' @param arg4 - fourth argument value
+'' @param arg5 - fifth argument value
+'' @param arg6 - sixth argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr7(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5, arg6, arg7): nPlaced
+PUB sFormatStr7(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5, arg6, arg7) : nPlaced
 '' Format string and 7-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @param arg3 - third argument value
+'' @param arg4 - fourth argument value
+'' @param arg5 - fifth argument value
+'' @param arg6 - sixth argument value
+'' @param arg7 - seventh argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
-PUB sFormatStr8(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8): nPlaced
+PUB sFormatStr8(pUserBuff, p_str, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) : nPlaced
 '' Format string and 8-args into {pUserBuff} with formatting characters, zero terminated
-''  Returns count of characters placed into the users buffer (excl zero term.)
+''
+'' @param pUserBuff - buffer to receive formatted string
+'' @param p_str - pointer to the format control string
+'' @param arg1 - first argument value
+'' @param arg2 - second argument value
+'' @param arg3 - third argument value
+'' @param arg4 - fourth argument value
+'' @param arg5 - fifth argument value
+'' @param arg6 - sixth argument value
+'' @param arg7 - seventh argument value
+'' @param arg8 - eighth argument value
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+
     nPlaced := sFormat(pUserBuff, p_str, @arg1)
 
 
 PUB sFormat(pUserBuff, p_str, p_args) : nPlaced | idx, c, asc, fld, digits, pBffr
 '' Format string with escape sequences and embedded values to {pOutBuf}
-'' -- {pUserBuff} is a pointer to the users buffer to receive the formatted string
-'' -- {p_str} is a pointer to the format control string
-'' -- {p_args} is pointer to array of longs that hold field values
-''    * field values can be numbers, characters, or pointers to strings
+''
+'' @param pUserBuff - pointer to the users buffer to receive the formatted string
+'' @param p_str - pointer to the format control string
+'' @param p_args - pointer to array of longs that hold field values (numbers, characters, or pointers to strings)
+'' @returns nPlaced - count of characters placed into the users buffer (excl zero term.)
+'' @local idx - value index
+'' @local c - current character
+'' @local asc - ASCII value for escaped characters
+'' @local fld - field width
+'' @local digits - precision digits
+'' @local pBffr - working buffer pointer
+
   'debug("sfmt: fstr(", udec_(strsize(p_str)), ")=[", zstr_(p_str), "]")
 
   idx := 0                                                     ' value index
@@ -196,18 +271,33 @@ PUB sFormat(pUserBuff, p_str, p_args) : nPlaced | idx, c, asc, fld, digits, pBff
 CON { --- Internal Methods --- }
 
 PRI sTx(nChr, pOutBuf)
-' write char to bfr
+' Write a single character to the output buffer
+'
+' @param nChr - character to write
+' @param pOutBuf - pointer to output buffer position
+
     byte[pOutBuf] := nChr
 
 PRI sTxn(nChr, nCount, pOutBuf) : pBufNext
-' Emit byte n times
+' Emit a character n times to the output buffer
+'
+' @param nChr - character to emit
+' @param nCount - number of times to emit the character
+' @param pOutBuf - pointer to output buffer position
+' @returns pBufNext - pointer to next position in buffer after emitted characters
+
     repeat nCount
         sTx(nChr, pOutBuf++)
 
     pBufNext := pOutBuf
 
 PRI sStr(pStr, pOutBuf) : pBufNext
-' write char to bfr
+' Write a string to the output buffer
+'
+' @param pStr - pointer to source string
+' @param pOutBuf - pointer to output buffer position
+' @returns pBufNext - pointer to next position in buffer after written string
+
     repeat (strsize(pStr))
         sTx(byte[pStr++], pOutBuf++)
 
@@ -215,9 +305,13 @@ PRI sStr(pStr, pOutBuf) : pBufNext
 
 PRI get_nargs(p_str) : p_str1, val1, val2 | c, sign
 ' Parse one or two numbers from string in n, -n, n.n, or -n.n format
-' -- dpoint separates values
-' -- only first # may be negative
-' -- returns pointer to 1st char after value(s)
+'
+' @param p_str - pointer to string containing number(s)
+' @returns p_str1 - pointer to first char after value(s)
+' @returns val1 - first parsed value (may be negative)
+' @returns val2 - second parsed value (after decimal point, if present)
+' @local c - current character
+' @local sign - sign flag for first value
 
   c := byte[p_str]                                              ' check for negative on first value
   if (c == "-")

@@ -57,6 +57,9 @@ VAR
     LONG    fail_count
 
 PUB go() | result
+'' Main entry point for multi-block data integrity tests
+''
+'' Tests readSectorsRaw/writeSectorsRaw operations
 
     debug(" ")
     debug("============================================================")
@@ -112,7 +115,7 @@ PUB go() | result
 
 
 PRI testRoundTripMultiBlock() | sector, i, written, readCt, errors
-    '' TEST 1: Write 8 sectors with writeSectorsRaw, read back with readSectorsRaw
+' TEST 1: Write 8 sectors with writeSectorsRaw, read back with readSectorsRaw
 
     debug("--- TEST 1: Round-trip Multi-Block (8 sectors) ---")
     sector := TEST_SECTOR_BASE
@@ -157,7 +160,7 @@ PRI testRoundTripMultiBlock() | sector, i, written, readCt, errors
 
 
 PRI testMultiWriteSingleRead() | sector, i, j, written, errors, expected, actual, bufOffset
-    '' TEST 2: Write 8 sectors with writeSectorsRaw, read back with individual readSectorRaw calls
+' TEST 2: Write 8 sectors with writeSectorsRaw, read back with individual readSectorRaw calls
 
     debug(" ")
     debug("--- TEST 2: Multi-Write, Single-Read (8 sectors) ---")
@@ -200,7 +203,7 @@ PRI testMultiWriteSingleRead() | sector, i, j, written, errors, expected, actual
 
 
 PRI testSingleWriteMultiRead() | sector, i, j, readCt, errors, expected, actual, bufOffset
-    '' TEST 3: Write 8 sectors with individual writeSectorRaw calls, read back with readSectorsRaw
+' TEST 3: Write 8 sectors with individual writeSectorRaw calls, read back with readSectorsRaw
 
     debug(" ")
     debug("--- TEST 3: Single-Write, Multi-Read (8 sectors) ---")
@@ -252,7 +255,7 @@ PRI testSingleWriteMultiRead() | sector, i, j, readCt, errors, expected, actual,
 
 
 PRI testEdgeCases() | sector, i, written, readCt, errors
-    '' TEST 4: Edge cases - count=1, count=0
+' TEST 4: Edge cases - count=1, count=0
 
     debug(" ")
     debug("--- TEST 4: Edge Cases ---")
@@ -302,7 +305,7 @@ PRI testEdgeCases() | sector, i, written, readCt, errors
 
 
 PRI testLargeMultiBlock() | sector, i, written, readCt, errors
-    '' TEST 5: Large multi-block (64 sectors = 32KB)
+' TEST 5: Large multi-block (64 sectors = 32KB)
 
     debug(" ")
     debug("--- TEST 5: Large Multi-Block (64 sectors = 32KB) ---")
@@ -350,7 +353,11 @@ PRI testLargeMultiBlock() | sector, i, written, readCt, errors
 
 
 PRI recordPass()
+' Record a passing test
+
     pass_count++
 
 PRI recordFail()
+' Record a failing test
+
     fail_count++

@@ -91,6 +91,8 @@ VAR
     LONG    fail_count
 
 PUB go() | result, freq_idx, test_freq, errors, hp
+'' Main entry point - runs sysclk frequency sweep test.
+'' Dynamically changes sysclk to find where streamer timing fails.
 
     debug(" ")
     debug("============================================================")
@@ -199,16 +201,19 @@ PUB go() | result, freq_idx, test_freq, errors, hp
 
 
 PRI fillTestPattern() | i
-    '' Fill write buffer with deterministic pattern
-    '' Pattern: each byte = (sector_num * 17 + byte_offset) & $FF
+' Fill write buffer with deterministic pattern.
+' Pattern: each byte = (sector_num * 17 + byte_offset) & $FF
+
     repeat i from 0 to (TEST_COUNT * SECTOR_SIZE) - 1
         write_buf[i] := ((i / SECTOR_SIZE) * 17 + (i // SECTOR_SIZE)) & $FF
 
 
 PRI runTest(freq) : errors | written, readCt, i, sector
-    '' Run the critical test: writeSectorsRaw + readSectorsRaw + verify
-    '' This is exactly what fails at 270 MHz
-    '' Returns number of byte errors (0 = pass)
+' Run the critical test: writeSectorsRaw + readSectorsRaw + verify.
+' This is exactly what fails at 270 MHz.
+'
+' @param freq - Current sysclk frequency (for logging)
+' @returns errors - Number of byte errors (0 = pass)
 
     errors := 0
     sector := TEST_SECTOR_BASE
@@ -239,8 +244,10 @@ PRI runTest(freq) : errors | written, readCt, i, sector
 
 
 PRI changeFrequency(target_freq) | xi, div, mode
-    '' Change system clock to target frequency using PLL
-    '' We use the same crystal (20 MHz) and adjust PLL multiplier
+' Change system clock to target frequency using PLL.
+' Uses same crystal (20 MHz) and adjusts PLL multiplier.
+'
+' @param target_freq - Target frequency in Hz
 
     ' Calculate PLL settings for target frequency
     ' P2 uses: sysclk = xtalfreq * pll_mult / div
@@ -303,7 +310,7 @@ PRI changeFrequency(target_freq) | xi, div, mode
 
 
 PRI analyzeBoundaries() | i, prev_result, curr_result, prev_freq, curr_freq, prev_hp, curr_hp
-    '' Identify where PASS->FAIL and FAIL->PASS transitions occur
+' Identify where PASS->FAIL and FAIL->PASS transitions occur.
 
     prev_result := results[0]
     prev_freq := long[@freq_table][0] / 1_000_000

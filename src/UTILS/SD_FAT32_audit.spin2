@@ -64,6 +64,8 @@ VAR
     LONG    testNumber
 
 PUB go() | result, dataStart, fat1Start, fat2Start, idx, mismatch, cardSectors
+'' Main entry point - runs FAT32 filesystem audit.
+'' Verifies MBR, VBR, FSInfo, FAT tables, and root directory.
 
     passCount := 0
     failCount := 0
@@ -339,6 +341,11 @@ PUB go() | result, dataStart, fat1Start, fat2Start, idx, mismatch, cardSectors
     debug("END_SESSION")
 
 PRI runTest(pTestName, passed)
+' Run a single test and record pass/fail result.
+'
+' @param pTestName - Pointer to test name string
+' @param passed - TRUE if test passed, FALSE if failed
+
     testNumber++
     if passed
         passCount++

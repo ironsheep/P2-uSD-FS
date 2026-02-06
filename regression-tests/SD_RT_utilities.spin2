@@ -33,12 +33,16 @@ VAR { test stats vars }
 
   byte    filename[128]
 
-pub null()
-
+PUB null()
 '' This is not an application
-''  (invoke mount() to use the SD filesystem)
+''
+'' (Invoke mount() to use the SD filesystem)
 
-pri initIfNotAlready()
+PRI initIfNotAlready()
+' Initialize test counters if not already done
+'
+' Checks signature to ensure one-time initialization
+
     if varSignature <> TEST_SIGNATURE
         numberTests := 0
         subTestPer := 1
@@ -49,8 +53,10 @@ pri initIfNotAlready()
         varSignature := TEST_SIGNATURE
         debug("* init VAR")
 
-pub startTestGroup(pDescription)
-    ' show test-group heading
+PUB startTestGroup(pDescription)
+'' Start a new test group with heading
+''
+'' @param pDescription - pointer to description string
 
     initIfNotAlready()
     showSubTestResults()
@@ -60,8 +66,10 @@ pub startTestGroup(pDescription)
     debug(" ------------------------------------------------------------")
     debug("* Test Group: ", zstr_(pDescription))
 
-pub startTest(pDescription) | ecGot, ecExpected, passScaled, failScaled, total
-    ' if prior sub tests show sub tests results
+PUB startTest(pDescription) | ecGot, ecExpected, passScaled, failScaled, total
+'' Start a new test with description
+''
+'' @param pDescription - pointer to test description string
 
     initIfNotAlready()
     showSubTestResults()
@@ -72,7 +80,9 @@ pub startTest(pDescription) | ecGot, ecExpected, passScaled, failScaled, total
     debug("* Test #", udec_(numberTests), ": ", zstr_(pDescription))
 
 
-pub showSubTestResults() | passScaled, failScaled, total, pPassFail
+PUB showSubTestResults() | passScaled, failScaled, total, pPassFail
+'' Display accumulated sub-test results and reset counters
+
     if failCountSub <> 0 or passCountSub <> 0
         total := (passCountSub + failCountSub) / subTestPer
         passScaled := passCountSub / subTestPer
@@ -91,8 +101,9 @@ pub showSubTestResults() | passScaled, failScaled, total, pPassFail
         failCountSub := 0
 
 
-pub ShowTestEndCounts() | pMsg
-    ' show summary of all tests
+PUB ShowTestEndCounts() | pMsg
+'' Display final summary of all tests with pass/fail counts
+
     showSubTestResults()  ' flush any pending sub-tests
 
     debug(" ")  ' blank line
@@ -104,16 +115,20 @@ pub ShowTestEndCounts() | pMsg
     debug(" ============================================================")
 
 
-pub setCheckCountPerTest(countTests)
-
-'' set the number of subtests per record/group
+PUB setCheckCountPerTest(countTests)
+'' Set the number of subtests per record/group
 ''
 '' @param countTests - the number of checks per item tested
 
-  subTestPer := countTests
+    subTestPer := countTests
 
-pub evaluateSubValue(result, pMessage, expectedResult) | bPassed, pPassFail
+PUB evaluateSubValue(result, pMessage, expectedResult) | bPassed, pPassFail
 '' Evaluate a sub-test value (for multiple checks within a test)
+''
+'' @param result - the actual result value
+'' @param pMessage - pointer to description string
+'' @param expectedResult - the expected value
+
     bPassed := result == expectedResult
     pPassFail := !bPassed ? @"Sub-FAIL" : @"pass"
     ifnot bPassed
@@ -125,8 +140,13 @@ pub evaluateSubValue(result, pMessage, expectedResult) | bPassed, pPassFail
         debug("  Value: ", sdec_long_(result), " (expected ", sdec_long_(expectedResult), ")")
         debug("   -> ", zstr_(pPassFail))
 
-pub evaluateSubValueHex(result, pMessage, expectedResult) | bPassed, pPassFail
+PUB evaluateSubValueHex(result, pMessage, expectedResult) | bPassed, pPassFail
 '' Evaluate a sub-test value in hex format
+''
+'' @param result - the actual result value
+'' @param pMessage - pointer to description string
+'' @param expectedResult - the expected value
+
     bPassed := result == expectedResult
     pPassFail := !bPassed ? @"Sub-FAIL" : @"pass"
     ifnot bPassed
@@ -138,8 +158,13 @@ pub evaluateSubValueHex(result, pMessage, expectedResult) | bPassed, pPassFail
         debug("  Value: $", uhex_long_(result), " (expected $", uhex_long_(expectedResult), ")")
         debug("   -> ", zstr_(pPassFail))
 
-pub evaluateSubBool(result, pMessage, expectedResult) | bPassed, pPassFail
+PUB evaluateSubBool(result, pMessage, expectedResult) | bPassed, pPassFail
 '' Evaluate a sub-test boolean value
+''
+'' @param result - the actual boolean result
+'' @param pMessage - pointer to description string
+'' @param expectedResult - the expected boolean value
+
     bPassed := (result <> 0) == (expectedResult <> 0)
     pPassFail := !bPassed ? @"Sub-FAIL" : @"pass"
     ifnot bPassed
@@ -152,8 +177,13 @@ pub evaluateSubBool(result, pMessage, expectedResult) | bPassed, pPassFail
         debug("   -> ", zstr_(pPassFail))
 
 
-pub evaluateBool(result, pMessage, expectedResult) | bPassed, pPassFail
+PUB evaluateBool(result, pMessage, expectedResult) | bPassed, pPassFail
 '' Evaluate a boolean result (true/false)
+''
+'' @param result - the actual boolean result
+'' @param pMessage - pointer to description string
+'' @param expectedResult - the expected boolean value
+
     bPassed := (result <> 0) == (expectedResult <> 0)
     pPassFail := !bPassed ? @"FAIL" : @"pass"
     ifnot bPassed
@@ -165,22 +195,30 @@ pub evaluateBool(result, pMessage, expectedResult) | bPassed, pPassFail
     debug("   -> ", zstr_(pPassFail))
 
 
-pub recordPass()
+PUB recordPass()
 '' Record a pass for a test that doesn't use evaluate functions
+''
 '' Use after startTest() when the test verifies success implicitly
+
     initIfNotAlready()
     passCount++
     debug("   -> pass")
 
-pub recordFail()
+PUB recordFail()
 '' Record a fail for a test that doesn't use evaluate functions
+
     initIfNotAlready()
     failCount++
     debug("   -> FAIL")
 
 
-pub evaluateSingleValue(result, pMessage, expectedResult) | bPassed, pPassFail
+PUB evaluateSingleValue(result, pMessage, expectedResult) | bPassed, pPassFail
 '' Evaluate a single test result value
+''
+'' @param result - the actual result value
+'' @param pMessage - pointer to description string
+'' @param expectedResult - the expected value
+
     bPassed := result == expectedResult
     pPassFail := !bPassed ? @"FAIL" : @"pass"
     ifnot bPassed
@@ -191,8 +229,13 @@ pub evaluateSingleValue(result, pMessage, expectedResult) | bPassed, pPassFail
         passCount++
     debug("   -> ", zstr_(pPassFail))
 
-pub evaluateSingleValueHex(result, pMessage, expectedResult) | bPassed, pPassFail
+PUB evaluateSingleValueHex(result, pMessage, expectedResult) | bPassed, pPassFail
 '' Evaluate a single test result value in hex
+''
+'' @param result - the actual result value
+'' @param pMessage - pointer to description string
+'' @param expectedResult - the expected value
+
     bPassed := result == expectedResult
     pPassFail := !bPassed ? @"FAIL" : @"pass"
     ifnot bPassed
@@ -203,8 +246,14 @@ pub evaluateSingleValueHex(result, pMessage, expectedResult) | bPassed, pPassFai
         passCount++
     debug("   -> ", zstr_(pPassFail))
 
-pub evaluateRange(result, pMessage, minExpected, maxExpected) | bPassed, pPassFail
+PUB evaluateRange(result, pMessage, minExpected, maxExpected) | bPassed, pPassFail
 '' Evaluate that result is within a range
+''
+'' @param result - the actual result value
+'' @param pMessage - pointer to description string
+'' @param minExpected - minimum acceptable value
+'' @param maxExpected - maximum acceptable value
+
     bPassed := result >= minExpected and result <= maxExpected
     pPassFail := !bPassed ? @"FAIL" : @"pass"
     ifnot bPassed
@@ -215,8 +264,12 @@ pub evaluateRange(result, pMessage, minExpected, maxExpected) | bPassed, pPassFa
         passCount++
     debug("   -> ", zstr_(pPassFail))
 
-pub evaluateNotZero(result, pMessage) | bPassed, pPassFail
+PUB evaluateNotZero(result, pMessage) | bPassed, pPassFail
 '' Evaluate that result is not zero
+''
+'' @param result - the actual result value
+'' @param pMessage - pointer to description string
+
     bPassed := result <> 0
     pPassFail := !bPassed ? @"FAIL" : @"pass"
     ifnot bPassed
@@ -227,8 +280,13 @@ pub evaluateNotZero(result, pMessage) | bPassed, pPassFail
         passCount++
     debug("   -> ", zstr_(pPassFail))
 
-pub evaluateStringMatch(pResult, pMessage, pExpected) | bPassed, pPassFail
+PUB evaluateStringMatch(pResult, pMessage, pExpected) | bPassed, pPassFail
 '' Evaluate that two strings match
+''
+'' @param pResult - pointer to actual result string
+'' @param pMessage - pointer to description string
+'' @param pExpected - pointer to expected string
+
     bPassed := strcomp(pResult, pExpected)
     pPassFail := !bPassed ? @"FAIL" : @"pass"
     ifnot bPassed
@@ -239,8 +297,14 @@ pub evaluateStringMatch(pResult, pMessage, pExpected) | bPassed, pPassFail
         passCount++
     debug("   -> ", zstr_(pPassFail))
 
-pub evaluateBufferMatch(pBuffer1, pBuffer2, length, pMessage) | bPassed, pPassFail, idx, mismatchIdx
+PUB evaluateBufferMatch(pBuffer1, pBuffer2, length, pMessage) | bPassed, pPassFail, idx, mismatchIdx
 '' Evaluate that two buffers match
+''
+'' @param pBuffer1 - pointer to first buffer
+'' @param pBuffer2 - pointer to second buffer
+'' @param length - number of bytes to compare
+'' @param pMessage - pointer to description string
+
     bPassed := true
     mismatchIdx := -1
     repeat idx from 0 to length - 1
@@ -259,8 +323,12 @@ pub evaluateBufferMatch(pBuffer1, pBuffer2, length, pMessage) | bPassed, pPassFa
     debug("   -> ", zstr_(pPassFail))
 
 
-pub showError(pCaller, bResult)
-'' Display an error message
+PUB showError(pCaller, bResult)
+'' Display an error message based on result
+''
+'' @param pCaller - pointer to caller name string
+'' @param bResult - boolean result (false shows error)
+
     if bResult == false
         debug("ERROR: ", zstr_(pCaller), " failed!")
     else
@@ -270,7 +338,12 @@ pub showError(pCaller, bResult)
 ' -------
 ' Memory dump utilities
 
-pub dbgMemDump(pMessage, pBytes, lenBytes) | rowCount, rowLen, pCurrByte, lastRowByteCount, bytesSoFar, offset
+PUB dbgMemDump(pMessage, pBytes, lenBytes) | rowCount, rowLen, pCurrByte, lastRowByteCount, bytesSoFar, offset
+'' Dump memory contents in hex format
+''
+'' @param pMessage - pointer to heading message (or 0 for none)
+'' @param pBytes - pointer to memory to dump
+'' @param lenBytes - number of bytes to dump
 
     if pMessage
         debug("** ", zstr_(pMessage), ":")
@@ -293,30 +366,55 @@ pub dbgMemDump(pMessage, pBytes, lenBytes) | rowCount, rowLen, pCurrByte, lastRo
         ' emit last line
         dbgMemDumpRow(pCurrByte, lastRowByteCount, offset)
 
-pri dbgMemDumpRow(pBytes, lenBytes, offset)
-' emit address followed by bytes
+PRI dbgMemDumpRow(pBytes, lenBytes, offset)
+' Emit a single row of memory dump (address followed by bytes)
+'
+' @param pBytes - pointer to bytes to display
+' @param lenBytes - number of bytes in this row
+' @param offset - offset value to display
+
     debug(" ", uhex_long_(offset), ": ", uhex_byte_array_(pBytes, lenBytes))
 
 
 ' -------
 ' Test data generation utilities
 
-pub fillBufferWithPattern(pBuffer, length, startValue) | idx
+PUB fillBufferWithPattern(pBuffer, length, startValue) | idx
 '' Fill buffer with incrementing pattern
+''
+'' @param pBuffer - pointer to buffer to fill
+'' @param length - number of bytes to fill
+'' @param startValue - starting value for pattern
+
     repeat idx from 0 to length - 1
         BYTE[pBuffer][idx] := (startValue + idx) & $FF
 
-pub fillBufferWithValue(pBuffer, length, value) | idx
+PUB fillBufferWithValue(pBuffer, length, value) | idx
 '' Fill buffer with constant value
+''
+'' @param pBuffer - pointer to buffer to fill
+'' @param length - number of bytes to fill
+'' @param value - constant value to fill with
+
     bytefill(pBuffer, value, length)
 
-pub fillBufferWithRandom(pBuffer, length) | idx
+PUB fillBufferWithRandom(pBuffer, length) | idx
 '' Fill buffer with random values
+''
+'' @param pBuffer - pointer to buffer to fill
+'' @param length - number of bytes to fill
+
     repeat idx from 0 to length - 1
         BYTE[pBuffer][idx] := getrnd() & $FF
 
-pub verifyBufferPattern(pBuffer, length, startValue) : bMatch | idx, expected
-'' Verify buffer contains incrementing pattern, returns true if match
+PUB verifyBufferPattern(pBuffer, length, startValue) : bMatch | idx, expected
+'' Verify buffer contains incrementing pattern
+''
+'' @param pBuffer - pointer to buffer to verify
+'' @param length - number of bytes to verify
+'' @param startValue - starting value for expected pattern
+'' @returns bMatch - true if pattern matches
+
     bMatch := true
     repeat idx from 0 to length - 1
         expected := (startValue + idx) & $FF
@@ -325,8 +423,14 @@ pub verifyBufferPattern(pBuffer, length, startValue) : bMatch | idx, expected
             debug("  Pattern mismatch at ", udec_(idx), ": got $", uhex_(BYTE[pBuffer][idx]), " expected $", uhex_(expected))
             quit
 
-pub verifyBufferValue(pBuffer, length, value) : bMatch | idx
-'' Verify buffer contains constant value, returns true if match
+PUB verifyBufferValue(pBuffer, length, value) : bMatch | idx
+'' Verify buffer contains constant value
+''
+'' @param pBuffer - pointer to buffer to verify
+'' @param length - number of bytes to verify
+'' @param value - expected constant value
+'' @returns bMatch - true if all bytes match
+
     bMatch := true
     repeat idx from 0 to length - 1
         if BYTE[pBuffer][idx] <> value

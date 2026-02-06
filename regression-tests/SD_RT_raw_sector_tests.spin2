@@ -59,6 +59,9 @@ VAR
     LONG    fail_count
 
 PUB go() | result, i, sector
+'' Main entry point for raw sector round-trip tests
+''
+'' Tests readSectorRaw/writeSectorRaw operations with various patterns
 
     debug(" ")
     debug("============================================================")
@@ -253,9 +256,13 @@ PUB go() | result, i, sector
     debug("END_SESSION")
 
 PRI addBoundaryMarkers(sector, patternId) | secLow
-    '' Add head and tail boundary markers to write_buf
-    '' Head (bytes 0-7): sector#, sector#, pattern, pattern, DE AD BE EF
-    '' Tail (bytes 504-511): CA FE BA BE, pattern, pattern, sector#, sector#
+' Add head and tail boundary markers to write_buf
+'
+' @param sector - sector number for marker
+' @param patternId - pattern identifier byte
+'
+' Head (bytes 0-7): sector#, sector#, pattern, pattern, DE AD BE EF
+' Tail (bytes 504-511): CA FE BA BE, pattern, pattern, sector#, sector#
 
     secLow := sector & $FF
 
@@ -280,8 +287,11 @@ PRI addBoundaryMarkers(sector, patternId) | secLow
     write_buf[511] := secLow
 
 PRI writeAndVerify(sector, expectedPattern) : success
-    '' Write sector and immediately read back to verify
-    '' Returns true if write succeeded and readback matches
+' Write sector and immediately read back to verify
+'
+' @param sector - sector number to write
+' @param expectedPattern - expected pattern ID for verification
+' @returns success - true if write succeeded and readback matches
 
     if not sd.writeSectorRaw(sector, @write_buf)
         debug("  WRITE FAILED!")
@@ -298,8 +308,11 @@ PRI writeAndVerify(sector, expectedPattern) : success
         debug("  -> FAIL (readback mismatch)")
 
 PRI verifyPattern(sector, expectedPattern) : success
-    '' Read sector and verify boundary markers match expected pattern
-    '' Returns true if verified OK, false if mismatch
+' Read sector and verify boundary markers match expected pattern
+'
+' @param sector - sector number to read
+' @param expectedPattern - expected pattern ID
+' @returns success - true if verified OK, false if mismatch
 
     sd.readSectorRaw(sector, @read_buf)
     success := verifyMarkers(sector, expectedPattern)
@@ -309,8 +322,11 @@ PRI verifyPattern(sector, expectedPattern) : success
         debug("  -> FAIL")
 
 PRI verifyMarkers(sector, expectedPattern) : success | secLow
-    '' Verify head and tail markers in read_buf
-    '' Returns true if all markers match
+' Verify head and tail markers in read_buf
+'
+' @param sector - sector number for expected marker values
+' @param expectedPattern - expected pattern ID
+' @returns success - true if all markers match
 
     success := true
     secLow := sector & $FF
@@ -342,8 +358,12 @@ PRI verifyMarkers(sector, expectedPattern) : success | secLow
         success := false
 
 PRI verifyFullPattern(sector, patternId, baseOffset) : success | i, expected, actual
-    '' Verify all 512 bytes of a sequential pattern sector
-    '' baseOffset is added to the sequential count (0 for pattern A, $E0 for pattern E)
+' Verify all 512 bytes of a sequential pattern sector
+'
+' @param sector - sector number to verify
+' @param patternId - pattern identifier (for boundary markers)
+' @param baseOffset - offset added to sequential count (0 for A, $E0 for E)
+' @returns success - true if all data bytes match
 
     sd.readSectorRaw(sector, @read_buf)
     success := true
@@ -360,7 +380,11 @@ PRI verifyFullPattern(sector, patternId, baseOffset) : success | i, expected, ac
         debug("  -> pass (496 data bytes verified)")
 
 PRI verifyFullPatternAlt(sector, patternId) : success | i, expected, actual
-    '' Verify all bytes of alternating AA/55 pattern sector
+' Verify all bytes of alternating AA/55 pattern sector
+'
+' @param sector - sector number to verify
+' @param patternId - pattern identifier (for boundary markers)
+' @returns success - true if all data bytes match AA/55 pattern
 
     sd.readSectorRaw(sector, @read_buf)
     success := true
@@ -377,7 +401,11 @@ PRI verifyFullPatternAlt(sector, patternId) : success | i, expected, actual
         debug("  -> pass (496 data bytes verified)")
 
 PRI recordPass()
+' Record a passing test
+
     pass_count++
 
 PRI recordFail()
+' Record a failing test
+
     fail_count++

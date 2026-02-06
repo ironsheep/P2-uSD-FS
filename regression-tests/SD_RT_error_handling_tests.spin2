@@ -55,6 +55,9 @@ testContent     BYTE    "0123456789", 0       ' Exactly 10 bytes
 readBuffer      BYTE    0[64]
 
 PUB go() | result, handle, h1, h2, h3, h4, h5, bytesRead, bytesWritten
+'' Main entry point for error handling regression tests
+''
+'' Tests error conditions and edge cases for the SD card driver
 
     debug(" ")
     debug("==============================================")

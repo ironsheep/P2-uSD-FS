@@ -4,23 +4,24 @@ This document describes the comprehensive regression test suite for the P2 SD Ca
 
 ## Overview
 
-The regression test suite consists of **10 specialized test files** covering different aspects of SD card functionality, supported by a test utilities framework and automated test runner. All tests execute on actual P2 hardware with a physical SD card, ensuring real-world validation.
+The regression test suite consists of **11 specialized test files** covering different aspects of SD card functionality, supported by a test utilities framework and automated test runner. All tests execute on actual P2 hardware with a physical SD card, ensuring real-world validation.
 
 ### Test Summary
 
 | Test Suite | Description | Tests |
 |------------|-------------|-------|
-| **Mount Tests** | Card initialization, mounting, unmounting | 17 |
-| **File Operations** | Create, open, close, delete, rename files | 24 |
-| **Read/Write Tests** | Data integrity, buffer operations, append | 30 |
-| **Directory Tests** | Directory listing, navigation, attributes | 22 |
-| **Seek Tests** | Random access, cross-sector seeks, position | 36 |
+| **Mount Tests** | Card initialization, mounting, unmounting, pre-mount errors | 21 |
+| **File Operations** | Create, open, close, delete, rename files, type mismatch | 22 |
+| **Read/Write Tests** | Data integrity, buffer operations, boundary conditions | 29 |
+| **Directory Tests** | Directory listing, navigation, deep nesting, boundaries | 27 |
+| **Seek Tests** | Random access, cross-sector seeks, seek boundaries | 37 |
 | **Format Tests** | FAT32 structure validation, cross-OS compatibility | 43 |
 | **Multiblock Tests** | Multi-sector streamer DMA transfers | 12 |
 | **Multicog Tests** | Singleton pattern, concurrent access, lock serialization | 18 |
-| **Multihandle Tests** | Multiple simultaneous file handles | 28 |
-| **Raw Sector Tests** | Direct sector read/write (bypassing filesystem) | 15 |
-| **Total** | | **245+** |
+| **Multihandle Tests** | Multiple simultaneous file handles | 22 |
+| **Raw Sector Tests** | Direct sector read/write, large LBA addressing | 14 |
+| **Error Handling Tests** | Error conditions, invalid handles, state errors | 6 |
+| **Total** | | **251** |
 
 ---
 
@@ -42,6 +43,7 @@ P2-SD-Card-Driver/
 │   ├── SD_RT_multicog_tests.spin2
 │   ├── SD_RT_multihandle_tests.spin2
 │   ├── SD_RT_raw_sector_tests.spin2
+│   ├── SD_RT_error_handling_tests.spin2
 │   ├── logs/                           # Per-test logs (pnut-term-ts)
 │   └── TestCard/                       # Test card validation
 │       ├── TEST-CARD-SPECIFICATION.md      # Test card requirements
@@ -134,6 +136,7 @@ PUB testExample()
 - **Filesystem Mount** - FAT32 parsing, volume label reading, free space calculation
 - **Mount/Unmount Cycle** - Repeated mount/unmount operations, resource cleanup
 - **Error Handling** - Invalid pin configurations, missing card scenarios
+- **Pre-Mount Error Validation** - Operations before mount fail gracefully
 
 **Key Validations:**
 - Card responds to SPI commands
@@ -142,6 +145,7 @@ PUB testExample()
 - Volume label extracted properly
 - Free space reported accurately
 - Clean unmount without data corruption
+- Pre-mount file operations return appropriate errors
 
 ---
 
@@ -156,6 +160,8 @@ PUB testExample()
 - **File Deletion** - `deleteFile()` removes files and frees clusters
 - **File Existence** - `fileExists()` correctly reports file presence
 - **File Renaming** - Rename operations preserve file content
+- **Multiple Simultaneous Handles** - Open multiple files simultaneously
+- **Type Mismatch Errors** - `openFileRead()` on directory, `openFileWrite()` on non-existent
 
 **Key Validations:**
 - Files appear in directory after creation
@@ -163,6 +169,8 @@ PUB testExample()
 - Deleted files no longer accessible
 - Rename preserves data integrity
 - Multiple files can coexist
+- Opening directory as file returns E_NOT_A_FILE
+- Opening non-existent file for write returns E_FILE_NOT_FOUND
 
 ---
 
@@ -177,6 +185,7 @@ PUB testExample()
 - **Append Operations** - Adding data to existing files
 - **Boundary Conditions** - Sector boundary crossing
 - **Buffer Management** - Partial buffer operations
+- **File Size Boundaries** - Empty file (0 bytes), single byte, exact sector (512), sector+1 (513), large (64KB)
 
 **Key Validations:**
 - Written data reads back identically
@@ -184,6 +193,8 @@ PUB testExample()
 - Append doesn't corrupt existing data
 - Sector boundaries handled transparently
 - Partial writes work correctly
+- Empty files created and read correctly
+- Large files traverse cluster chains correctly
 
 ---
 
@@ -197,6 +208,7 @@ PUB testExample()
 - **Directory Navigation** - `changeDirectory()` operations
 - **Multiple Files** - Listing with many directory entries
 - **Special Entries** - Volume label, dot entries handling
+- **Directory Boundary Conditions** - Deep nesting (5 levels), empty directories, max filename (8.3)
 
 **Key Validations:**
 - All files enumerated without missing entries
@@ -204,6 +216,9 @@ PUB testExample()
 - File sizes match actual content
 - Directory iteration terminates properly
 - Volume label distinguished from files
+- Deep directory nesting (5+ levels) navigable
+- Empty directories contain only . and .. entries
+- Max 8.3 filename length accepted
 
 ---
 
@@ -218,6 +233,7 @@ PUB testExample()
 - **Single-Byte Reads** - Random reads at specific positions
 - **Seek Edge Cases** - EOF boundary, seek beyond EOF
 - **Sequential vs Seek** - Verify seek doesn't affect sequential reads
+- **Seek Boundary Conditions** - Seek(0) return to start, seek to exact EOF, seek in empty file
 
 **Key Validations:**
 - Seek to position 0 returns to file start
@@ -225,6 +241,8 @@ PUB testExample()
 - Random access pattern reads correct data
 - Seek beyond EOF fails appropriately
 - Sequential read after seek continues correctly
+- Seek to exact EOF position allows subsequent read returning 0
+- Seek(0) in empty file succeeds, seek(1) fails
 
 ---
 
@@ -357,6 +375,7 @@ PUB testExample()
 - **Pattern Writes** - Multiple test patterns with boundary markers
 - **Round-trip Verification** - Write → read → compare
 - **Pattern Types** - Sequential, alternating, all-FF, all-00, incrementing
+- **Sector Address Boundaries** - MBR access, large LBA addressing
 
 **Test Sectors (100000+):**
 - Pattern A: Sequential bytes with boundary markers
@@ -370,6 +389,25 @@ PUB testExample()
 - Raw sector reads return exact data written
 - Boundary markers preserved correctly
 - All pattern types verified
+- MBR signature ($55 $AA) verifiable
+- Large LBA addressing (sector 1,000,000) handled
+
+---
+
+### 11. Error Handling Tests (`SD_RT_error_handling_tests.spin2`)
+
+**Purpose:** Validate error conditions, invalid handles, and edge case behaviors.
+
+**Test Groups:**
+- **File State Errors** - Invalid handle operations, read past EOF
+- **Directory Errors** - Type mismatch scenarios
+- **Handle Reuse Patterns** - Handle slot recycling, simultaneous access
+
+**Key Validations:**
+- `readHandle()` on invalid handle returns E_INVALID_HANDLE (-91)
+- Read past EOF returns partial data then 0
+- Closed handle slots can be reused by new opens
+- Same file can be opened for read while open for write
 
 ---
 
@@ -386,6 +424,9 @@ cd tools/
 ./run_test.sh ../regression-tests/SD_RT_read_write_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_directory_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_seek_tests.spin2
+
+# Error handling tests
+./run_test.sh ../regression-tests/SD_RT_error_handling_tests.spin2
 
 # Advanced feature tests
 ./run_test.sh ../regression-tests/SD_RT_multihandle_tests.spin2
@@ -507,6 +548,7 @@ The test suite is designed for automated CI execution. The test runner returns a
 
 | Date | Changes |
 |------|---------|
+| Feb 2026 | Test coverage improvements: added SD_RT_error_handling_tests.spin2 (6 tests), added pre-mount error validation to mount tests, added type mismatch errors to file ops, added file size and seek boundary tests, added directory boundary tests, added sector address boundary tests. Total: 251 tests |
 | Feb 2026 | Consolidated test suite, added TestCard validation |
 | Jan 2026 | Added multiblock, multicog, multihandle tests |
 | Jan 2026 | Added comprehensive FAT32 format tests (43 tests) |

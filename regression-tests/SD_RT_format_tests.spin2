@@ -59,6 +59,10 @@ VAR
     LONG    partitionStart
 
 PUB go() | result, dataStart, fat1Start, fat2Start, idx, mismatch, cardSectors
+'' Main entry point for FAT32 format regression tests
+''
+'' WARNING: This test ERASES ALL DATA on the card!
+'' Tests FAT32 formatting and cross-OS compatibility verification
 
     debug("==============================================")
     debug("  SD_RT_format_tests - FAT32 Format Tests")

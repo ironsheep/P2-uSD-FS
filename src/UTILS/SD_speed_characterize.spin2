@@ -92,6 +92,9 @@ DAT
                 long  50_000_000
 
 PUB main() | result, level, max_passed_level
+'' Main entry point - runs SPI speed characterization tests.
+'' Tests SD card at various SPI clock speeds to find maximum reliable frequency.
+
   debug("##############################################")
   debug("#  SPI Speed Characterization (Read-Only)   #")
   debug("##############################################")
@@ -153,12 +156,17 @@ PUB main() | result, level, max_passed_level
   repeat  ' Halt
 
 PRI initSpeedArray() | i
+' Copy test speeds from DAT table to VAR array and initialize results.
+
   ' Copy speeds from DAT to VAR array
   repeat i from 0 to NUM_SPEED_LEVELS - 1
     speed_hz[i] := long[@test_speeds][i]
     level_passed[i] := false
 
 PRI calculateTimingAccuracy() | i, target, hp, actual, delta
+' Calculate half_period, actual frequency, and delta for each test speed.
+' Shows timing accuracy achievable with P2 integer clock division.
+
   ' Calculate half_period, actual frequency, and delta for each speed
   ' This shows timing accuracy achievable with P2 integer clock division
   debug(" ")
@@ -203,6 +211,8 @@ PRI calculateTimingAccuracy() | i, target, hp, actual, delta
   debug(" ")
 
 PRI displayCardInfo() | cid[4], mid, sectors, cap_mb
+' Display card information including manufacturer ID and capacity.
+
   debug("Card Information:")
   debug("------------------------------------------------")
 
@@ -225,6 +235,8 @@ PRI displayCardInfo() | cid[4], mid, sectors, cap_mb
   debug(" ")
 
 PRI checkHighSpeedSupport()
+' Check if card supports CMD6 for High Speed mode switching.
+
   debug("High Speed Support:")
   debug("------------------------------------------------")
 
@@ -238,6 +250,8 @@ PRI checkHighSpeedSupport()
   debug(" ")
 
 PRI displayTestConfig()
+' Display test configuration parameters.
+
   debug("Test Configuration:")
   debug("  SYSCLK: ", udec_(clkfreq / 1_000_000), " MHz")
   debug("  Phase 1: ", udec_(PHASE1_ITERATIONS), " single-sector reads")
@@ -249,6 +263,11 @@ PRI displayTestConfig()
   debug(" ")
 
 PRI testSpeedLevel(level) : passed | target_hz, ok, crc_err, timeout, delta
+' Test a specific speed level through all three phases.
+'
+' @param level - Index into speed array
+' @returns passed - TRUE if all phases passed, FALSE otherwise
+
   target_hz := speed_hz[level]
 
   debug("----------------------------------------")
@@ -346,6 +365,13 @@ PRI testSpeedLevel(level) : passed | target_hz, ok, crc_err, timeout, delta
   return true
 
 PRI runSingleSectorTest(iterations, p_ok, p_crc_err, p_timeout) | i, sector, result, recv_crc, calc_crc
+' Run single-sector read tests with CRC verification.
+'
+' @param iterations - Number of read iterations
+' @param p_ok - Pointer to store successful read count
+' @param p_crc_err - Pointer to store CRC error count
+' @param p_timeout - Pointer to store timeout count
+
   long[p_ok] := 0
   long[p_crc_err] := 0
   long[p_timeout] := 0
@@ -375,6 +401,14 @@ PRI runSingleSectorTest(iterations, p_ok, p_crc_err, p_timeout) | i, sector, res
       debug("      Progress: ", udec_(i))
 
 PRI runMultiSectorTest(iterations, sectors_per_read, p_ok, p_crc_err, p_timeout) | i, start_sector, result
+' Run multi-sector read tests (CMD18 bulk transfers).
+'
+' @param iterations - Number of multi-sector read iterations
+' @param sectors_per_read - Number of sectors per read operation
+' @param p_ok - Pointer to store successful sector count
+' @param p_crc_err - Pointer to store CRC error count
+' @param p_timeout - Pointer to store timeout count
+
   long[p_ok] := 0
   long[p_crc_err] := 0
   long[p_timeout] := 0
@@ -397,6 +431,10 @@ PRI runMultiSectorTest(iterations, sectors_per_read, p_ok, p_crc_err, p_timeout)
       long[p_timeout] += sectors_per_read
 
 PRI getRandomTestSector() : sector
+' Generate a random sector number within the test range using LFSR.
+'
+' @returns sector - Random sector number within TEST_SECTOR_BASE..TEST_SECTOR_BASE+TEST_SECTOR_RANGE
+
   ' Simple LFSR-based pseudo-random for sector selection
   rand_seed := rand_seed << 1
   if rand_seed == 0
@@ -406,6 +444,10 @@ PRI getRandomTestSector() : sector
   sector := TEST_SECTOR_BASE + (rand_seed +// TEST_SECTOR_RANGE)
 
 PRI displaySummary(max_passed_level) | level
+' Display test summary with recommended maximum speed.
+'
+' @param max_passed_level - Highest speed level that passed all tests
+
   debug(" ")
   debug("========================================")
   debug("  SPEED CHARACTERIZATION SUMMARY")
