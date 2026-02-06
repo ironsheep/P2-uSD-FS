@@ -52,6 +52,9 @@ CON
     #6, FREQ_280, FREQ_270, FREQ_260, FREQ_255, FREQ_250, FREQ_240
     #12, FREQ_220, FREQ_200, FREQ_COUNT
 
+'' Enable full driver features for this utility
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
     sd : "SD_card_driver"
 

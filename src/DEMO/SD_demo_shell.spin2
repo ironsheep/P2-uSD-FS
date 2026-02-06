@@ -57,11 +57,14 @@ CON { constants }
   BUFFER_SIZE = 512                                             ' read/write buffer
 
 
+'' Enable full driver features for card info display
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
 
-  cli   : "jm_parser"                                           '   command line input & parsing
-  sd    : "SD_card_driver"                                      '   SD card filesystem driver
-  term  : "jm_fullduplexserial"                                 ' * serial IO for terminal
+  cli    : "jm_parser"                                          '   command line input & parsing
+  sd     : "SD_card_driver"                                     '   SD card filesystem driver
+  serial : "isp_serial_singleton"                               '   serial IO for terminal (singleton)
 
 
 VAR
@@ -78,10 +81,10 @@ PUB main() | len, idx
   setup()
   wait_for_terminal(false, 0)
 
-  term.tx(term.CLS)
-  term.fstr0(@"P2 SD Card Filesystem Shell\r")
-  term.fstr0(@"- type 'help' for commands\r")
-  term.fstr0(@"\r")
+  serial.tx(serial.CLS)
+  serial.fstr0(@"P2 SD Card Filesystem Shell\r")
+  serial.fstr0(@"- type 'help' for commands\r")
+  serial.fstr0(@"\r")
 
   ' Initialize current working directory
   bytemove(@cwd, @"/", 2)
@@ -104,12 +107,12 @@ PUB get_command() : len | c
   cli.reset()                                                   ' prep cli for new entry
 
   repeat
-    c := term.rx()                                              ' get char from serial
+    c := serial.rx()                                              ' get char from serial
     c := (c == 9) ? " " : c                                     ' convert tab to space
     if (c == 8)                                                 ' fix backspace
-      term.str(string(8, " ", 8))                               '  for terminal
+      serial.str(string(8, " ", 8))                               '  for terminal
     else
-      term.tx(c)                                                ' echo to terminal
+      serial.tx(c)                                                ' echo to terminal
     if cli.enqueue(c)                                           ' and to cli queue
       quit                                                      '  if terminated, we're done
 
@@ -121,9 +124,9 @@ PUB show_prompt()
 '' Display command prompt with current directory
 
   if (mounted)
-    term.fstr1(@"\rSD:%s> ", @cwd)
+    serial.fstr1(@"\rSD:%s> ", @cwd)
   else
-    term.fstr0(@"\rSD:(unmounted)> ")
+    serial.fstr0(@"\rSD:(unmounted)> ")
 
 
 CON { command handlers }
@@ -134,7 +137,7 @@ PUB run_command(idx)
 '' Run command at index idx of Commands list
 
   if (idx < 0)
-    term.fstr1(@"'%s' is not recognized as a command\r", cli.token(0))
+    serial.fstr1(@"'%s' is not recognized as a command\r", cli.token(0))
     return
 
   case idx
@@ -170,7 +173,7 @@ PUB show_help()
     bad_syntax()
     return
 
-  term.str(@s_Help)
+  serial.str(@s_Help)
 
 
 PUB show_version()
@@ -181,8 +184,8 @@ PUB show_version()
     bad_syntax()
     return
 
-  term.fstr0(@"SD Card Driver - Iron Sheep Productions\r")
-  term.fstr1(@"SPI Frequency: %d Hz\r", sd.getSPIFrequency())
+  serial.fstr0(@"SD Card Driver - Iron Sheep Productions\r")
+  serial.fstr1(@"SPI Frequency: %d Hz\r", sd.getSPIFrequency())
 
 
 PUB do_cls()
@@ -193,7 +196,7 @@ PUB do_cls()
     bad_syntax()
     return
 
-  term.tx(term.CLS)
+  serial.tx(serial.CLS)
 
 
 PUB do_mount() | result
@@ -205,19 +208,19 @@ PUB do_mount() | result
     return
 
   if (mounted)
-    term.fstr0(@"SD card is already mounted\r")
+    serial.fstr0(@"SD card is already mounted\r")
     return
 
-  term.fstr0(@"Mounting SD card...\r")
+  serial.fstr0(@"Mounting SD card...\r")
   result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
 
   if (result)
     mounted := true
     bytemove(@cwd, @"/", 2)                                     ' reset to root
-    term.fstr0(@"Mounted successfully\r")
+    serial.fstr0(@"Mounted successfully\r")
     show_card_summary()
   else
-    term.fstr1(@"Mount failed, error: %d\r", sd.error())
+    serial.fstr1(@"Mount failed, error: %d\r", sd.error())
 
 
 PUB do_unmount()
@@ -233,7 +236,7 @@ PUB do_unmount()
 
   sd.unmount()
   mounted := false
-  term.fstr0(@"SD card unmounted\r")
+  serial.fstr0(@"SD card unmounted\r")
 
 
 PUB do_format()
@@ -244,9 +247,9 @@ PUB do_format()
     bad_syntax()
     return
 
-  term.fstr0(@"WARNING: Format will erase ALL data on the SD card!\r")
-  term.fstr0(@"This feature is not yet implemented in this shell.\r")
-  term.fstr0(@"Use SD_format_utility.spin2 instead.\r")
+  serial.fstr0(@"WARNING: Format will erase ALL data on the SD card!\r")
+  serial.fstr0(@"This feature is not yet implemented in this shell.\r")
+  serial.fstr0(@"Use SD_format_utility.spin2 instead.\r")
 
 
 PUB do_stats() | free_sectors, total_sectors, free_mb, total_mb
@@ -266,11 +269,11 @@ PUB do_stats() | free_sectors, total_sectors, free_mb, total_mb
   total_mb := total_sectors / 2048                              ' sectors to MB (512 * 2048 = 1MB)
   free_mb := free_sectors / 2048
 
-  term.fstr0(@"\r--- SD Card Statistics ---\r")
-  term.fstr2(@"Total size:    %d sectors (%d MB)\r", total_sectors, total_mb)
-  term.fstr2(@"Free space:    %d sectors (%d MB)\r", free_sectors, free_mb)
-  term.fstr1(@"Volume label:  %s\r", sd.volumeLabel())
-  term.fstr1(@"SPI frequency: %d Hz\r", sd.getSPIFrequency())
+  serial.fstr0(@"\r--- SD Card Statistics ---\r")
+  serial.fstr2(@"Total size:    %d sectors (%d MB)\r", total_sectors, total_mb)
+  serial.fstr2(@"Free space:    %d sectors (%d MB)\r", free_sectors, free_mb)
+  serial.fstr1(@"Volume label:  %s\r", sd.volumeLabel())
+  serial.fstr1(@"SPI frequency: %d Hz\r", sd.getSPIFrequency())
 
 
 PUB do_dir() | entry, result, count, total_size, attrib, size, p_name
@@ -284,9 +287,9 @@ PUB do_dir() | entry, result, count, total_size, attrib, size, p_name
   if (check_mount() == false)
     return
 
-  term.fstr1(@"\r Directory of %s\r\r", @cwd)
-  term.fstr0(@"  Attr      Size  Name\r")
-  term.fstr0(@"  ----  --------  --------------------------------\r")
+  serial.fstr1(@"\r Directory of %s\r\r", @cwd)
+  serial.fstr0(@"  Attr      Size  Name\r")
+  serial.fstr0(@"  ----  --------  --------------------------------\r")
 
   entry := 0
   count := 0
@@ -305,23 +308,23 @@ PUB do_dir() | entry, result, count, total_size, attrib, size, p_name
     size := sd.fileSize()
 
     ' Format attributes
-    term.fstr0(@"  ")
-    term.tx((attrib & $10) ? "D" : "-")                         ' directory
-    term.tx((attrib & $01) ? "R" : "-")                         ' read-only
-    term.tx((attrib & $02) ? "H" : "-")                         ' hidden
-    term.tx((attrib & $04) ? "S" : "-")                         ' system
+    serial.fstr0(@"  ")
+    serial.tx((attrib & $10) ? "D" : "-")                         ' directory
+    serial.tx((attrib & $01) ? "R" : "-")                         ' read-only
+    serial.tx((attrib & $02) ? "H" : "-")                         ' hidden
+    serial.tx((attrib & $04) ? "S" : "-")                         ' system
 
     if (attrib & $10)                                           ' directory
-      term.fstr1(@"    <DIR>  %s\r", p_name)
+      serial.fstr1(@"    <DIR>  %s\r", p_name)
     else
-      term.fstr2(@"  %8d  %s\r", size, p_name)
+      serial.fstr2(@"  %8d  %s\r", size, p_name)
       total_size += size
 
     count++
 
-  term.fstr0(@"\r")
-  term.fstr2(@"  %d file(s), %d bytes\r", count, total_size)
-  term.fstr1(@"  %d bytes free\r", sd.freeSpace() * SECTOR_SIZE)
+  serial.fstr0(@"\r")
+  serial.fstr2(@"  %d file(s), %d bytes\r", count, total_size)
+  serial.fstr1(@"  %d bytes free\r", sd.freeSpace() * SECTOR_SIZE)
 
 
 PUB do_cd() | p_path
@@ -353,7 +356,7 @@ PUB do_cd() | p_path
   if (sd.changeDirectory(p_path))
     update_cwd(p_path)
   else
-    term.fstr1(@"Directory not found: %s\r", p_path)
+    serial.fstr1(@"Directory not found: %s\r", p_path)
 
 
 PUB do_pwd()
@@ -367,7 +370,7 @@ PUB do_pwd()
   if (check_mount() == false)
     return
 
-  term.fstr1(@"%s\r", @cwd)
+  serial.fstr1(@"%s\r", @cwd)
 
 
 PUB do_mkdir() | p_name, result
@@ -385,9 +388,9 @@ PUB do_mkdir() | p_name, result
   result := sd.newDirectory(p_name)
 
   if (result)
-    term.fstr1(@"Created directory: %s\r", p_name)
+    serial.fstr1(@"Created directory: %s\r", p_name)
   else
-    term.fstr1(@"Failed to create directory: %s\r", p_name)
+    serial.fstr1(@"Failed to create directory: %s\r", p_name)
 
 
 PUB do_type() | p_filename, handle, bytes_read, total, c, i
@@ -405,10 +408,10 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
   handle := sd.openFileRead(p_filename)
 
   if (handle < 0)
-    term.fstr1(@"File not found: %s\r", p_filename)
+    serial.fstr1(@"File not found: %s\r", p_filename)
     return
 
-  term.fstr0(@"\r")
+  serial.fstr0(@"\r")
   total := 0
 
   repeat
@@ -420,18 +423,18 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
     repeat i from 0 to bytes_read - 1
       c := buffer[i]
       if (c == 13)                                              ' CR
-        term.tx(13)
+        serial.tx(13)
       elseif (c == 10)                                          ' LF - skip (CR handles newline)
         ' skip
       elseif (c >= 32 and c < 127)                              ' printable
-        term.tx(c)
+        serial.tx(c)
       else
-        term.tx(".")                                            ' non-printable
+        serial.tx(".")                                            ' non-printable
 
     total += bytes_read
 
   sd.closeFileHandle(handle)
-  term.fstr1(@"\r\r[%d bytes]\r", total)
+  serial.fstr1(@"\r\r[%d bytes]\r", total)
 
 
 PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
@@ -449,10 +452,10 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
   handle := sd.openFileRead(p_filename)
 
   if (handle < 0)
-    term.fstr1(@"File not found: %s\r", p_filename)
+    serial.fstr1(@"File not found: %s\r", p_filename)
     return
 
-  term.fstr0(@"\r")
+  serial.fstr0(@"\r")
   offset := 0
 
   repeat
@@ -461,37 +464,37 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
       quit
 
     ' Print offset
-    term.fstr1(@"%.8x  ", offset)
+    serial.fstr1(@"%.8x  ", offset)
 
     ' Print hex bytes
     repeat i from 0 to 15
       if (i < bytes_read)
-        term.fstr1(@"%.2x ", buffer[i])
+        serial.fstr1(@"%.2x ", buffer[i])
       else
-        term.fstr0(@"   ")
+        serial.fstr0(@"   ")
       if (i == 7)
-        term.tx(" ")
+        serial.tx(" ")
 
-    term.fstr0(@" |")
+    serial.fstr0(@" |")
 
     ' Print ASCII
     repeat i from 0 to bytes_read - 1
       c := buffer[i]
       if (c >= 32 and c < 127)
-        term.tx(c)
+        serial.tx(c)
       else
-        term.tx(".")
+        serial.tx(".")
 
-    term.fstr0(@"|\r")
+    serial.fstr0(@"|\r")
     offset += bytes_read
 
     ' Limit output to first 512 bytes
     if (offset >= 512)
-      term.fstr0(@"... (truncated at 512 bytes)\r")
+      serial.fstr0(@"... (truncated at 512 bytes)\r")
       quit
 
   sd.closeFileHandle(handle)
-  term.fstr1(@"\r[%d bytes total]\r", sd.fileSizeHandle(handle) > 0 ? sd.fileSizeHandle(handle) : offset)
+  serial.fstr1(@"\r[%d bytes total]\r", sd.fileSizeHandle(handle) > 0 ? sd.fileSizeHandle(handle) : offset)
 
 
 PUB do_rename() | p_old, p_new, result
@@ -511,9 +514,9 @@ PUB do_rename() | p_old, p_new, result
   result := sd.rename(p_old, p_new)
 
   if (result)
-    term.fstr2(@"Renamed '%s' to '%s'\r", p_old, p_new)
+    serial.fstr2(@"Renamed '%s' to '%s'\r", p_old, p_new)
   else
-    term.fstr1(@"Failed to rename: %s\r", p_old)
+    serial.fstr1(@"Failed to rename: %s\r", p_old)
 
 
 PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
@@ -531,18 +534,18 @@ PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
   p_dst := cli.token(2)
 
   if (strcomp(p_src, p_dst))
-    term.fstr0(@"Cannot copy file to itself\r")
+    serial.fstr0(@"Cannot copy file to itself\r")
     return
 
   h_src := sd.openFileRead(p_src)
   if (h_src < 0)
-    term.fstr1(@"Source file not found: %s\r", p_src)
+    serial.fstr1(@"Source file not found: %s\r", p_src)
     return
 
   h_dst := sd.createFileNew(p_dst)
   if (h_dst < 0)
     sd.closeFileHandle(h_src)
-    term.fstr1(@"Cannot create destination: %s\r", p_dst)
+    serial.fstr1(@"Cannot create destination: %s\r", p_dst)
     return
 
   total := 0
@@ -556,7 +559,7 @@ PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
   sd.closeFileHandle(h_src)
   sd.closeFileHandle(h_dst)
 
-  term.fstr2(@"Copied %d bytes to %s\r", total, p_dst)
+  serial.fstr2(@"Copied %d bytes to %s\r", total, p_dst)
 
 
 PUB do_delete() | p_filename, result
@@ -574,9 +577,9 @@ PUB do_delete() | p_filename, result
   result := sd.deleteFile(p_filename)
 
   if (result)
-    term.fstr1(@"Deleted: %s\r", p_filename)
+    serial.fstr1(@"Deleted: %s\r", p_filename)
   else
-    term.fstr1(@"Failed to delete: %s\r", p_filename)
+    serial.fstr1(@"Failed to delete: %s\r", p_filename)
 
 
 PUB do_rmdir()
@@ -590,7 +593,7 @@ PUB do_rmdir()
   if (check_mount() == false)
     return
 
-  term.fstr0(@"rmdir not yet implemented\r")
+  serial.fstr0(@"rmdir not yet implemented\r")
 
 
 PUB do_demo() | handle, i
@@ -604,14 +607,14 @@ PUB do_demo() | handle, i
   if (check_mount() == false)
     return
 
-  term.fstr0(@"Creating demo files...\r")
+  serial.fstr0(@"Creating demo files...\r")
 
   ' Create text file 1
   write_demo_file(@"HELLO.TXT", @demo_hello)
   write_demo_file(@"README.TXT", @demo_readme)
   write_demo_file(@"NUMBERS.TXT", @demo_numbers)
 
-  term.fstr0(@"Demo files created.\r")
+  serial.fstr0(@"Demo files created.\r")
 
 
 PUB do_card_info() | cid[4], csd[4], mid, oid[3], pnm[6], prv, psn, mdt
@@ -638,16 +641,16 @@ PUB do_card_info() | cid[4], csd[4], mid, oid[3], pnm[6], prv, psn, mdt
   psn := (cid.byte[9] << 24) | (cid.byte[10] << 16) | (cid.byte[11] << 8) | cid.byte[12]
   mdt := ((cid.byte[13] & $0F) << 8) | cid.byte[14]
 
-  term.fstr0(@"\r--- SD Card Identification ---\r")
-  term.fstr1(@"Manufacturer ID:  0x%.2x\r", mid)
-  term.fstr1(@"OEM/Application:  %s\r", @oid)
-  term.fstr1(@"Product Name:     %s\r", @pnm)
-  term.fstr2(@"Product Revision: %d.%d\r", prv >> 4, prv & $0F)
-  term.fstr1(@"Serial Number:    0x%.8x\r", psn)
-  term.fstr2(@"Manufacture Date: %d/%d\r", (mdt >> 4) + 2000, mdt & $0F)
-  term.fstr1(@"Card Size:        %d MB\r", sd.cardSizeSectors() / 2048)
-  term.fstr1(@"SPI Frequency:    %d Hz\r", sd.getSPIFrequency())
-  term.fstr1(@"High-Speed Mode:  %s\r", sd.isHighSpeedActive() ? @"Active" : @"Inactive")
+  serial.fstr0(@"\r--- SD Card Identification ---\r")
+  serial.fstr1(@"Manufacturer ID:  0x%.2x\r", mid)
+  serial.fstr1(@"OEM/Application:  %s\r", @oid)
+  serial.fstr1(@"Product Name:     %s\r", @pnm)
+  serial.fstr2(@"Product Revision: %d.%d\r", prv >> 4, prv & $0F)
+  serial.fstr1(@"Serial Number:    0x%.8x\r", psn)
+  serial.fstr2(@"Manufacture Date: %d/%d\r", (mdt >> 4) + 2000, mdt & $0F)
+  serial.fstr1(@"Card Size:        %d MB\r", sd.cardSizeSectors() / 2048)
+  serial.fstr1(@"SPI Frequency:    %d Hz\r", sd.getSPIFrequency())
+  serial.fstr1(@"High-Speed Mode:  %s\r", sd.isHighSpeedActive() ? @"Active" : @"Inactive")
 
 
 PUB do_benchmark() | start, elapsed, i, handle, bytes, rate
@@ -661,13 +664,13 @@ PUB do_benchmark() | start, elapsed, i, handle, bytes, rate
   if (check_mount() == false)
     return
 
-  term.fstr0(@"\r--- Quick Benchmark ---\r")
+  serial.fstr0(@"\r--- Quick Benchmark ---\r")
 
   ' Write test
-  term.fstr0(@"Write test (32KB)...")
+  serial.fstr0(@"Write test (32KB)...")
   handle := sd.createFileNew(@"_BENCH_.TMP")
   if (handle < 0)
-    term.fstr0(@" failed to create file\r")
+    serial.fstr0(@" failed to create file\r")
     return
 
   bytefill(@buffer, $AA, BUFFER_SIZE)
@@ -681,14 +684,14 @@ PUB do_benchmark() | start, elapsed, i, handle, bytes, rate
 
   bytes := 64 * BUFFER_SIZE
   rate := (bytes * (clkfreq / 1000)) / elapsed                  ' bytes per ms -> KB/s
-  term.fstr2(@" %d bytes in %d ms", bytes, elapsed / (clkfreq / 1000))
-  term.fstr1(@" (%d KB/s)\r", rate)
+  serial.fstr2(@" %d bytes in %d ms", bytes, elapsed / (clkfreq / 1000))
+  serial.fstr1(@" (%d KB/s)\r", rate)
 
   ' Read test
-  term.fstr0(@"Read test (32KB)... ")
+  serial.fstr0(@"Read test (32KB)... ")
   handle := sd.openFileRead(@"_BENCH_.TMP")
   if (handle < 0)
-    term.fstr0(@" failed to open file\r")
+    serial.fstr0(@" failed to open file\r")
     return
 
   start := getct()
@@ -700,12 +703,12 @@ PUB do_benchmark() | start, elapsed, i, handle, bytes, rate
   sd.closeFileHandle(handle)
 
   rate := (bytes * (clkfreq / 1000)) / elapsed
-  term.fstr2(@" %d bytes in %d ms", bytes, elapsed / (clkfreq / 1000))
-  term.fstr1(@" (%d KB/s)\r", rate)
+  serial.fstr2(@" %d bytes in %d ms", bytes, elapsed / (clkfreq / 1000))
+  serial.fstr1(@" (%d KB/s)\r", rate)
 
   ' Cleanup
   sd.deleteFile(@"_BENCH_.TMP")
-  term.fstr0(@"Benchmark complete.\r")
+  serial.fstr0(@"Benchmark complete.\r")
 
 
 PUB do_touch() | p_filename, handle
@@ -724,14 +727,14 @@ PUB do_touch() | p_filename, handle
 
   if (handle >= 0)
     sd.closeFileHandle(handle)
-    term.fstr1(@"Created: %s\r", p_filename)
+    serial.fstr1(@"Created: %s\r", p_filename)
   else
-    term.fstr1(@"Failed to create: %s\r", p_filename)
+    serial.fstr1(@"Failed to create: %s\r", p_filename)
 
 
 PUB not_implemented()
 
-  term.fstr1(@"%s is not implemented\r", cli.token(0))
+  serial.fstr1(@"%s is not implemented\r", cli.token(0))
 
 
 CON { helper methods }
@@ -742,11 +745,11 @@ PRI write_demo_file(p_name, p_content) | handle, len
 '' Write demo content to file
 
   len := strsize(p_content)
-  term.fstr2(@"  Writing %s (%d bytes)...\r", p_name, len)
+  serial.fstr2(@"  Writing %s (%d bytes)...\r", p_name, len)
 
   handle := sd.createFileNew(p_name)
   if (handle < 0)
-    term.fstr0(@"    ERROR: Could not create file\r")
+    serial.fstr0(@"    ERROR: Could not create file\r")
     return
 
   sd.writeHandle(handle, p_content, len)
@@ -760,9 +763,9 @@ PRI show_card_summary() | total_mb, free_mb
   total_mb := sd.cardSizeSectors() / 2048
   free_mb := sd.freeSpace() / 2048
 
-  term.fstr1(@"  Volume: %s\r", sd.volumeLabel())
-  term.fstr2(@"  Size: %d MB, Free: %d MB\r", total_mb, free_mb)
-  term.fstr1(@"  SPI: %d Hz\r", sd.getSPIFrequency())
+  serial.fstr1(@"  Volume: %s\r", sd.volumeLabel())
+  serial.fstr2(@"  Size: %d MB, Free: %d MB\r", total_mb, free_mb)
+  serial.fstr1(@"  SPI: %d Hz\r", sd.getSPIFrequency())
 
 
 PRI check_mount() : status
@@ -771,7 +774,7 @@ PRI check_mount() : status
 
   status := mounted
   if (status == false)
-    term.fstr0(@"SD card not mounted. Use 'mount' command first.\r")
+    serial.fstr0(@"SD card not mounted. Use 'mount' command first.\r")
 
 
 PRI go_up_directory() | i, len
@@ -820,7 +823,7 @@ PRI update_cwd(p_path) | len, cwd_len
 
 PRI bad_syntax()
 
-  term.fstr0(@"Syntax error. Type 'help' for command list.\r")
+  serial.fstr0(@"Syntax error. Type 'help' for command list.\r")
 
 
 PRI lcstr(p_str) : p_lcstr | c
@@ -954,7 +957,7 @@ PUB setup()
 
 '' Configure IO and objects for application
 
-  term.tstart(BR_TERM)                                          ' start terminal io
+  serial.start(BR_TERM)                                           ' start terminal io
   cli.start(13, cli.NONE, @separators)                          ' setup parser
 
 
@@ -962,10 +965,10 @@ PUB wait_for_terminal(clear, delay)
 
 '' Wait for terminal to be open and key pressed
 
-  term.rxflush()
-  term.rx()
+  serial.rxflush()
+  serial.rx()
   if (clear)
-    term.tx(term.CLS)
+    serial.tx(serial.CLS)
     waitms(delay #> 0)
 
 

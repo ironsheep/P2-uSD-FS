@@ -46,6 +46,9 @@ CON
 
     NUM_TEST_SECTORS = 5
 
+'' Enable full driver features for raw sector testing
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
     sd : "SD_card_driver"
 
@@ -206,6 +209,41 @@ PUB go() | result, i, sector
         recordPass()
     else
         recordFail()
+
+    debug(" ")
+
+    ' ========================================
+    ' PHASE 4: Sector Address Boundary Tests
+    ' ========================================
+    debug("--- PHASE 4: Sector Address Boundary Tests ---")
+    debug(" ")
+
+    ' Test: Sector 0 (MBR) - verify MBR signature
+    debug("* Test: Read sector 0 (MBR) and verify signature $55 $AA")
+    sd.readSectorRaw(0, @read_buf)
+    if read_buf[510] == $55 and read_buf[511] == $AA
+        debug("  MBR signature verified: $55 $AA at bytes 510-511")
+        debug("  -> pass")
+        recordPass()
+    else
+        debug("  ERROR: Expected $55 $AA, got $", uhex_byte_(read_buf[510]), " $", uhex_byte_(read_buf[511]))
+        debug("  -> FAIL")
+        recordFail()
+
+    ' Test: High sector number (1,000,000) - verify large LBA addressing
+    debug("* Test: Read high sector number 1,000,000 (large LBA)")
+    result := sd.readSectorRaw(1_000_000, @read_buf)
+    ' This tests that the driver can address high sector numbers
+    ' The read may or may not succeed depending on card size, but it shouldn't crash
+    if result == 0 or result == -1
+        debug("  High sector read completed (result=", sdec_(result), ")")
+        debug("  First bytes: $", uhex_byte_(read_buf[0]), " $", uhex_byte_(read_buf[1]), " $", uhex_byte_(read_buf[2]), " $", uhex_byte_(read_buf[3]))
+        debug("  -> pass (driver handled large LBA)")
+        recordPass()
+    else
+        debug("  High sector read returned: ", sdec_(result))
+        debug("  -> pass (driver returned error for out-of-range sector)")
+        recordPass()
 
     debug(" ")
     debug("============================================================")

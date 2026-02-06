@@ -34,6 +34,22 @@ testFile1       BYTE    "FILE1.TXT", 0
 testFile2       BYTE    "FILE2.TXT", 0
 testContent     BYTE    "Test file content", 0
 
+' Deep nesting directory names
+deepDir1        BYTE    "DEEP1", 0
+deepDir2        BYTE    "DEEP2", 0
+deepDir3        BYTE    "DEEP3", 0
+deepDir4        BYTE    "DEEP4", 0
+deepDir5        BYTE    "DEEP5", 0
+
+' Max filename (8.3 format)
+maxNameFile     BYTE    "12345678.123", 0
+
+' Many files test directory
+manyFilesDir    BYTE    "RTMANY", 0
+
+' Buffer for generated filenames
+genFileName     BYTE    0[16]
+
 PUB go() | result, pEntry, pFilename, attrs, fileCount, idx
 
     debug(" ")
@@ -210,6 +226,100 @@ PUB go() | result, pEntry, pFilename, attrs, fileCount, idx
     utils.evaluateBool(result, @"openFile() new location", true)
     sd.closeFile()
     sd.changeDirectory(@"/")
+
+    ' ----------------------------------
+    ' TEST GROUP: Directory Boundary Conditions
+    ' ----------------------------------
+    utils.startTestGroup(@"Directory Boundary Conditions")
+
+    ' Test: Deep nesting (5 levels)
+    utils.startTest(@"Deep nesting - create 5-level directory structure")
+    sd.changeDirectory(@"/")
+    result := sd.newDirectory(@deepDir1)
+    utils.evaluateSubBool(result, @"create DEEP1", true)
+    sd.changeDirectory(@deepDir1)
+    result := sd.newDirectory(@deepDir2)
+    utils.evaluateSubBool(result, @"create DEEP2", true)
+    sd.changeDirectory(@deepDir2)
+    result := sd.newDirectory(@deepDir3)
+    utils.evaluateSubBool(result, @"create DEEP3", true)
+    sd.changeDirectory(@deepDir3)
+    result := sd.newDirectory(@deepDir4)
+    utils.evaluateSubBool(result, @"create DEEP4", true)
+    sd.changeDirectory(@deepDir4)
+    result := sd.newDirectory(@deepDir5)
+    utils.evaluateSubBool(result, @"create DEEP5", true)
+
+    utils.startTest(@"Navigate to deepest level and create file")
+    sd.changeDirectory(@deepDir5)
+    result := sd.newFile(@"DEEP.TXT")
+    utils.evaluateSubBool(result, @"create file at depth 5", true)
+    sd.writeString(@"Deep file")
+    sd.closeFile()
+
+    utils.startTest(@"Navigate back to root using ..")
+    sd.changeDirectory(@"..")  ' DEEP4
+    sd.changeDirectory(@"..")  ' DEEP3
+    sd.changeDirectory(@"..")  ' DEEP2
+    sd.changeDirectory(@"..")  ' DEEP1
+    sd.changeDirectory(@"..")  ' root
+    result := sd.changeDirectory(@"/")
+    utils.evaluateBool(result, @"back at root", true)
+
+    ' Test: Empty directory listing
+    utils.startTest(@"Empty directory listing")
+    sd.changeDirectory(@"/")
+    result := sd.newDirectory(@manyFilesDir)
+    sd.changeDirectory(@manyFilesDir)
+    fileCount := 0
+    idx := 0
+    repeat
+        pEntry := sd.readDirectory(idx)
+        if pEntry == 0
+            quit
+        fileCount++
+        idx++
+    ' FAT32 empty directories contain . and .. entries (2 entries)
+    utils.evaluateSingleValue(fileCount, @"empty dir entries (. and ..)", 2)
+    sd.changeDirectory(@"/")
+
+    ' Test: Max filename length (8.3 format)
+    utils.startTest(@"Max filename length (8.3)")
+    sd.changeDirectory(@manyFilesDir)
+    result := sd.newFile(@maxNameFile)
+    utils.evaluateSubBool(result, @"create 12345678.123", true)
+    sd.writeString(@"Max name file content")
+    sd.closeFile()
+
+    ' Verify can open and read it
+    result := sd.openFile(@maxNameFile)
+    utils.evaluateSubBool(result, @"open 12345678.123", true)
+    sd.closeFile()
+    sd.changeDirectory(@"/")
+
+    ' Clean up boundary test items
+    sd.changeDirectory(@manyFilesDir)
+    sd.deleteFile(@maxNameFile)
+    sd.changeDirectory(@"/")
+    sd.deleteFile(@manyFilesDir)
+
+    ' Clean up deep directories (must delete from deepest first)
+    sd.changeDirectory(@deepDir1)
+    sd.changeDirectory(@deepDir2)
+    sd.changeDirectory(@deepDir3)
+    sd.changeDirectory(@deepDir4)
+    sd.changeDirectory(@deepDir5)
+    sd.deleteFile(@"DEEP.TXT")
+    sd.changeDirectory(@"..")
+    sd.deleteFile(@deepDir5)
+    sd.changeDirectory(@"..")
+    sd.deleteFile(@deepDir4)
+    sd.changeDirectory(@"..")
+    sd.deleteFile(@deepDir3)
+    sd.changeDirectory(@"..")
+    sd.deleteFile(@deepDir2)
+    sd.changeDirectory(@"/")
+    sd.deleteFile(@deepDir1)
 
     ' ----------------------------------
     ' Cleanup

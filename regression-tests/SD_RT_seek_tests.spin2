@@ -30,6 +30,7 @@ DAT
 
 ' Test filename
 testSeek        BYTE    "RTSEEK.BIN", 0
+testEmpty       BYTE    "RTEMPTY.BIN", 0
 
 ' Buffers
 writeBuffer     BYTE    0[TEST_FILE_SIZE]
@@ -267,6 +268,59 @@ PUB go() | result, bytesRead, idx, fileSize, expectedByte, actualByte
         utils.evaluateSubValue(readBuffer[idx], @"re-read byte", idx)
 
     sd.closeFile()
+
+    ' ----------------------------------
+    ' TEST GROUP: Seek Boundary Conditions
+    ' ----------------------------------
+    utils.startTestGroup(@"Seek Boundary Conditions")
+
+    ' Test: Seek to position 0 returns to absolute start
+    utils.startTest(@"Seek to position 0 returns to absolute start")
+    result := sd.openFile(@testSeek)
+    if result
+        ' First read to move position forward
+        sd.read(@readBuffer, 50)
+        ' Now seek back to 0
+        result := sd.seek(0)
+        utils.evaluateSubBool(result, @"seek(0)", true)
+        ' Read first byte - verifies we're at position 0
+        bytesRead := sd.read(@readBuffer, 1)
+        utils.evaluateSubValue(readBuffer[0], @"first byte", 0)
+        sd.closeFile()
+
+    ' Test: Seek to exact EOF and verify read returns 0
+    utils.startTest(@"Seek to exact EOF position")
+    result := sd.openFile(@testSeek)
+    if result
+        ' Seek to exact end (file size position)
+        result := sd.seek(TEST_FILE_SIZE)
+        ' This should succeed - seeking to EOF is valid
+        ' (seeking past EOF is what fails)
+        debug("  seek(", udec_(TEST_FILE_SIZE), ") = ", sdec_(result))
+        ' Try to read - should get 0 bytes
+        bytesRead := sd.read(@readBuffer, 10)
+        utils.evaluateSingleValue(bytesRead, @"read at EOF", 0)
+        sd.closeFile()
+
+    ' Test: Seek in empty file
+    utils.startTest(@"Seek in empty file behavior")
+    sd.deleteFile(@testEmpty)
+    result := sd.newFile(@testEmpty)
+    if result
+        sd.closeFile()  ' Create 0-byte file
+    result := sd.openFile(@testEmpty)
+    if result
+        ' Try seek(0) in empty file - should succeed
+        result := sd.seek(0)
+        utils.evaluateSubBool(result, @"seek(0) in empty", true)
+        ' Try to read - should get 0 bytes
+        bytesRead := sd.read(@readBuffer, 1)
+        utils.evaluateSubValue(bytesRead, @"read from empty", 0)
+        ' Try seek(1) in empty file - should fail (beyond EOF)
+        result := sd.seek(1)
+        utils.evaluateSubBool(result == false, @"seek(1) in empty fails", true)
+        sd.closeFile()
+    sd.deleteFile(@testEmpty)
 
     ' ----------------------------------
     ' Cleanup

@@ -45,6 +45,9 @@ CON
     FAT32_MEDIA_TYPE    = $F8        ' Fixed disk
     EXT_BOOT_SIG        = $29        ' Extended boot signature
 
+'' Enable full driver features for this utility
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
 
     sd    : "SD_card_driver"

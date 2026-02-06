@@ -37,6 +37,9 @@ CON
   SCR_SIZE = 8
   VBR_SIZE = 512
 
+'' Enable full driver features for this utility
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
   sd : "SD_card_driver"
 

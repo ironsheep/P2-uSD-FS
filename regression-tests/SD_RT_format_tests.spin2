@@ -41,6 +41,9 @@ CON
     EXT_BOOT_SIG        = $29        ' Extended boot signature
     PARTITION_START     = 8192       ' 4MB alignment
 
+'' Enable full driver features for format testing
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
 
     utils : "SD_RT_utilities"

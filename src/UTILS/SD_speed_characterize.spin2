@@ -42,6 +42,9 @@ CON
   ' Speed test levels (Hz)
   NUM_SPEED_LEVELS   = 11
 
+'' Enable full driver features for this utility
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
   sd : "SD_card_driver"
 

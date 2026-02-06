@@ -40,6 +40,9 @@ CON
 
     SECTOR_SIZE      = 512
 
+'' Enable full driver features for multi-block testing
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
     sd : "SD_card_driver"
 

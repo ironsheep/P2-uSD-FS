@@ -17,6 +17,9 @@ CON
     SD_MISO = 58
     SD_SCK  = 61
 
+'' Enable full driver features (inherited through SD_format_utility)
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
     fmt : "SD_format_utility"
 

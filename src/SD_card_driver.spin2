@@ -18,6 +18,36 @@
   sd.read(@buffer,sd.fileSize())                        ' read opened file into buffer                                              
   debug(zstr(@buffer))
 }}
+
+'' ═══════════════════════════════════════════════════════════════════════════════
+'' CONDITIONAL COMPILATION - Optional Feature Modules
+'' ═══════════════════════════════════════════════════════════════════════════════
+'' Default: MINIMAL driver (core file operations only)
+'' To enable optional features, use #PRAGMA EXPORTDEF in your top-level file:
+''
+''   #PRAGMA EXPORTDEF SD_INCLUDE_RAW        ' Raw sector access
+''   #PRAGMA EXPORTDEF SD_INCLUDE_REGISTERS  ' Card register access (CID/CSD/SCR)
+''   #PRAGMA EXPORTDEF SD_INCLUDE_SPEED      ' High-speed mode control
+''
+''   OBJ
+''       sd : "SD_card_driver"
+''
+'' Or define SD_INCLUDE_ALL to include everything:
+''   #PRAGMA EXPORTDEF SD_INCLUDE_ALL
+'' ═══════════════════════════════════════════════════════════════════════════════
+
+#IFDEF SD_INCLUDE_ALL
+  #IFNDEF SD_INCLUDE_RAW
+    #DEFINE SD_INCLUDE_RAW
+  #ENDIF
+  #IFNDEF SD_INCLUDE_REGISTERS
+    #DEFINE SD_INCLUDE_REGISTERS
+  #ENDIF
+  #IFNDEF SD_INCLUDE_SPEED
+    #DEFINE SD_INCLUDE_SPEED
+  #ENDIF
+#ENDIF
+
 CON  '' flags
   ' NOTE: V3 driver exceeds 255 debug record limit when debug is fully enabled
   ' pnut-ts error: "DEBUG data is too long: too many records: max 255"
@@ -38,9 +68,6 @@ CON '' command codes for worker cog
   CMD_NONE      = 0         ' Idle / command complete
   CMD_MOUNT     = 1         ' Mount filesystem
   CMD_UNMOUNT   = 2         ' Unmount filesystem
-  CMD_INIT_CARD_ONLY = 22   ' Initialize card without filesystem (raw mode)
-  CMD_GET_CARD_SIZE  = 23   ' Get card size in sectors: returns in data0
-  CMD_READ_SCR       = 24   ' Read SCR register: param0=buffer ptr
   CMD_OPEN      = 3         ' Open file: param0=filename ptr
   CMD_CLOSE     = 4         ' Close file
   CMD_READ      = 5         ' Read: param0=buffer ptr, param1=count
@@ -56,14 +83,23 @@ CON '' command codes for worker cog
   CMD_FREESPACE = 15        ' Get free space
   CMD_SYNC      = 16        ' Flush buffers
   CMD_MOVEFILE  = 17        ' Move file: param0=name, param1=dest folder
+  CMD_DEBUG_SLOW_READ  = 25 ' DEBUG: Byte-by-byte sector read (no streamer)
+  CMD_DEBUG_CLEAR_ROOT = 26 ' DEBUG: Clear root directory (fixes corruption)
+
+#IFDEF SD_INCLUDE_RAW
+  CMD_INIT_CARD_ONLY = 22   ' Initialize card without filesystem (raw mode)
+  CMD_GET_CARD_SIZE  = 23   ' Get card size in sectors: returns in data0
   CMD_READ_SECTORS  = 18    ' Raw multi-block read: param0=start_sector, param1=count, param2=buffer ptr
   CMD_WRITE_SECTORS = 19    ' Raw multi-block write: param0=start_sector, param1=count, param2=buffer ptr
   CMD_READ_SECTOR_RAW  = 20 ' Raw single sector read: param0=sector, param1=buffer ptr
   CMD_WRITE_SECTOR_RAW = 21 ' Raw single sector write: param0=sector, param1=buffer ptr
-  CMD_DEBUG_SLOW_READ  = 25 ' DEBUG: Byte-by-byte sector read (no streamer)
-  CMD_DEBUG_CLEAR_ROOT = 26 ' DEBUG: Clear root directory (fixes corruption)
+#ENDIF
+
+#IFDEF SD_INCLUDE_REGISTERS
+  CMD_READ_SCR       = 24   ' Read SCR register: param0=buffer ptr
   CMD_READ_CID         = 27 ' Read CID register: param0=buffer ptr
   CMD_READ_CSD         = 28 ' Read CSD register: param0=buffer ptr
+#ENDIF
 
   ' ═══════════════════════════════════════════════════════════════════════════
   ' V3 Handle-Based File Commands (multi-file support)
@@ -547,6 +583,20 @@ PRI fs_worker() | cur_cmd                                                       
       CMD_READDIR:
         pb_status := do_readdir(pb_param0)
 
+      CMD_DEBUG_SLOW_READ:
+        ' DEBUG: Read sector byte-by-byte without streamer for comparison
+        pb_status := readSectorSlow(pb_param0, pb_param1)
+
+      CMD_DEBUG_CLEAR_ROOT:
+        ' DEBUG: Clear root directory by writing zeros
+        bytefill(@buf, 0, 512)                                                  ' Zero the buffer
+        if writeSector(root_sec, BUF_DATA)                                      ' Write to root directory
+          dir_sec_in_buf := -1                                                  ' Invalidate cache
+          pb_status := SUCCESS
+        else
+          pb_status := E_IO_ERROR
+
+#IFDEF SD_INCLUDE_RAW
       CMD_READ_SECTORS:
         pb_data0 := readSectors(pb_param0, pb_param1, pb_param2)
         pb_status := SUCCESS
@@ -570,26 +620,15 @@ PRI fs_worker() | cur_cmd                                                       
         else
           pb_status := E_IO_ERROR
 
-      CMD_DEBUG_SLOW_READ:
-        ' DEBUG: Read sector byte-by-byte without streamer for comparison
-        pb_status := readSectorSlow(pb_param0, pb_param1)
-
-      CMD_DEBUG_CLEAR_ROOT:
-        ' DEBUG: Clear root directory by writing zeros
-        bytefill(@buf, 0, 512)                                                  ' Zero the buffer
-        if writeSector(root_sec, BUF_DATA)                                      ' Write to root directory
-          dir_sec_in_buf := -1                                                  ' Invalidate cache
-          pb_status := SUCCESS
-        else
-          pb_status := E_IO_ERROR
-
       CMD_INIT_CARD_ONLY:
         pb_status := do_init_card_only()
 
       CMD_GET_CARD_SIZE:
         pb_data0 := do_get_card_size()
         pb_status := SUCCESS
+#ENDIF
 
+#IFDEF SD_INCLUDE_REGISTERS
       CMD_READ_SCR:
         pb_status := do_read_scr(pb_param0)
 
@@ -598,6 +637,7 @@ PRI fs_worker() | cur_cmd                                                       
 
       CMD_READ_CSD:
         pb_status := do_read_csd(pb_param0)
+#ENDIF
 
       ' ═══════════════════════════════════════════════════════════════════════
       ' V3 Handle-Based File Commands
@@ -845,12 +885,14 @@ PRI do_mount() : result | reserved                                              
     setdate(2009,01,27,07,00,00)
   flags |= F_MOUNTED
 
+#IFDEF SD_INCLUDE_RAW
   ' WORKAROUND: Multi-block operations (CMD18/CMD25) require a warmup operation
   ' after mount to initialize internal state. Without this, the first multi-block
   ' write followed by multi-block read can return corrupted data.
   ' A single-sector multi-block read (count=1) exercises the CMD18 path.
   readSectors(0, 1, @buf)
   sec_in_buf := -1                                                              ' Clear cache
+#ENDIF
 
   driver_mode := MODE_FILESYSTEM
   debug("  [do_mount] SUCCESS, mode=FILESYSTEM")
@@ -866,6 +908,7 @@ PRI do_unmount() : result                                                       
   debug("  [do_unmount] Card unmounted cleanly, mode=NONE")
   return SUCCESS
 
+#IFDEF SD_INCLUDE_RAW
 PRI do_init_card_only() : result                                                '' Internal card-only init (raw mode)
   '' Initialize card for raw sector access without filesystem parsing.
   '' Sets driver_mode to MODE_RAW.
@@ -912,7 +955,9 @@ PRI do_get_card_size() : result | csd[4], c_size, read_bl_len, c_size_mult      
     c_size |= csd.byte[9]
     result := (c_size + 1) << 10                                                ' * 1024 sectors (512KB units)
     debug("  [do_get_card_size] CSD v2.0: ", udec(result), " sectors")
+#ENDIF
 
+#IFDEF SD_INCLUDE_REGISTERS
 PRI do_read_scr(p_buf) : result                                                 '' Internal read SCR operation
 '' Reads the 8-byte SCR register into the provided buffer.
 '' Runs on worker cog where smart pins are configured.
@@ -948,6 +993,7 @@ PRI do_read_csd(p_buf) : result                                                 
   else
     debug("  [do_read_csd] CSD read failed")
     return E_IO_ERROR
+#ENDIF
 
 PRI do_open(name_ptr) : result | search_result                                  '' Internal open file operation
   do_close()
@@ -1908,6 +1954,7 @@ PUB mount(_cs, _mosi, _miso, _sck) : result                                     
     set_error(result)
     return false
 
+#IFDEF SD_INCLUDE_RAW
 PUB initCardOnly(_cs, _mosi, _miso, _sck) : result                              '' initialize SD card without mounting filesystem
 '' Use this for low-level operations like formatting. Does NOT read filesystem.
 '' Starts worker cog and initializes card for raw sector access (MODE_RAW).
@@ -1954,7 +2001,9 @@ PUB cardSizeSectors() : result                                                  
   send_command(CMD_GET_CARD_SIZE, 0, 0, 0, 0)
   result := pb_data0
   debug("  [cardSizeSectors] ", udec(result), " sectors")
+#ENDIF
 
+#IFDEF SD_INCLUDE_RAW
 PUB testCMD13() : r2_response | r1, status                                      '' TEST ONLY: Send CMD13 and return raw R2 response
 '' For testing/validation of CMD13 (SEND_STATUS) functionality.
 '' Returns: R2 response as WORD (high byte = R1, low byte = status)
@@ -2030,7 +2079,9 @@ PUB testCMD13() : r2_response | r1, status                                      
       debug("      -> WP_ERASE_SKIP")
     if status & CSR_CARD_IS_LOCKED
       debug("      -> CARD_IS_LOCKED")
+#ENDIF
 
+#IFDEF SD_INCLUDE_RAW
 PUB writeSectorRaw(sector, p_buffer) : result                                   '' write a sector at absolute LBA address
 '' Low-level sector write for formatting/partitioning. Bypasses filesystem.
 '' Requires initCardOnly() or mount() first - ALL card access through worker cog.
@@ -2081,7 +2132,9 @@ PUB writeSectorsRaw(start_sector, count, p_buffer) : result                     
     result := pb_data0
   else
     result := 0
+#ENDIF
 
+#IFDEF SD_INCLUDE_REGISTERS
 CON '' ═══════════════════════════════════════════════════════════════════════════
     '' CARD IDENTIFICATION METHODS (for diagnostic tools)
     '' These methods provide raw register access for card characterization.
@@ -2148,6 +2201,7 @@ PUB readVBRRaw(p_buf) : result                                                  
   bytemove(p_buf, @buf, 512)
   debug("  [readVBRRaw] VBR read from sector ", udec(vbr_sec))
   return true
+#ENDIF
 
 PRI readCSD(p_csd) : result | t, i                                              '' read CSD register using CMD9
 '' Reads the 16-byte CSD register into p_csd buffer
@@ -2395,6 +2449,7 @@ PRI setOptimalSpeed()                                                           
       setSPISpeed(card_max_speed_hz)
     debug("  [setOptimalSpeed] Set to card's max speed (up to 25 MHz)")
 
+#IFDEF SD_INCLUDE_SPEED
 CON '' High-Speed Mode Support (50 MHz via CMD6)
 
 PRI sendCMD6(arg, p_status) : result | t, i                                     '' send CMD6 (SWITCH_FUNC) and receive 64-byte status
@@ -2549,6 +2604,7 @@ PUB attemptHighSpeed() : hs_ok | test_buf[128], verify_buf[128], i, mismatch    
 
   debug("  [attemptHighSpeed] VERIFIED - 50 MHz high-speed mode ACTIVE")
   return true
+#ENDIF
 
 PUB getSPIFrequency() : hz                                                      '' get current SPI clock frequency
 '' Returns the current SPI clock frequency in Hz.
@@ -2577,6 +2633,7 @@ PUB isHighSpeedActive() : active                                                
 '' Returns true if card is running at 50 MHz.
   return spi_freq >= 50_000_000
 
+#IFDEF SD_INCLUDE_SPEED
 PUB checkCMD6Support() : supported | scr[2], sd_spec                            '' check if card supports CMD6 command
 '' Reads SCR and checks if CMD6 is supported.
 '' CMD6 is supported by all SD 2.0 and later cards (SD_SPEC >= 2).
@@ -2596,6 +2653,7 @@ PUB checkHighSpeedCapability() : capable | status[16]                           
   if not sendCMD6($00FFFFF1, @status)
     return false
   return (status.byte[13] & $02) <> 0
+#ENDIF
 
 PRI readSCR(p_scr) : result | t, i                                              '' read SCR register using ACMD51
 '' Reads the 8-byte SCR (SD Configuration Register) into p_scr buffer

@@ -56,6 +56,9 @@ CON
     MULTI_64        = 64                ' 32KB
     TEST_SECTOR     = 200_000           ' Safe test sector (not in filesystem area)
 
+'' Enable full driver features for this utility
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
     sd    : "SD_card_driver"
 

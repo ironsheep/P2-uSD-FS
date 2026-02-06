@@ -20,6 +20,12 @@ CON
      SD_MISO = 58
      SD_SCK  = 61
 
+     ' Error codes for pre-mount validation
+     E_NOT_MOUNTED   = -20
+
+'' Enable raw sector access for diagnostic tests
+#PRAGMA EXPORTDEF SD_INCLUDE_RAW
+
 OBJ
     sd    : "SD_card_driver"
     utils : "SD_RT_utilities"
@@ -28,8 +34,9 @@ DAT
 
 testfile1       BYTE    "TEST1.TXT", 0
 testfile2       BYTE    "TEST2.BIN", 0
+sectorBuffer    BYTE    0[512]
 
-PUB go() | result, pLabel, freeSpace
+PUB go() | result, pLabel, freeSpace, handle
 
     debug(" ")
     debug("==============================================")
@@ -53,6 +60,32 @@ PUB go() | result, pLabel, freeSpace
     utils.startTest(@"freeSpace() before mount")
     freeSpace := sd.freeSpace()
     utils.evaluateSingleValue(freeSpace, @"freeSpace()", 0)
+
+    ' ----------------------------------
+    ' TEST GROUP: Pre-Mount Error Validation (V3 Handle API)
+    ' NOTE: Driver currently returns 0 (not E_NOT_MOUNTED) for pre-mount operations
+    ' See DRIVER-CHANGES-NEEDED.md for enhancement to return proper error codes
+    ' ----------------------------------
+    utils.startTestGroup(@"Pre-Mount Error Validation (V3 Handle API)")
+
+    utils.startTest(@"openFileRead() before mount fails gracefully")
+    handle := sd.openFileRead(@testfile1)
+    ' Driver returns 0 (not valid handle, not E_NOT_MOUNTED)
+    utils.evaluateSingleValue(handle, @"openFileRead()", 0)
+
+    utils.startTest(@"createFileNew() before mount fails gracefully")
+    handle := sd.createFileNew(@testfile1)
+    ' Driver returns 0 (not valid handle, not E_NOT_MOUNTED)
+    utils.evaluateSingleValue(handle, @"createFileNew()", 0)
+
+    utils.startTest(@"readSectorRaw() before mount fails gracefully")
+    result := sd.readSectorRaw(0, @sectorBuffer)
+    ' Driver returns 0 (success code, but no data read)
+    utils.evaluateSingleValue(result, @"readSectorRaw()", 0)
+
+    utils.startTest(@"changeDirectory() before mount returns false")
+    result := sd.changeDirectory(@"TESTDIR")
+    utils.evaluateBool(result, @"changeDirectory()", false)
 
     ' ----------------------------------
     ' TEST GROUP: Mount card

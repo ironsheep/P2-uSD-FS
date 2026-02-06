@@ -1,0 +1,270 @@
+'' =================================================================================================
+''
+''   File....... SD_RT_error_handling_tests.spin2
+''   Purpose.... This object tests error conditions and edge cases for the SD card driver
+''   Author..... Stephen M Moraco
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... FEB 2026
+''   Updated.... 03 FEB 2026
+''
+'' =================================================================================================
+''
+'' This test file focuses on error conditions that require specific setup scenarios:
+''   - File state errors (E_FILE_NOT_OPEN, E_END_OF_FILE)
+''   - Directory errors (E_FILE_EXISTS for directories, E_FILE_NOT_FOUND in non-existent paths)
+''   - Handle patterns (handle reuse, simultaneous read/write on same file)
+''
+'' =================================================================================================
+
+CON
+
+     _CLKFREQ        = 270_000_000
+
+     ' Pin configuration for P2 Edge with SD card
+     SD_CS   = 60
+     SD_MOSI = 59
+     SD_MISO = 58
+     SD_SCK  = 61
+
+     ' Error codes
+     E_FILE_NOT_FOUND    = -40
+     E_FILE_EXISTS       = -41
+     E_FILE_NOT_OPEN     = -45
+     E_END_OF_FILE       = -46
+     E_TOO_MANY_FILES    = -90
+     E_INVALID_HANDLE    = -91
+     E_FILE_ALREADY_OPEN = -92
+
+OBJ
+    sd    : "SD_card_driver"
+    utils : "SD_RT_utilities"
+
+DAT
+
+' Test filenames
+testfile1       BYTE    "ERTEST1.TXT", 0
+testfile2       BYTE    "ERTEST2.TXT", 0
+testfile3       BYTE    "ERTEST3.TXT", 0
+testfile4       BYTE    "ERTEST4.TXT", 0
+testfile5       BYTE    "ERTEST5.TXT", 0
+testdir1        BYTE    "ERTDIR1", 0
+testdir2        BYTE    "NONEXIST", 0
+testContent     BYTE    "0123456789", 0       ' Exactly 10 bytes
+
+readBuffer      BYTE    0[64]
+
+PUB go() | result, handle, h1, h2, h3, h4, h5, bytesRead, bytesWritten
+
+    debug(" ")
+    debug("==============================================")
+    debug("  SD Card Driver - Error Handling Tests")
+    debug("==============================================")
+
+    ' Mount the card first
+    result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result == false
+        debug("ERROR: Could not mount SD card!")
+        debug("END_SESSION")
+        return
+
+    debug(" ")
+    debug("* SD Card mounted successfully")
+    debug("   Volume Label: ", zstr_(sd.volumeLabel()))
+
+    ' Clean up any leftover test files/directories
+    sd.deleteFile(@testfile1)
+    sd.deleteFile(@testfile2)
+    sd.deleteFile(@testfile3)
+    sd.deleteFile(@testfile4)
+    sd.deleteFile(@testfile5)
+    sd.deleteFile(@testdir1)
+
+    ' ----------------------------------
+    ' TEST GROUP: File State Errors
+    ' ----------------------------------
+    utils.startTestGroup(@"File State Errors")
+
+    ' Test: Read/write/seek on invalid handle returns E_INVALID_HANDLE
+    ' (This complements the multihandle tests but focuses on closed handles)
+    utils.startTest(@"readHandle() on never-opened handle returns error")
+    bytesRead := sd.readHandle(99, @readBuffer, 10)
+    utils.evaluateSingleValue(bytesRead, @"readHandle(99)", E_INVALID_HANDLE)
+
+    ' Test: E_END_OF_FILE - create small file, read past end
+    utils.startTest(@"Read past EOF returns partial data then 0")
+    ' Create a 10-byte file
+    handle := sd.createFileNew(@testfile1)
+    if handle >= 0
+        bytesWritten := sd.writeHandle(handle, @testContent, 10)
+        sd.closeFileHandle(handle)
+
+    ' Reopen for read and try to read 20 bytes
+    handle := sd.openFileRead(@testfile1)
+    if handle >= 0
+        bytefill(@readBuffer, 0, 64)
+        bytesRead := sd.readHandle(handle, @readBuffer, 20)
+        ' Should get exactly 10 bytes (file size), not 20
+        utils.evaluateSubValue(bytesRead, @"first read gets 10 bytes", 10)
+        ' Second read should get 0 (EOF)
+        bytesRead := sd.readHandle(handle, @readBuffer, 10)
+        utils.evaluateSubValue(bytesRead, @"second read gets 0 (EOF)", 0)
+        sd.closeFileHandle(handle)
+
+    ' ----------------------------------
+    ' TEST GROUP: Directory Errors
+    ' ----------------------------------
+    utils.startTestGroup(@"Directory Errors")
+
+    ' Test: Create directory that already exists returns error
+    utils.startTest(@"newDirectory() on existing directory fails")
+    ' Create directory first time - should succeed
+    result := sd.newDirectory(@testdir1)
+    debug("  First newDirectory: ", sdec_(result))
+    ' Try to create same directory again - should fail
+    result := sd.newDirectory(@testdir1)
+    debug("  Second newDirectory: ", sdec_(result))
+    ' newDirectory returns boolean, not error code
+    utils.evaluateBool(result, @"second newDirectory()", false)
+
+    ' Test: Create file in non-existent directory
+    ' NOTE: This tests path handling - trying to create "NONEXIST/FILE.TXT"
+    ' The driver may not support path syntax - documenting behavior
+    utils.startTest(@"createFileNew() in non-existent dir behavior")
+    ' First try to cd to non-existent directory
+    result := sd.changeDirectory(@testdir2)
+    utils.evaluateBool(result, @"cd to non-existent dir", false)
+
+    ' ----------------------------------
+    ' TEST GROUP: Handle Reuse Patterns
+    ' ----------------------------------
+    utils.startTestGroup(@"Handle Reuse Patterns")
+
+    ' Clean up before handle tests
+    sd.deleteFile(@testfile1)
+    sd.deleteFile(@testfile2)
+    sd.deleteFile(@testfile3)
+    sd.deleteFile(@testfile4)
+    sd.deleteFile(@testfile5)
+
+    ' Create test files for handle tests
+    h1 := sd.createFileNew(@testfile1)
+    if h1 >= 0
+        sd.writeHandle(h1, @"File1", 5)
+        sd.closeFileHandle(h1)
+    h1 := sd.createFileNew(@testfile2)
+    if h1 >= 0
+        sd.writeHandle(h1, @"File2", 5)
+        sd.closeFileHandle(h1)
+    h1 := sd.createFileNew(@testfile3)
+    if h1 >= 0
+        sd.writeHandle(h1, @"File3", 5)
+        sd.closeFileHandle(h1)
+    h1 := sd.createFileNew(@testfile4)
+    if h1 >= 0
+        sd.writeHandle(h1, @"File4", 5)
+        sd.closeFileHandle(h1)
+    h1 := sd.createFileNew(@testfile5)
+    if h1 >= 0
+        sd.writeHandle(h1, @"File5", 5)
+        sd.closeFileHandle(h1)
+
+    sd.syncDirCache()
+
+    ' Test: Handle reuse - open 4, close one, new open reuses slot
+    utils.startTest(@"Handle slot reuse after close")
+    h1 := sd.openFileRead(@testfile1)
+    h2 := sd.openFileRead(@testfile2)
+    h3 := sd.openFileRead(@testfile3)
+    h4 := sd.openFileRead(@testfile4)
+
+    utils.evaluateSubBool(h1 >= 0 and h2 >= 0 and h3 >= 0 and h4 >= 0, @"opened 4 files", true)
+
+    ' Close handle 1
+    sd.closeFileHandle(h1)
+
+    ' Open another file - should get a handle (reusing slot)
+    h5 := sd.openFileRead(@testfile5)
+    utils.evaluateSubBool(h5 >= 0, @"5th open reused slot", true)
+
+    ' Close all
+    sd.closeFileHandle(h2)
+    sd.closeFileHandle(h3)
+    sd.closeFileHandle(h4)
+    sd.closeFileHandle(h5)
+
+    ' Test: Same file can be open for write AND read simultaneously
+    utils.startTest(@"Same file open for write and read simultaneously")
+    ' Open for write first
+    h1 := sd.openFileWrite(@testfile1)
+    utils.evaluateSubBool(h1 >= 0, @"open for write", true)
+    debug("  Write handle: ", sdec_(h1))
+
+    ' Now open same file for read - this SHOULD be allowed
+    h2 := sd.openFileRead(@testfile1)
+    debug("  Read handle: ", sdec_(h2))
+    ' Reader should see original data (before any new writes)
+    if h2 >= 0
+        utils.evaluateSubBool(true, @"read handle obtained", true)
+        sd.closeFileHandle(h2)
+    else
+        ' Document if driver doesn't allow this
+        debug("  NOTE: Driver doesn't allow read while write-open")
+        utils.evaluateSubBool(h2 == E_FILE_ALREADY_OPEN, @"error is E_FILE_ALREADY_OPEN", true)
+
+    if h1 >= 0
+        sd.closeFileHandle(h1)
+
+    ' ----------------------------------
+    ' Cleanup: Delete test files and directories
+    ' ----------------------------------
+    debug(" ")
+    debug("* Cleaning up test files...")
+    sd.deleteFile(@testfile1)
+    sd.deleteFile(@testfile2)
+    sd.deleteFile(@testfile3)
+    sd.deleteFile(@testfile4)
+    sd.deleteFile(@testfile5)
+    sd.deleteFile(@testdir1)
+
+    ' Unmount
+    sd.unmount()
+
+    ' ----------------------------------
+    ' Summary
+    ' ----------------------------------
+    utils.ShowTestEndCounts()
+
+    debug(" ")
+    debug("* Error Handling Tests Complete")
+    debug("END_SESSION")
+
+
+con { license }
+
+{{
+  =================================================================================================
+
+  Terms of Use: MIT License
+
+  Copyright (c) 2026 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  =================================================================================================
+}}

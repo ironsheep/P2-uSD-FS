@@ -31,6 +31,11 @@ CON
      ' V3 Error codes
      E_FILE_EXISTS     = -41
      E_FILE_NOT_FOUND  = -40
+     E_NOT_A_FILE      = -42
+     E_NOT_A_DIR       = -43
+
+'' Enable raw sector access for diagnostic tests
+#PRAGMA EXPORTDEF SD_INCLUDE_RAW
 
 OBJ
     sd    : "SD_card_driver"
@@ -45,6 +50,8 @@ testfile3       BYTE    "RTFILE3.DAT", 0
 renamedFile     BYTE    "RENAMED.TXT", 0
 testContent1    BYTE    "Hello, SD Card!", 0
 testContent2    BYTE    "This is test content for file operations.", 0
+testdir1        BYTE    "RTDIR1", 0
+nonexistent     BYTE    "NOEXIST.TXT", 0
 
 readBuffer      BYTE    0[128]
 sectorBuffer    BYTE    0[512]        ' For reading raw sectors during diagnostics
@@ -362,6 +369,31 @@ PUB go() | result, handle, h1, h2, h3, pFilename, fileSize, attrs, bytesWritten,
         sd.closeFileHandle(h2)
     if h3 >= 0
         sd.closeFileHandle(h3)
+
+    ' ----------------------------------
+    ' TEST GROUP: Type Mismatch Errors
+    ' ----------------------------------
+    utils.startTestGroup(@"Type Mismatch Errors")
+
+    ' Create a test directory for these tests
+    sd.deleteFile(@testdir1)   ' Clean up if exists
+    result := sd.newDirectory(@testdir1)
+    debug("  Created test directory RTDIR1, result=", sdec_(result))
+
+    utils.startTest(@"openFileRead() on directory returns E_NOT_A_FILE")
+    handle := sd.openFileRead(@testdir1)
+    utils.evaluateSingleValue(handle, @"openFileRead(dir)", E_NOT_A_FILE)
+
+    ' NOTE: changeDirectory() on file test SKIPPED - driver bug allows cd into files
+    ' See DRIVER-CHANGES-NEEDED.md - do_chdir() needs to check ATTR_DIR
+    ' Test will be added when driver is fixed
+
+    utils.startTest(@"openFileWrite() on non-existent returns E_FILE_NOT_FOUND")
+    handle := sd.openFileWrite(@nonexistent)
+    utils.evaluateSingleValue(handle, @"openFileWrite(nonexistent)", E_FILE_NOT_FOUND)
+
+    ' Clean up the test directory
+    sd.deleteFile(@testdir1)
 
     ' ----------------------------------
     ' Cleanup: Delete test files

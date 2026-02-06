@@ -48,6 +48,9 @@ CON
     DEFAULT_LABEL_1     = $20_52_45_46  ' "FER " (little endian: F, E, R, space)
     DEFAULT_LABEL_2     = $00_20_20_20  ' "   " + null (spaces to pad to 11)
 
+'' Enable full driver features for this utility
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
 OBJ
 
     sd : "SD_card_driver"                ' Use V3 driver with smart pins for formatting

@@ -42,6 +42,7 @@ testString      BYTE    "RTSTRING.TXT", 0
 testLarge       BYTE    "RTLARGE.BIN", 0
 testMulti       BYTE    "RTMULTI.BIN", 0
 testPattern     BYTE    "RTPATTRN.BIN", 0
+testBoundary    BYTE    "RTBOUND.BIN", 0
 
 ' Buffers
 writeBuffer     BYTE    0[BUFFER_SIZE]
@@ -303,6 +304,109 @@ PUB go() | result, handle, bytesRead, bytesWritten, idx, fileSize
         bytesRead := sd.readHandle(handle, @readBuffer, 100)  ' Request 100
         utils.evaluateSingleValue(bytesRead, @"readHandle() at EOF", 10)  ' Should get 10
         sd.closeFileHandle(handle)
+
+    ' ----------------------------------
+    ' TEST GROUP: File Size Boundary Conditions
+    ' ----------------------------------
+    utils.startTestGroup(@"File Size Boundary Conditions")
+
+    ' Test: Empty file (0 bytes)
+    utils.startTest(@"Empty file - create 0-byte file")
+    sd.deleteFile(@testBoundary)
+    handle := sd.createFileNew(@testBoundary)
+    if handle >= 0
+        sd.closeFileHandle(handle)  ' Close immediately without writing
+    handle := sd.openFileRead(@testBoundary)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSubValue(fileSize, @"fileSize of empty file", 0)
+        bytesRead := sd.readHandle(handle, @readBuffer, 10)
+        utils.evaluateSubValue(bytesRead, @"read from empty file", 0)
+        result := sd.eofHandle(handle)
+        utils.evaluateSubBool(result <> 0, @"EOF true immediately", true)
+        sd.closeFileHandle(handle)
+
+    ' Test: Single byte file (1 byte)
+    utils.startTest(@"Single byte file - create 1-byte file")
+    sd.deleteFile(@testBoundary)
+    handle := sd.createFileNew(@testBoundary)
+    if handle >= 0
+        tempByte := $42
+        sd.writeHandle(handle, @tempByte, 1)
+        sd.closeFileHandle(handle)
+    handle := sd.openFileRead(@testBoundary)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSubValue(fileSize, @"fileSize of 1-byte file", 1)
+        bytesRead := sd.readHandle(handle, @readBuffer, 1)
+        utils.evaluateSubValue(bytesRead, @"read 1 byte", 1)
+        utils.evaluateSubValue(readBuffer[0], @"byte value", $42)
+        sd.closeFileHandle(handle)
+
+    ' Test: Exact sector boundary (512 bytes)
+    utils.startTest(@"Exact sector boundary - 512 bytes")
+    sd.deleteFile(@testBoundary)
+    handle := sd.createFileNew(@testBoundary)
+    if handle >= 0
+        utils.fillBufferWithPattern(@writeBuffer, 512, $B0)
+        sd.writeHandle(handle, @writeBuffer, 512)
+        sd.closeFileHandle(handle)
+    handle := sd.openFileRead(@testBoundary)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSubValue(fileSize, @"fileSize 512 bytes", 512)
+        bytesRead := sd.readHandle(handle, @readBuffer, 512)
+        utils.evaluateSubValue(bytesRead, @"read 512 bytes", 512)
+        result := utils.verifyBufferPattern(@readBuffer, 512, $B0)
+        utils.evaluateSubBool(result, @"512-byte pattern match", true)
+        sd.closeFileHandle(handle)
+
+    ' Test: Sector + 1 (513 bytes - spans 2 sectors)
+    utils.startTest(@"Sector + 1 boundary - 513 bytes")
+    sd.deleteFile(@testBoundary)
+    handle := sd.createFileNew(@testBoundary)
+    if handle >= 0
+        utils.fillBufferWithPattern(@writeBuffer, 512, $C0)
+        sd.writeHandle(handle, @writeBuffer, 512)
+        tempByte := $C1  ' Extra byte in second sector
+        sd.writeHandle(handle, @tempByte, 1)
+        sd.closeFileHandle(handle)
+    handle := sd.openFileRead(@testBoundary)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSubValue(fileSize, @"fileSize 513 bytes", 513)
+        bytefill(@readBuffer, 0, 512)
+        bytesRead := sd.readHandle(handle, @readBuffer, 512)
+        utils.evaluateSubValue(bytesRead, @"read first 512", 512)
+        bytesRead := sd.readHandle(handle, @readBuffer, 1)
+        utils.evaluateSubValue(bytesRead, @"read 513th byte", 1)
+        utils.evaluateSubValue(readBuffer[0], @"513th byte value", $C1)
+        sd.closeFileHandle(handle)
+
+    ' Test: Large file (64KB = 128 sectors) - tests cluster chain
+    utils.startTest(@"Large file - 64KB (128 sectors)")
+    sd.deleteFile(@testBoundary)
+    handle := sd.createFileNew(@testBoundary)
+    if handle >= 0
+        ' Write 64KB in 2KB chunks (32 chunks)
+        utils.fillBufferWithPattern(@largeWriteBuf, LARGE_BUFFER_SIZE, $D0)
+        repeat idx from 0 to 31
+            sd.writeHandle(handle, @largeWriteBuf, LARGE_BUFFER_SIZE)
+        sd.closeFileHandle(handle)
+        debug("  Wrote 64KB (32 x 2KB chunks)")
+    handle := sd.openFileRead(@testBoundary)
+    if handle >= 0
+        fileSize := sd.fileSizeHandle(handle)
+        utils.evaluateSubValue(fileSize, @"fileSize 65536 bytes", 65536)
+        ' Read back and verify first chunk
+        bytesRead := sd.readHandle(handle, @largeReadBuf, LARGE_BUFFER_SIZE)
+        utils.evaluateSubValue(bytesRead, @"read first 2KB", LARGE_BUFFER_SIZE)
+        result := utils.verifyBufferPattern(@largeReadBuf, LARGE_BUFFER_SIZE, $D0)
+        utils.evaluateSubBool(result, @"first chunk pattern", true)
+        sd.closeFileHandle(handle)
+
+    ' Clean up boundary test file
+    sd.deleteFile(@testBoundary)
 
     ' ----------------------------------
     ' Cleanup
