@@ -139,10 +139,14 @@ echo -e "${GREEN}=== Compiling $BASENAME.spin2 ===${NC}"
 cd "$TEST_DIR"
 
 # Include paths: src/ for driver, src/UTILS/ for utilities, regression-tests/ for test utilities
-# pnut-ts works more reliably with relative paths
-SRC_PATH="../src/"
-UTILS_PATH="../src/UTILS/"
-REGTEST_PATH="../regression-tests/"
+# pnut-ts requires relative paths (does not support absolute -I paths)
+# Compute relative paths from TEST_DIR to project directories
+_relpath() {
+    python3 -c "import os; print(os.path.relpath('$1', '$2'))"
+}
+SRC_PATH="$(_relpath "$PROJECT_ROOT/src" "$TEST_DIR")/"
+UTILS_PATH="$(_relpath "$PROJECT_ROOT/src/UTILS" "$TEST_DIR")/"
+REGTEST_PATH="$(_relpath "$PROJECT_ROOT/regression-tests" "$TEST_DIR")/"
 COMPILE_CMD="pnut-ts -d -I $SRC_PATH -I $UTILS_PATH -I $REGTEST_PATH $BASENAME.spin2"
 echo "  Command: $COMPILE_CMD"
 

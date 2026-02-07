@@ -7,7 +7,7 @@
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
 ''   Started.... FEB 2026
-''   Updated.... 03 FEB 2026
+''   Updated.... 07 FEB 2026
 ''
 '' =================================================================================================
 ''
@@ -57,17 +57,35 @@ CON { constants }
   BUFFER_SIZE = 512                                             ' read/write buffer
 
 
+CON { parser }
+
+  CLI_BUF_SIZE = 128                                            ' command input buffer size
+  CLI_MAX_TKNS =  10                                            ' max tokens per command
+
+
+CON { command enums }
+
+  #0, CMD_UNKNOWN, CMD_HELP, CMD_VERSION, CMD_CLS, CMD_CLEAR
+  CMD_MOUNT, CMD_UNMOUNT, CMD_EJECT, CMD_FORMAT
+  CMD_STATS, CMD_INFO, CMD_DIR, CMD_LS
+  CMD_CD, CMD_PWD, CMD_MKDIR
+  CMD_TYPE, CMD_CAT, CMD_HEXDUMP, CMD_HD
+  CMD_REN, CMD_MV, CMD_COPY, CMD_CP
+  CMD_DEL, CMD_RM, CMD_RMDIR
+  CMD_DEMO, CMD_CARD, CMD_CID
+  CMD_BENCHMARK, CMD_PERF, CMD_TOUCH
+
+
 '' Enable full driver features for card info display
 #PRAGMA EXPORTDEF SD_INCLUDE_ALL
 
 OBJ
 
-  cli    : "jm_parser"                                          '   command line input & parsing
   sd     : "SD_card_driver"                                     '   SD card filesystem driver
   serial : "isp_serial_singleton"                               '   serial IO for terminal (singleton)
 
 
-VAR
+VAR { application }
 
   byte  buffer[BUFFER_SIZE]                                     ' general purpose buffer
   byte  pathbuf[MAX_PATH]                                       ' path buffer
@@ -76,7 +94,14 @@ VAR
   byte  mounted                                                 ' mount status flag
 
 
-PUB main() | len, idx
+VAR { parser }
+
+  byte  cliBuf[CLI_BUF_SIZE]                                    ' command input buffer
+  byte  cliIdx                                                  ' current position in buffer
+  long  tkPtrs[CLI_MAX_TKNS]                                    ' pointers to parsed tokens
+
+
+PUB main() | len, eCmd
 
   setup()
   wait_for_terminal(false, 0)
@@ -94,29 +119,29 @@ PUB main() | len, idx
     show_prompt()                                               ' prompt user
     len := get_command()                                        ' get input
     if (len > 0)                                                ' if command entered
-      ntokens := cli.parse()                                    ' parse and count tokens
+      ntokens := parse()                                        ' parse and count tokens
       if (ntokens)                                              ' if !0 tokens
-        idx := cli.token_index(lcstr(cli.token(0)), @Commands)  ' lookup first in commands table
-        run_command(idx)                                        ' run command code
+        eCmd := idCommand(lcstr(token(0)))                      ' lookup command enum
+        run_command(eCmd)                                       ' run command code
 
 
 PUB get_command() : len | c
 
 '' Enter command from terminal window
 
-  cli.reset()                                                   ' prep cli for new entry
+  parserReset()                                                 ' prep for new entry
 
   repeat
-    c := serial.rx()                                              ' get char from serial
-    c := (c == 9) ? " " : c                                     ' convert tab to space
+    c := serial.rx()                                            ' get char from serial
+    c := (c == 9) ? " " : c                                    ' convert tab to space
     if (c == 8)                                                 ' fix backspace
-      serial.str(string(8, " ", 8))                               '  for terminal
+      serial.str(string(8, " ", 8))                             '  for terminal
     else
-      serial.tx(c)                                                ' echo to terminal
-    if cli.enqueue(c)                                           ' and to cli queue
+      serial.tx(c)                                              ' echo to terminal
+    if enqueue(c)                                               ' add to input buffer
       quit                                                      '  if terminated, we're done
 
-  return cli.buffer_len()                                       ' report length of input
+  return cliIdx                                                 ' report length of input
 
 
 PUB show_prompt()
@@ -132,37 +157,37 @@ PUB show_prompt()
 CON { command handlers }
 
 
-PUB run_command(idx)
+PUB run_command(eCmd)
 
-'' Run command at index idx of Commands list
+'' Run command identified by enum value eCmd
 
-  if (idx < 0)
-    serial.fstr1(@"'%s' is not recognized as a command\r", cli.token(0))
+  if (eCmd == CMD_UNKNOWN)
+    serial.fstr1(@"'%s' is not recognized as a command\r", token(0))
     return
 
-  case idx
-    00     : show_help()                                        ' help
-    01     : show_version()                                     ' version
-    02, 03 : do_cls()                                           ' cls, clear
-    04     : do_mount()                                         ' mount
-    05, 06 : do_unmount()                                       ' unmount, eject
-    07     : do_format()                                        ' format
-    08, 09 : do_stats()                                         ' stats, info
-    10, 11 : do_dir()                                           ' dir, ls
-    12     : do_cd()                                            ' cd
-    13     : do_pwd()                                           ' pwd
-    14     : do_mkdir()                                         ' mkdir
-    15, 16 : do_type()                                          ' type, cat
-    17, 18 : do_hexdump()                                       ' hexdump, hd
-    19, 20 : do_rename()                                        ' ren, mv
-    21, 22 : do_copy()                                          ' copy, cp
-    23, 24 : do_delete()                                        ' del, rm
-    25     : do_rmdir()                                         ' rmdir
-    26     : do_demo()                                          ' demo
-    27, 28 : do_card_info()                                     ' card, cid
-    29, 30 : do_benchmark()                                     ' benchmark, perf
-    31     : do_touch()                                         ' touch
-    other  : not_implemented()
+  case eCmd
+    CMD_HELP                : show_help()
+    CMD_VERSION             : show_version()
+    CMD_CLS, CMD_CLEAR      : do_cls()
+    CMD_MOUNT               : do_mount()
+    CMD_UNMOUNT, CMD_EJECT  : do_unmount()
+    CMD_FORMAT              : do_format()
+    CMD_STATS, CMD_INFO     : do_stats()
+    CMD_DIR, CMD_LS         : do_dir()
+    CMD_CD                  : do_cd()
+    CMD_PWD                 : do_pwd()
+    CMD_MKDIR               : do_mkdir()
+    CMD_TYPE, CMD_CAT       : do_type()
+    CMD_HEXDUMP, CMD_HD     : do_hexdump()
+    CMD_REN, CMD_MV         : do_rename()
+    CMD_COPY, CMD_CP        : do_copy()
+    CMD_DEL, CMD_RM         : do_delete()
+    CMD_RMDIR               : do_rmdir()
+    CMD_DEMO                : do_demo()
+    CMD_CARD, CMD_CID       : do_card_info()
+    CMD_BENCHMARK, CMD_PERF : do_benchmark()
+    CMD_TOUCH               : do_touch()
+    other                   : not_implemented()
 
 
 PUB show_help()
@@ -338,7 +363,7 @@ PUB do_cd() | p_path
   if (check_mount() == false)
     return
 
-  p_path := cli.token(1)
+  p_path := token(1)
 
   ' Handle special cases
   if (strcomp(p_path, @"/") or strcomp(p_path, @"\\"))
@@ -384,7 +409,7 @@ PUB do_mkdir() | p_name, result
   if (check_mount() == false)
     return
 
-  p_name := cli.token(1)
+  p_name := token(1)
   result := sd.newDirectory(p_name)
 
   if (result)
@@ -404,7 +429,7 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
   if (check_mount() == false)
     return
 
-  p_filename := cli.token(1)
+  p_filename := token(1)
   handle := sd.openFileRead(p_filename)
 
   if (handle < 0)
@@ -448,7 +473,7 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
   if (check_mount() == false)
     return
 
-  p_filename := cli.token(1)
+  p_filename := token(1)
   handle := sd.openFileRead(p_filename)
 
   if (handle < 0)
@@ -508,8 +533,8 @@ PUB do_rename() | p_old, p_new, result
   if (check_mount() == false)
     return
 
-  p_old := cli.token(1)
-  p_new := cli.token(2)
+  p_old := token(1)
+  p_new := token(2)
 
   result := sd.rename(p_old, p_new)
 
@@ -530,8 +555,8 @@ PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
   if (check_mount() == false)
     return
 
-  p_src := cli.token(1)
-  p_dst := cli.token(2)
+  p_src := token(1)
+  p_dst := token(2)
 
   if (strcomp(p_src, p_dst))
     serial.fstr0(@"Cannot copy file to itself\r")
@@ -573,7 +598,7 @@ PUB do_delete() | p_filename, result
   if (check_mount() == false)
     return
 
-  p_filename := cli.token(1)
+  p_filename := token(1)
   result := sd.deleteFile(p_filename)
 
   if (result)
@@ -722,7 +747,7 @@ PUB do_touch() | p_filename, handle
   if (check_mount() == false)
     return
 
-  p_filename := cli.token(1)
+  p_filename := token(1)
   handle := sd.createFileNew(p_filename)
 
   if (handle >= 0)
@@ -734,7 +759,7 @@ PUB do_touch() | p_filename, handle
 
 PUB not_implemented()
 
-  serial.fstr1(@"%s is not implemented\r", cli.token(0))
+  serial.fstr1(@"%s is not implemented\r", token(0))
 
 
 CON { helper methods }
@@ -839,6 +864,90 @@ PRI lcstr(p_str) : p_lcstr | c
     ++p_str
 
 
+CON { inline parser }
+
+
+PRI parserReset()
+
+' Reset command input buffer and tokens
+
+  bytefill(@cliBuf, 0, CLI_BUF_SIZE)
+  cliIdx := 0
+  longfill(@tkPtrs, 0, CLI_MAX_TKNS)
+  ntokens := 0
+
+
+PRI enqueue(c) : done
+
+' Add character to input buffer
+' -- returns true when CR received
+
+  if (c == 0) or (c == 13)                                     ' end of input?
+    cliBuf[cliIdx] := 0                                         '  terminate buffer
+    return true
+
+  if (c == 8) and (cliIdx > 0)                                 ' backspace?
+    cliBuf[--cliIdx] := 0                                       '  erase last char
+    return false
+
+  if (cliIdx < CLI_BUF_SIZE - 2)                                ' room in buffer?
+    cliBuf[cliIdx++] := c                                       '  add character
+
+  return false
+
+
+PRI parse() : count | p
+
+' Parse input buffer into tokens separated by spaces/tabs
+' -- returns token count
+
+  longfill(@tkPtrs, 0, CLI_MAX_TKNS)
+  ntokens := 0
+
+  if (cliIdx == 0)                                              ' nothing to parse
+    return 0
+
+  p := @cliBuf
+
+  repeat while (ntokens < CLI_MAX_TKNS)
+    ' skip separators (space, tab)
+    repeat while (byte[p] == " ") or (byte[p] == 9)
+      p++
+    if (byte[p] == 0)                                           ' end of string
+      quit
+    tkPtrs[ntokens++] := p                                      ' save token start
+    ' walk to next separator or end
+    repeat while (byte[p] <> 0)
+      if (byte[p] == " ") or (byte[p] == 9)
+        byte[p++] := 0                                          ' terminate token
+        quit
+      p++
+
+  return ntokens
+
+
+PRI token(idx) : p_str
+
+' Returns pointer to parsed token at index
+
+  if (idx >= 0) and (idx < CLI_MAX_TKNS)
+    return tkPtrs[idx]
+
+
+PRI idCommand(pCmdStr) : eCmdId | nIdx, pEntry, pStr
+
+' Look up command string in command table, return enum value
+
+  eCmdId := CMD_UNKNOWN
+
+  repeat nIdx from 0 to cmdCt - 1
+    pEntry := @@WORD[@cmdTable][nIdx]                           ' get pointer from table
+    pStr := @BYTE[pEntry][1]                                    ' skip enum byte, point to string
+    if strcomp(pCmdStr, pStr)
+      eCmdId := BYTE[pEntry][0]                                 ' matched - return embedded enum
+      quit
+
+
 CON { strings / lists }
 
 
@@ -877,41 +986,61 @@ DAT { help text }
 
 DAT { command table }
 
-' Command lookup table - index matches case statement in run_command()
+' ------------------------------------------------------------
+'   Adjust Command Set:
+'    (1) add/remove enum in CON { command enums }
+'    (2) add/remove entry             "name  BYTE  ENUM, CmdString, 0"
+'    (3) add/remove pointer to entry  "WORD  @name"
+' ------------------------------------------------------------
 
-  Commands      byte    "help",      0                          ' 00
-                byte    "version",   0                          ' 01
-                byte    "cls",       0                          ' 02
-                byte    "clear",     0                          ' 03
-                byte    "mount",     0                          ' 04
-                byte    "unmount",   0                          ' 05
-                byte    "eject",     0                          ' 06
-                byte    "format",    0                          ' 07
-                byte    "stats",     0                          ' 08
-                byte    "info",      0                          ' 09
-                byte    "dir",       0                          ' 10
-                byte    "ls",        0                          ' 11
-                byte    "cd",        0                          ' 12
-                byte    "pwd",       0                          ' 13
-                byte    "mkdir",     0                          ' 14
-                byte    "type",      0                          ' 15
-                byte    "cat",       0                          ' 16
-                byte    "hexdump",   0                          ' 17
-                byte    "hd",        0                          ' 18
-                byte    "ren",       0                          ' 19
-                byte    "mv",        0                          ' 20
-                byte    "copy",      0                          ' 21
-                byte    "cp",        0                          ' 22
-                byte    "del",       0                          ' 23
-                byte    "rm",        0                          ' 24
-                byte    "rmdir",     0                          ' 25
-                byte    "demo",      0                          ' 26
-                byte    "card",      0                          ' 27
-                byte    "cid",       0                          ' 28
-                byte    "benchmark", 0                          ' 29
-                byte    "perf",      0                          ' 30
-                byte    "touch",     0                          ' 31
-                byte    0
+' Command entries: each contains [enum_byte, "string", 0]
+
+cmdHelp       BYTE    CMD_HELP,      "help",      0
+cmdVersion    BYTE    CMD_VERSION,   "version",   0
+cmdCls        BYTE    CMD_CLS,       "cls",       0
+cmdClear      BYTE    CMD_CLEAR,     "clear",     0
+cmdMount      BYTE    CMD_MOUNT,     "mount",     0
+cmdUnmount    BYTE    CMD_UNMOUNT,   "unmount",   0
+cmdEject      BYTE    CMD_EJECT,     "eject",     0
+cmdFormat     BYTE    CMD_FORMAT,    "format",    0
+cmdStats      BYTE    CMD_STATS,     "stats",     0
+cmdInfo       BYTE    CMD_INFO,      "info",      0
+cmdDir        BYTE    CMD_DIR,       "dir",       0
+cmdLs         BYTE    CMD_LS,        "ls",        0
+cmdCd         BYTE    CMD_CD,        "cd",        0
+cmdPwd        BYTE    CMD_PWD,       "pwd",       0
+cmdMkdir      BYTE    CMD_MKDIR,     "mkdir",     0
+cmdType       BYTE    CMD_TYPE,      "type",      0
+cmdCat        BYTE    CMD_CAT,       "cat",       0
+cmdHexdump    BYTE    CMD_HEXDUMP,   "hexdump",   0
+cmdHd         BYTE    CMD_HD,        "hd",        0
+cmdRen        BYTE    CMD_REN,       "ren",       0
+cmdMv         BYTE    CMD_MV,        "mv",        0
+cmdCopy       BYTE    CMD_COPY,      "copy",      0
+cmdCp         BYTE    CMD_CP,        "cp",        0
+cmdDel        BYTE    CMD_DEL,       "del",       0
+cmdRm         BYTE    CMD_RM,        "rm",        0
+cmdRmdir      BYTE    CMD_RMDIR,     "rmdir",     0
+cmdDemo       BYTE    CMD_DEMO,      "demo",      0
+cmdCard       BYTE    CMD_CARD,      "card",      0
+cmdCid        BYTE    CMD_CID,       "cid",       0
+cmdBenchmark  BYTE    CMD_BENCHMARK, "benchmark", 0
+cmdPerf       BYTE    CMD_PERF,      "perf",      0
+cmdTouch      BYTE    CMD_TOUCH,     "touch",     0
+
+cmdTable      ' first table-entry must follow immediately
+              WORD    @cmdHelp, @cmdVersion, @cmdCls, @cmdClear
+              WORD    @cmdMount, @cmdUnmount, @cmdEject, @cmdFormat
+              WORD    @cmdStats, @cmdInfo, @cmdDir, @cmdLs
+              WORD    @cmdCd, @cmdPwd, @cmdMkdir
+              WORD    @cmdType, @cmdCat, @cmdHexdump, @cmdHd
+              WORD    @cmdRen, @cmdMv, @cmdCopy, @cmdCp
+              WORD    @cmdDel, @cmdRm, @cmdRmdir
+              WORD    @cmdDemo, @cmdCard, @cmdCid
+              WORD    @cmdBenchmark, @cmdPerf, @cmdTouch
+cmdTableEnd   ' last entry must be immediately above this line
+' ------------------------------------------------------------
+cmdCt         BYTE    (@cmdTableEnd - @cmdTable) >> 1
 
 
 DAT { demo file content }
@@ -945,11 +1074,6 @@ DAT { demo file content }
                 byte    0
 
 
-DAT { terminal separators }
-
-  separators    byte    " ", 9, 0                               ' separate with space or tab
-
-
 CON { setup }
 
 
@@ -957,8 +1081,7 @@ PUB setup()
 
 '' Configure IO and objects for application
 
-  serial.start(BR_TERM)                                           ' start terminal io
-  cli.start(13, cli.NONE, @separators)                          ' setup parser
+  serial.start(BR_TERM)                                         ' start terminal io
 
 
 PUB wait_for_terminal(clear, delay)

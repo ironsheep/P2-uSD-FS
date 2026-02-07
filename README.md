@@ -111,8 +111,10 @@ PUB listDirectory() | entry, p_entry
 ## Documentation
 
 - **[Driver Tutorial](DOCs/SD-Card-Driver-Tutorial.md)** - Complete guide with practical examples
-- **[Regression Testing](REGRESSION-TESTING.md)** - Test infrastructure and validation
+- **[Regression Testing](DOCs/REGRESSION-TESTING.md)** - Test infrastructure and validation
 - **[Card Catalog](DOCs/CARD-CATALOG.md)** - Tested SD cards with performance data
+- **[Utilities Guide](DOCs/UTILITIES.md)** - Standalone utility programs
+- **[Utility Internals](DOCs/Utils/)** - Theory of operations for each utility
 
 ## Project Structure
 
@@ -124,7 +126,8 @@ P2-SD-Card-Driver/
 │   │   ├── SD_format_utility.spin2     # FAT32 formatter
 │   │   ├── SD_card_characterize.spin2  # Card register reader
 │   │   ├── SD_speed_characterize.spin2 # Speed testing
-│   │   └── SD_FAT32_audit.spin2        # Filesystem validator
+│   │   ├── SD_FAT32_audit.spin2        # Filesystem validator
+│   │   └── SD_FAT32_fsck.spin2         # Filesystem check & repair
 │   └── DEMO/                       # Demo application
 │       └── SD_demo_shell.spin2         # Interactive terminal shell
 │
@@ -194,7 +197,8 @@ The `src/UTILS/` folder contains standalone utility programs:
 - **SD_format_utility.spin2** - Format SD cards with FAT32
 - **SD_card_characterize.spin2** - Read and display card registers (CID, CSD, SCR)
 - **SD_speed_characterize.spin2** - Test maximum reliable SPI speed
-- **SD_FAT32_audit.spin2** - Validate FAT32 filesystem structure
+- **SD_FAT32_audit.spin2** - Validate FAT32 filesystem structure (read-only)
+- **SD_FAT32_fsck.spin2** - Check and repair FAT32 filesystem (4-pass FSCK)
 - **SD_performance_benchmark.spin2** - Measure read/write throughput
 
 ## Demo Shell

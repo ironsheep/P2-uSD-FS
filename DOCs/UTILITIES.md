@@ -17,6 +17,7 @@ The utilities are located in `src/UTILS/` and can be run independently using the
 | **SD_frequency_characterize.spin2** | Sysclk frequency tester | No |
 | **SD_performance_benchmark.spin2** | Throughput measurement | Yes* |
 | **SD_FAT32_audit.spin2** | Filesystem validator | No |
+| **SD_FAT32_fsck.spin2** | Filesystem check & repair | Yes |
 
 *Creates temporary test files that are deleted after testing.
 
@@ -375,6 +376,112 @@ END_SESSION
 
 ---
 
+### 8. SD_FAT32_fsck.spin2
+
+**Purpose:** Check and repair FAT32 filesystem corruption.
+
+**Usage:**
+```bash
+./run_test.sh ../src/UTILS/SD_FAT32_fsck.spin2 -t 300
+```
+
+**WARNING:** This tool **modifies the card** to repair detected problems. Run the audit tool first if you want a read-only check.
+
+**Four-Pass Architecture:**
+
+| Pass | Name | Purpose |
+|------|------|---------|
+| **Pass 1** | Structural Integrity | Repair VBR backup, FSInfo signatures/backup, FAT[0]/[1]/[2] entries |
+| **Pass 2** | Directory & Chain Validation | Walk directory tree, validate cluster chains, detect cross-links |
+| **Pass 3** | Lost Cluster Recovery | Free allocated clusters not referenced by any file or directory |
+| **Pass 4** | FAT Sync & Free Count | Synchronize FAT1 -> FAT2, correct FSInfo free cluster count |
+
+**Repairs Performed:**
+
+| Category | Repairs |
+|----------|---------|
+| **VBR** | Restore backup VBR from primary |
+| **FSInfo** | Fix lead/struct/trail signatures, restore backup |
+| **FAT entries** | Fix media type (FAT[0]), EOC marker (FAT[1]), root cluster (FAT[2]) |
+| **Cluster chains** | Truncate chains with bad references |
+| **Cross-links** | Detect clusters referenced by multiple chains |
+| **Lost clusters** | Free allocated but unreferenced clusters |
+| **FAT sync** | Copy FAT1 to FAT2 where sectors differ |
+| **Free count** | Recalculate and update FSInfo free cluster count |
+
+**Memory Requirements:**
+
+The cluster bitmap uses 256KB (LONG[65536]) covering up to 2,097,152 clusters. This is sufficient for cards up to approximately 64GB. Cards with more clusters receive structural checks only (passes 1 and 4); passes 2 and 3 are skipped.
+
+**Sample Output:**
+```
+==============================================
+  FAT32 Filesystem Check & Repair (FSCK)
+==============================================
+
+* Initializing card...
+  Card: 31_207_424 sectors (15_238 MB)
+
+  Geometry:
+    Partition start:  8_192
+    Sectors/cluster:  16
+    Sectors/FAT:      15_234
+    Total clusters:   1_948_045
+
+--- Pass 1: Structural Integrity ---
+  [OK] Backup VBR matches primary
+  [OK] FSInfo signatures correct
+  [OK] Backup FSInfo matches primary
+  [OK] FAT[0] media type correct
+  [OK] FAT[1] EOC marker correct
+  [OK] FAT[2] root cluster allocated
+  Pass 1: 0 repairs
+
+--- Pass 2: Directory & Chain Validation ---
+  Directories scanned: 1
+  Files scanned:       0
+  Pass 2: 0 repairs
+
+--- Pass 3: Lost Cluster Recovery ---
+  [OK] No lost clusters found
+  Pass 3: 0 repairs
+
+--- Pass 4: FAT Sync & Free Count ---
+  [OK] FAT1 and FAT2 in sync
+  Free clusters: 1_948_044
+  [OK] FSInfo free count correct
+  Pass 4: 0 repairs
+
+==============================================
+  FSCK COMPLETE
+==============================================
+  Errors found:  0
+  Repairs made:  0
+  Warnings:      0
+  Directories:   1
+  Files:         0
+
+  FILESYSTEM STATUS: CLEAN
+==============================================
+
+END_SESSION
+```
+
+**Status Messages:**
+- **CLEAN** - No errors or repairs needed
+- **REPAIRED** - Errors found and successfully repaired
+- **ERRORS REMAIN** - Some errors could not be automatically repaired
+
+**Use Cases:**
+- Repair filesystem after unexpected power loss or reset
+- Fix corruption after failed write operations
+- Recover lost disk space from orphaned cluster chains
+- Synchronize FAT1 and FAT2 after partial writes
+- Verify and correct FSInfo free cluster count
+- Run after audit reports failures to auto-repair them
+
+---
+
 ## Directory Structure
 
 ```
@@ -386,6 +493,7 @@ src/UTILS/
 ├── SD_frequency_characterize.spin2 # Sysclk frequency tester
 ├── SD_performance_benchmark.spin2  # Throughput measurement
 ├── SD_FAT32_audit.spin2            # Filesystem validator
+├── SD_FAT32_fsck.spin2             # Filesystem check & repair
 └── logs/                           # Utility output logs
 ```
 
@@ -425,6 +533,11 @@ src/UTILS/
 Run the audit tool to verify filesystem integrity:
 ```bash
 ./run_test.sh ../src/UTILS/SD_FAT32_audit.spin2 -t 60
+```
+
+If the audit reports failures, run FSCK to auto-repair:
+```bash
+./run_test.sh ../src/UTILS/SD_FAT32_fsck.spin2 -t 300
 ```
 
 ---
