@@ -1,7 +1,7 @@
-# V3 Driver Streamer/FIFO Timing Analysis
+# Streamer/FIFO Timing Analysis
 
-**Date:** 2026-01-30
-**Driver:** SD_card_driver_v3.spin2
+**Date:** 2026-01-30 (updated 2026-02-07)
+**Driver:** SD_card_driver.spin2
 **Purpose:** Technical analysis of streamer-based sector transfers and sysclk dependencies
 
 ---
@@ -376,22 +376,19 @@ PUB debugTimingInfo()
 
 ## Part 5: Known Issues and Historical Context
 
-### 5.1 V2 Driver 270 MHz Failure Pattern
+### 5.1 Early 270 MHz Failure Pattern (Resolved)
 
-From VALIDATION-RESULTS-V2.md:
-- Sequential multi-block operations (writeSectorsRaw → readSectorsRaw) failed
+Early development saw multi-block failures at 270 MHz:
+- Sequential multi-block operations (writeSectorsRaw -> readSectorsRaw) failed
 - Mixed operations (multi-write + single-reads, or single-writes + multi-read) worked
 - 3,472 byte mismatches in 8-sector test
 - 24,800 byte mismatches in 64-sector test
 
-**Hypothesis:** The streamer NCO phase relationship between back-to-back operations is different at 270 MHz due to:
-1. Different xfrq quantization
-2. Different residual phase after waitxfi completion
-3. Card timing marginality at lower actual SPI frequency
+**Root cause:** These failures were traced to test framework bugs (integer overflow in timeout calculations: `clkfreq * 30` overflows 32-bit LONG at sysclk > 71 MHz), not driver issues.
 
-### 5.2 V3 Driver Status at 270 MHz
+### 5.2 270 MHz Validation (Resolved)
 
-**Not yet tested.** The V3 driver inherits the same streamer code from V2. The same timing issues are expected.
+**Fully validated at 270 MHz.** After fixing test framework bugs, all regression tests pass at both 320 MHz and 270 MHz (151+ tests at each frequency). The driver's streamer timing is robust across the tested frequency range.
 
 ---
 
@@ -409,11 +406,10 @@ From VALIDATION-RESULTS-V2.md:
 
 ### Recommendations:
 
-1. **Test at 270 MHz** with current code to establish baseline
-2. **If failures occur**, try reducing SPI speed to 20 MHz first
-3. **If still failing**, add extra phase margin in align_delay
-4. **Document minimum sysclk** for 25 MHz SPI operation
-5. **Consider runtime detection** of sysclk and automatic adjustment
+1. Both 320 MHz and 270 MHz are validated and working (151+ tests each)
+2. If targeting lower sysclk frequencies, reduce SPI speed to 20 MHz first
+3. If issues arise at new frequencies, add extra phase margin in align_delay
+4. The driver's `setSPISpeed()` adapts automatically to any sysclk via `clkfreq`
 
 ---
 

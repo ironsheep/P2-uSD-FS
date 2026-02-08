@@ -174,7 +174,7 @@ Expand regression test coverage for error paths and edge cases:
 ### Project Documentation (in `DOCs/`)
 | Document | Purpose |
 |----------|---------|
-| `SD-Card-Driver-Tutorial.md` | Complete driver tutorial with examples |
+| `SD-CARD-DRIVER-TUTORIAL.md` | Complete driver tutorial with examples |
 | `REGRESSION-TESTING.md` | Test infrastructure and validation |
 | `CARD-CATALOG.md` | SD card compatibility data |
 | `UTILITIES.md` | Standalone utility programs |

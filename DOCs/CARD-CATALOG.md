@@ -1,14 +1,14 @@
 # SD Card Catalog
 
-This catalog documents SD cards tested with the P2 SD card driver. Cards are characterized using the `SD_card_characterize_v3.spin2` diagnostic tool.
+This catalog documents SD cards tested with the P2 SD card driver. Cards are characterized using the `SD_card_characterize.spin2` diagnostic tool.
 
 ---
 
 ## Register Field Reference
 
-This section documents ALL fields available from SD card registers and indicates which are actively used by the V3 driver.
+This section documents ALL fields available from SD card registers and indicates which are actively used by the driver.
 
-- **[USED]** = Field is actively used by the V3 driver for operation
+- **[USED]** = Field is actively used by the driver for operation
 - **[INFO]** = Informational only - available but not used by driver
 
 ### CID Register (Card Identification) - 16 bytes
@@ -23,7 +23,7 @@ This section documents ALL fields available from SD card registers and indicates
 | MDT | [19:8] | 12 bits | [INFO] | Manufacturing Date (year + month) |
 | CRC7 | [7:1] | 7 bits | [INFO] | CRC checksum |
 
-**V3 Driver Usage:** MID is checked to identify PNY/Phison cards ($27) which require reduced SPI clock (20MHz vs 25MHz).
+**Driver Usage:** MID is checked to identify PNY/Phison cards ($27) which require reduced SPI clock (20MHz vs 25MHz).
 
 ### CSD Register (Card Specific Data) - 16 bytes
 
@@ -63,7 +63,7 @@ This section documents ALL fields available from SD card registers and indicates
 | FILE_FORMAT | [11:10] | 2 bits | [INFO] | File format |
 | CRC7 | [7:1] | 7 bits | [INFO] | CRC checksum |
 
-**V3 Driver Usage:**
+**Driver Usage:**
 - CSD_STRUCTURE determines SDSC vs SDHC/SDXC capacity formulas
 - TRAN_SPEED calculates maximum SPI clock frequency
 - TAAC/NSAC/R2W_FACTOR calculate read/write timeouts (SDSC only)
@@ -84,7 +84,7 @@ This section documents ALL fields available from SD card registers and indicates
 | SD_SPECX | [41:38] | 4 bits | [INFO] | SD spec 5.x/6.x/7.x indicator |
 | CMD_SUPPORT | [33:32] | 2 bits | [INFO] | Command support bits |
 
-**V3 Driver Usage:** SD_SPEC determines High Speed (CMD6) support availability.
+**Driver Usage:** SD_SPEC determines High Speed (CMD6) support availability.
 
 ### OCR Register (Operating Conditions) - 4 bytes
 
@@ -96,11 +96,11 @@ This section documents ALL fields available from SD card registers and indicates
 | S18A | [24] | 1 bit | [INFO] | Switching to 1.8V accepted |
 | Voltage Window | [23:15] | 9 bits | [INFO] | Supported voltage range (2.7V-3.6V) |
 
-**V3 Driver Usage:** CCS bit is **CRITICAL** - determines addressing mode:
+**Driver Usage:** CCS bit is **CRITICAL** - determines addressing mode:
 - CCS=0: SDSC byte addressing (sector << 9)
 - CCS=1: SDHC/SDXC block addressing (sector number directly)
 
-### Summary: Fields Used by V3 Driver
+### Summary: Fields Used by Driver
 
 | Register | Field | Purpose |
 |----------|-------|---------|
@@ -147,7 +147,7 @@ This section documents ALL fields available from SD card registers and indicates
 
 ## Internal Throughput Summary
 
-Cards tested with `SD_speed_characterize_v3.spin2` have measured internal throughput data. This reflects the card's internal flash/controller performance, NOT the SPI bus speed.
+Cards tested with `SD_speed_characterize.spin2` have measured internal throughput data. This reflects the card's internal flash/controller performance, NOT the SPI bus speed.
 
 **Test Methodology:**
 - 10,000 random single-sector reads at 25 MHz SPI
@@ -195,7 +195,7 @@ Cards tested with `SD_speed_characterize_v3.spin2` have measured internal throug
 
 **Label:** Gigastone "Camera Plus" microSD XC I, A1 V30 U3 64GB
 **Unique ID:** `GigastoneOEM_ASTC_2.0_00000F14_202306`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -315,14 +315,14 @@ SCR: $02 $C5 $84 $83 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -384,7 +384,7 @@ SCR: $02 $C5 $84 $83 $00 $00 $00 $00
 
 **Label:** Lexar MicroSD XC V30 U3 64GB (10) 100 MB/s*
 **Unique ID:** `Longsys/Lexar_MSSD0_6.1_31899471_202411`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -493,9 +493,9 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | exFAT partition detected |
 | Mount | N/A | Requires FAT32 format first |
@@ -562,7 +562,7 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 
 **Label:** Gigastone 32GB microSD HC I A1 U1 (10)
 **Unique ID:** `Transcend_00000_0.0_000001C9_202307`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -682,14 +682,14 @@ SCR: $02 $B5 $80 $83 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -709,7 +709,7 @@ SCR: $02 $B5 $80 $83 $00 $00 $00 $00
 
 **Label:** Gigastone 10x High Endurance 8GB MLC microSD HC I U1
 **Unique ID:** `SharedOEM_00000_0.0_0001B9D5_202109`
-**Test Date:** 2026-02-01 (V3 characterization)
+**Test Date:** 2026-02-01 (characterization)
 
 ### Raw Registers
 
@@ -829,14 +829,14 @@ SCR: $02 $B5 $80 $43 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -858,7 +858,7 @@ SCR: $02 $B5 $80 $43 $00 $00 $00 $00
 
 **Label:** Gigastone 10x High Endurance 16GB MLC microSD HC I U3 V30 4K
 **Unique ID:** `BudgetOEM_SD16G_2.0_000003FB_202502`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1000,14 +1000,14 @@ SCR: $02 $B5 $80 $43 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -1036,7 +1036,7 @@ SCR: $02 $B5 $80 $43 $00 $00 $00 $00
 
 **Label:** SanDisk Extreme 64GB U3 A2 microSD XC I V30
 **Unique ID:** `SanDisk_SN64G_8.6_7E650771_202211`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1156,14 +1156,14 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -1184,7 +1184,7 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 
 **Label:** PNY 16GB microSD HC I
 **Unique ID:** `Phison_SD16G_3.0_01CD5CF5_201808`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1304,25 +1304,25 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | MID $27 triggers 20 MHz SPI limit |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass with V3 driver |
+| Regression | PASS | All tests pass with driver |
 
 ### Notes
 
 - **PNY-branded** card using **Phison** controller silicon (MID $27)
 - MID $27 + OID "PH" = Phison controller family (also used by Delkin, HP, Kingston, Lexar older, PNY)
-- **V3 driver handles this card correctly** - MID $27 detected, SPI clock limited to 20 MHz
+- **driver handles this card correctly** - MID $27 detected, SPI clock limited to 20 MHz
 - **HC I** = SDHC UHS-I interface
 - Older card (manufactured August 2018)
 - CMD20 (Speed Class) supported per SCR CMD_SUPPORT field
 - 8 KB clusters (smaller than typical 32 KB) due to P2FMTER formatting
-- V3 driver fixes resolved previous V2 unmount hang issue
+- driver fixes resolved previous V2 unmount hang issue
 
 ### SPI Speed Characterization
 
@@ -1354,7 +1354,7 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 
 **Key Finding:** The 20 MHz limit for Phison/PNY cards is **overly conservative**. This card successfully ran at 25 MHz with **0 CRC errors across 47,200 reads** (4 speed levels × 11,800 reads each). The TRAN_SPEED register ($32 = 25 MHz) accurately reflects this card's capability.
 
-**Recommendation:** The V3 driver's MID $27 → 20 MHz limit should be reconsidered. This PNY/Phison card handles 25 MHz reliably. The failure mode at 27 MHz (after CMD6 switch attempt) is identical to SanDisk cards - the CMD6 High Speed switch fails and the card becomes unresponsive, not a gradual degradation from clock speed.
+**Recommendation:** The driver's MID $27 → 20 MHz limit should be reconsidered. This PNY/Phison card handles 25 MHz reliably. The failure mode at 27 MHz (after CMD6 switch attempt) is identical to SanDisk cards - the CMD6 High Speed switch fails and the card becomes unresponsive, not a gradual degradation from clock speed.
 
 ### Internal Throughput (measured at 25 MHz SPI)
 
@@ -1373,7 +1373,7 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 
 **Label:** microSD HC 8GB (4) - Chinese text, no brand - Card #1
 **Unique ID:** `SanDisk_SU08G_8.0_0AA81F11_201010`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1484,9 +1484,9 @@ SCR: $02 $35 $80 $01 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | But data is corrupt |
@@ -1514,7 +1514,7 @@ SCR: $02 $35 $80 $01 $00 $00 $00 $00
 
 **Label:** Kingston 8GB microSD HC I ui (10) "Taiwan" F(c)o
 **Unique ID:** `Kingston_SD8GB_3.0_43F65DC9_201504`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1634,14 +1634,14 @@ SCR: $02 $B5 $80 $00 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 CHS ($0B) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -1664,7 +1664,7 @@ SCR: $02 $B5 $80 $00 $00 $00 $00 $00
 
 **Label:** Samsung EVO Select microSD XC I U3
 **Unique ID:** `Samsung_GD4QT_3.0_C0305565_201805`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1784,14 +1784,14 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
 | Mount | PASS | |
-| V3 Regression | PASS | All tests pass |
+| Regression | PASS | All tests pass |
 
 ### Notes
 
@@ -1849,7 +1849,7 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 
 **Label:** SanDisk Extreme PRO 128GB microSD XC I V30 U3 A1
 **Unique ID:** `SanDisk_AGGCF_8.0_E05C352B_201707`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -1958,9 +1958,9 @@ SCR: $02 $45 $84 $43 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | exFAT partition detected |
 | Mount | N/A | Requires FAT32 format first |
@@ -1987,7 +1987,7 @@ SCR: $02 $45 $84 $43 $00 $00 $00 $00
 
 **Label:** SanDisk Extreme PRO 64GB microSD XC I V30 U3
 **Unique ID:** `SanDisk_AGGCE_8.0_DD1C1144_201703`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -2118,9 +2118,9 @@ SCR: $02 $45 $84 $43 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | exFAT partition detected |
 | Mount | N/A | Requires FAT32 format first |
@@ -2148,7 +2148,7 @@ SCR: $02 $45 $84 $43 $00 $00 $00 $00
 
 **Label:** SanDisk 128GB Nintendo Switch microSD XC I
 **Unique ID:** `SanDisk_SN128_8.0_F79E34F6_201912`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -2257,9 +2257,9 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | exFAT partition detected |
 | Mount | N/A | Requires FAT32 format first |
@@ -2326,7 +2326,7 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 
 **Label:** Unlabeled 8GB microSD (Chinese text/no brand) - Card #2
 **Unique ID:** `Samsung_00000_1.0_D9FB539C_201408`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -2435,9 +2435,9 @@ SCR: $02 $35 $80 $03 $00 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | Non-standard partition type detected |
 | Mount | N/A | May require reformatting |
@@ -2462,7 +2462,7 @@ SCR: $02 $35 $80 $03 $00 $00 $00 $00
 
 **Label:** SanDisk 8GB (4) microSD HC, Made in Taiwan
 **Unique ID:** `SanDisk_SS08G_3.0_DAAEE8AD_201509`
-**Test Date:** 2026-02-02 (V3 characterization)
+**Test Date:** 2026-02-02 (characterization)
 
 ### Raw Registers
 
@@ -2581,9 +2581,9 @@ SCR: $02 $35 $80 $02 $01 $00 $00 $00
 | Test | Status | Notes |
 |------|--------|-------|
 | Card Init | PASS | CMD0/CMD8/ACMD41 sequence successful |
-| CID Read | PASS | V3 worker cog routing |
-| CSD Read | PASS | V3 worker cog routing |
-| SCR Read | PASS | V3 worker cog routing |
+| CID Read | PASS | Worker cog routing |
+| CSD Read | PASS | Worker cog routing |
+| SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
 | MBR Read | PASS | FAT32 CHS partition |
 | VBR Read | PASS | Valid FAT32 filesystem |
@@ -2697,4 +2697,4 @@ SCR: [8 bytes hex]
 
 *Catalog created: 2026-01-20*
 *Last updated: 2026-02-02*
-*Cards cataloged: 14 (all with V3 deep characterization)*
+*Cards cataloged: 14 (all with deep characterization)*

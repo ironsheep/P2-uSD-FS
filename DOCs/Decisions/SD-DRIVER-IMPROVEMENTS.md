@@ -388,6 +388,6 @@ writeSectors(start, count, p_buffer)  ' CMD25 multi-block write
 
 - Microsoft FAT32 File System Specification v1.03
 - SD Physical Layer Simplified Specification v9.10
-- OB4269-FAT32-Compliance-Analysis.md (detailed spec analysis)
+- OB4269-FAT32-COMPLIANCE-ANALYSIS.md (detailed spec analysis)
 - DOCs/Plans/PHASE1-SMARTPIN-SPI.md (implementation plan)
 - DOCs/BENCHMARK-RESULTS.md (baseline performance data)

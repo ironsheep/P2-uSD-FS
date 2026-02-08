@@ -133,7 +133,8 @@ Use `readDirectory()` for simple CWD listing. Use `openDirectory()`/`readDirecto
 
 ## Documentation
 
-- **[Driver Tutorial](DOCs/SD-Card-Driver-Tutorial.md)** - Complete guide with practical examples
+- **[Driver Theory of Operations](DOCs/SD-CARD-DRIVER-THEORY.md)** - Architecture, handle system, SPI, and internals
+- **[Driver Tutorial](DOCs/SD-CARD-DRIVER-TUTORIAL.md)** - Complete guide with practical examples
 - **[Regression Testing](DOCs/REGRESSION-TESTING.md)** - Test infrastructure and validation
 - **[Card Catalog](DOCs/CARD-CATALOG.md)** - Tested SD cards with performance data
 - **[Utilities Guide](DOCs/UTILITIES.md)** - Standalone utility programs

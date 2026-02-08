@@ -4,7 +4,7 @@
 
 The card characterization utility reads and displays all SD card register information. It extracts every field from the CID, CSD, SCR, and OCR registers, plus the FAT32 VBR/BPB, providing a comprehensive picture of the card's identity, capabilities, and filesystem configuration.
 
-Fields are annotated as `[USED]` (actively used by the V3 driver) or `[INFO]` (informational only) to help users understand which data matters for driver operation.
+Fields are annotated as `[USED]` (actively used by the driver) or `[INFO]` (informational only) to help users understand which data matters for driver operation.
 
 ## Card Registers
 
@@ -129,4 +129,4 @@ The report is organized into clearly labeled sections:
 6. Raw register hex dumps for verification
 7. FAT32 filesystem information
 8. Unique card ID
-9. V3 driver usage summary (which fields matter and why)
+9. Driver usage summary (which fields matter and why)

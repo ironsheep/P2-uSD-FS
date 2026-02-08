@@ -710,7 +710,7 @@ PSRAM has an independent bus—no sharing complications. Transforming it validat
 │                                                                          │
 │  Step 1: SD Driver                                                       │
 │  ─────────────────                                                       │
-│  • Transform to new architecture (see SPRINT-PLAN-multicog.md)           │
+│  • Transform to new architecture (see SPRINT-PLAN-MULTICOG.md)           │
 │  • DAT block singleton, dedicated worker cog, COGATN signaling           │
 │  • Run regression tests → validates architecture pattern                 │
 │  • Deliverable: SD_card_driver.spin2 (multi-cog safe)                    │

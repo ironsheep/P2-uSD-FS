@@ -103,29 +103,32 @@ The microSD spec explicitly defines SPI as an alternate bus mode. Production car
 
 There is no single authoritative "SPI compatibility list", but trends emerge from endurance testing and embedded-user experience. **Always test a specific model/lot in your board.**
 
-### Generally Recommended for SPI/Embedded
+### Tested and Verified for P2 SPI
 
-| Brand | Notes |
-|-------|-------|
-| **SanDisk** | Very commonly recommended for MCU and SPI-based devices. Multiple projects explicitly recommend SanDisk. |
-| **Kingston** | Recent testing shows improved reliability (1 failure in 15 cards). Industrial lines rated strong. |
-| **PNY** | Endurance-oriented tests show good performance in some models. |
-| **Transcend** | Selected models perform well, especially industrial lines. |
-| **Delkin** | Industrial/embedded series designed for harsh environments. |
+Based on our own testing with 15 cards across 7 manufacturers:
 
-### Mixed or Negative Reports
+| Brand | P2 Test Results | Notes |
+|-------|----------------|-------|
+| **SanDisk** | Excellent | 4 cards tested (Extreme, Extreme PRO, Nintendo Switch). 780-866 KB/s throughput. Fastest file open times. |
+| **Samsung** | Excellent | EVO Select 128GB tested. 783 KB/s throughput. Reliable at 25 MHz. |
+| **Lexar** | Excellent | V30 U3 64GB. **Fastest card tested** (1,059 KB/s). |
+| **Gigastone** | Excellent | 3 cards tested (Camera Plus 64GB, High Endurance 16GB, 32GB). 368-944 KB/s. Primary test cards. |
+| **PNY** | Works, slow | Phison controller. Reliable at 25 MHz SPI but very slow internal throughput (31 KB/s). |
+| **Kingston** | Untested | Available in catalog, not yet characterized. Industrial lines recommended. |
+| **Transcend** | Untested | Available in catalog, not yet characterized. |
+| **Delkin** | Untested | Industrial/embedded series recommended for harsh environments. |
+
+### Mixed or Negative Reports (Community)
 
 | Brand/Type | Issues |
 |------------|--------|
-| **Kingston older/consumer** | "Weak" compared to SanDisk in some markets, controller changes between lots. |
 | **Silicon Power** | High failure rates in endurance testing. |
 | **onn. (Walmart)** | Early sector error thresholds. |
-| **Gigastone** | Some models showed issues in testing. |
 | **Kioxia** (some models) | Variable results. |
 | **XrayDisk** | High failure rates reported. |
 | **No-name/cheap cards** | Highly variable, SPI often poorly validated. |
 
-**Note:** Reliability here refers mostly to data integrity and endurance, but those characteristics correlate strongly with SPI embedded use survival (frequent power cycles, brownouts, nonstandard access patterns).
+**Note:** Our testing focuses on SPI mode reliability with the P2 smart pin driver. Community reports cover broader endurance and data integrity concerns.
 
 ---
 
@@ -172,7 +175,8 @@ For Propeller 2 and other MCU-based SPI hosts:
 #### Clock Speed
 - Keep SPI clock **modest during init** (100-400 kHz)
 - Only raise clock after card leaves idle state
-- Stay within conservative margin (e.g., ≤20 MHz) for long-running operation
+- All tested cards run reliably at 25 MHz SPI (the CSD TRAN_SPEED maximum)
+- CMD6 High Speed mode (50 MHz) switch fails on all tested cards
 
 #### Power Design
 - Provide clean power-up sequence
@@ -183,23 +187,26 @@ For Propeller 2 and other MCU-based SPI hosts:
 
 ## P2 SD Card Driver: Tested Cards
 
-### Verified Working
+### Verified Working (151+ regression tests passing)
 
-| Card | Capacity | Class | Board | Status |
-|------|----------|-------|-------|--------|
-| GigaStone | 32 GB | SDHC | P2 Edge | Full pass (172 tests) |
-| GigaStone | 64 GB | SDXC | P2 EC32 Mag | Full pass (172 tests) |
+| Card | Manufacturer | Capacity | Throughput | Max SPI |
+|------|-------------|----------|------------|---------|
+| SanDisk Nintendo Switch 128GB | SanDisk | 128 GB | 780 KB/s | 25 MHz |
+| SanDisk Extreme PRO 64GB | SanDisk | 64 GB | 866 KB/s | 25 MHz |
+| Lexar V30 U3 64GB | Lexar | 64 GB | 1,059 KB/s | 25 MHz |
+| Samsung EVO Select 128GB | Samsung | 128 GB | 783 KB/s | 25 MHz |
+| Gigastone Camera Plus 64GB | Gigastone | 64 GB | 944 KB/s | 25 MHz |
+| Gigastone High Endurance 16GB | Gigastone | 16 GB | 368 KB/s | 25 MHz |
+| PNY 16GB | PNY (Phison) | 16 GB | 31 KB/s | 25 MHz |
 
-### Known Issues
+8 additional cards are catalogued but not yet characterized. See [Card Catalog](CARD-CATALOG.md) for full details.
 
-| Card | Capacity | Board | Issue |
-|------|----------|-------|-------|
-| PNY | Unknown | P2 EC32 Mag | CMD0 returns $00 instead of $01 |
+### Notes
 
-The PNY issue may be related to:
-- Card-specific initialization timing requirements
-- Board electrical characteristics
-- Card lot/firmware variation
+- All tested cards operate reliably at 25 MHz SPI
+- Cards >32 GB ship as exFAT and must be reformatted as FAT32 (use the included format utility)
+- PNY/Phison cards have very slow internal controllers but are fully functional
+- CMD6 High Speed mode switch fails on all tested cards (card becomes unresponsive)
 
 ---
 
@@ -216,7 +223,8 @@ The PNY issue may be related to:
 | Date | Change |
 |------|--------|
 | 2026-01-16 | Initial research compilation |
+| 2026-02-07 | Updated with actual test data from 15-card catalog, corrected brand assessments |
 
 ---
 
-*This document is part of the P2-uSD-FileSystem project.*
+*Part of the [P2-SD-Card-Driver](../README.md) project - Iron Sheep Productions*

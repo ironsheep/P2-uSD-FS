@@ -382,7 +382,7 @@ PRI readSectorWithReadAhead(sector) | i
 ## Summary of Recommendations
 
 ### Priority 1: Cross-OS Fixes (Required)
-See `OB4269-Technical-Adjustments.md`
+See `OB4269-TECHNICAL-ADJUSTMENTS.md`
 - FAT mirroring fix
 - High 4 bits preservation
 - FSInfo sector support
