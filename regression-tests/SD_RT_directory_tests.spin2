@@ -120,6 +120,12 @@ PUB go() | result, pEntry, pFilename, attrs, fileCount, idx
     result := sd.changeDirectory(@"NOEXIST")
     utils.evaluateBool(result, @"changeDirectory() non-existent", false)
 
+    utils.startTest(@"changeDirectory() fails on a file (not a directory)")
+    sd.changeDirectory(@testDir1)                                               ' Go to RTDIR1 where FILE1.TXT exists
+    result := sd.changeDirectory(@testFile1)                                    ' Should fail - FILE1.TXT is not a directory
+    utils.evaluateBool(result, @"changeDirectory() on file", false)
+    sd.changeDirectory(@"/")                                                    ' Return to root
+
     ' ----------------------------------
     ' TEST GROUP: Nested directories
     ' ----------------------------------

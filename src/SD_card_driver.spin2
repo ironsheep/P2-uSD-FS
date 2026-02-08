@@ -116,6 +116,9 @@ CON '' command codes for worker cog
   CMD_SYNC_H      = 39      ' Sync handle buffer to disk: param0=handle
   CMD_SYNC_ALL    = 40      ' Sync all open file handles
   CMD_EOF_H       = 41      ' Check end of file: param0=handle, returns data0=true/false
+  CMD_OPEN_DIR    = 43      ' Open directory: param0=path ptr, returns data0=handle
+  CMD_READ_DIR_H  = 44      ' Read next dir entry: param0=handle, returns data0=ptr
+  CMD_CLOSE_DIR_H = 45      ' Close directory handle: param0=handle
 
 CON '' buffer types for sector read/write (diagnostic: separate buffers to isolate conflicts)
   BUF_DIR  = 0      ' Directory sector buffer
@@ -150,6 +153,7 @@ CON '' error codes
   E_TOO_MANY_FILES    = -90     ' All file handles are in use
   E_INVALID_HANDLE    = -91     ' Handle out of range or not open
   E_FILE_ALREADY_OPEN = -92     ' File is already open for writing (single-writer policy)
+  E_NOT_A_DIR_HANDLE  = -93     ' Handle is not a directory handle (or vice versa)
 
 CON '' V3 multi-file handle configuration
   ' ═══════════════════════════════════════════════════════════════════════════
@@ -163,6 +167,7 @@ CON '' V3 multi-file handle configuration
   HF_FREE   = 0                 ' Handle slot is available
   HF_READ   = 1                 ' Handle is open for reading
   HF_WRITE  = 2                 ' Handle is open for writing
+  HF_DIR    = 4                 ' Handle is a directory enumeration handle
   HF_DIRTY  = $80               ' Handle's buffer has pending writes (OR'd with mode)
 
 CON '' worker cog stack size
@@ -284,7 +289,7 @@ DAT '' singleton control - SHARED across all object instances
   sec_per_clus  LONG    0               ' Sectors per cluster
   root_sec      LONG    0               ' Starting sector of root directory
   cluster_offset LONG   0               ' Cluster offset calculation
-  dir_sec       LONG    0               ' Current directory sector
+  cog_dir_sec   LONG    0[8]            ' Per-cog current directory sector
   entry_address LONG    0               ' Current entry byte address
   date_stamp    LONG    0               ' Timestamp for new files
   n_sec         LONG    0               ' Current sector number
@@ -548,11 +553,12 @@ PRI fs_worker() | cur_cmd
     ' File system commands require MODE_FILESYSTEM
     ' Raw sector commands are allowed in both MODE_RAW and MODE_FILESYSTEM
     ' Mode transitions (MOUNT, UNMOUNT, INIT_CARD_ONLY) have their own logic
-    ' V3: Include handle-based commands (CMD_OPEN_READ through CMD_EOF_H)
-    if (cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE) or (cur_cmd >= CMD_OPEN_READ and cur_cmd <= CMD_EOF_H)
+    ' V3: Include handle-based commands (CMD_OPEN_READ through CMD_CLOSE_DIR_H)
+    if (cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE) or (cur_cmd >= CMD_OPEN_READ and cur_cmd <= CMD_CLOSE_DIR_H)
       if driver_mode <> MODE_FILESYSTEM
         debug("  [fs_worker] REJECTED: File operation requires MODE_FILESYSTEM")
         pb_status := E_NOT_MOUNTED
+        pb_data0 := E_NOT_MOUNTED
         pb_cmd := CMD_NONE
         COGATN(1 << pb_caller)
         next                                                                    ' Skip to next command
@@ -703,15 +709,21 @@ PRI fs_worker() | cur_cmd
 
       CMD_TELL_H:
         if validateHandle(pb_param0)
-          pb_data0 := h_position[pb_param0]
-          pb_status := SUCCESS
+          if h_flags[pb_param0] & HF_DIR
+            pb_status := E_NOT_A_DIR_HANDLE
+          else
+            pb_data0 := h_position[pb_param0]
+            pb_status := SUCCESS
         else
           pb_status := E_INVALID_HANDLE
 
       CMD_FILESIZE_H:
         if validateHandle(pb_param0)
-          pb_data0 := h_size[pb_param0]
-          pb_status := SUCCESS
+          if h_flags[pb_param0] & HF_DIR
+            pb_status := E_NOT_A_DIR_HANDLE
+          else
+            pb_data0 := h_size[pb_param0]
+            pb_status := SUCCESS
         else
           pb_status := E_INVALID_HANDLE
 
@@ -723,10 +735,28 @@ PRI fs_worker() | cur_cmd
 
       CMD_EOF_H:
         if validateHandle(pb_param0)
-          pb_data0 := h_position[pb_param0] >= h_size[pb_param0] ? 1 : 0
-          pb_status := SUCCESS
+          if h_flags[pb_param0] & HF_DIR
+            pb_status := E_NOT_A_DIR_HANDLE
+          else
+            pb_data0 := h_position[pb_param0] >= h_size[pb_param0] ? 1 : 0
+            pb_status := SUCCESS
         else
           pb_status := E_INVALID_HANDLE
+
+      ' ═══════════════════════════════════════════════════════════════════════
+      ' V3 Directory Handle Commands
+      ' ═══════════════════════════════════════════════════════════════════════
+      CMD_OPEN_DIR:
+        pb_data0 := do_open_dir(pb_param0)                                           ' Returns handle or error
+        pb_status := pb_data0 < 0 ? pb_data0 : SUCCESS
+
+      CMD_READ_DIR_H:
+        pb_status := do_read_dir_h(pb_param0)
+        if pb_status == SUCCESS
+          pb_data0 := @entry_buffer
+
+      CMD_CLOSE_DIR_H:
+        pb_status := do_close_dir_h(pb_param0)
 
       other:
         debug("  [fs_worker] Unknown command: ", udec_(cur_cmd))
@@ -749,6 +779,7 @@ PRI send_command(op_cmd, p0, p1, p2, p3) : status
   ' Verify worker cog is running
   if cog_id == -1
     debug("  [send_command] ERROR: Worker not running")
+    pb_data0 := E_NOT_MOUNTED
     return E_NOT_MOUNTED
 
   ' Acquire API lock (serialize multi-cog access)
@@ -912,7 +943,7 @@ PRI do_mount() : result | reserved
   fat_sec := vbr_sec + reserved
   fat2_sec := fat_sec + sec_per_fat
   root_sec := (fat_sec + 2 * sec_per_fat)
-  dir_sec := root_sec
+  longfill(@cog_dir_sec, root_sec, 8)                                             ' All cogs start at root
   cluster_offset := root_sec // sec_per_clus
   bytemove(@vol_label, @buf + $47, 11)
   vol_label[11] := 0
@@ -1307,6 +1338,8 @@ PRI do_close_h(handle) : result | p_buf
   if not validateHandle(handle)
     debug("  [do_close_h] Invalid handle: ", sdec_(handle))
     return E_INVALID_HANDLE
+  if h_flags[handle] & HF_DIR
+    return E_NOT_A_DIR_HANDLE
 
   debug("  [do_close_h] Closing handle=", udec_(handle), " flags=$", uhex_byte_(h_flags[handle]))
 
@@ -1350,6 +1383,8 @@ PRI do_read_h(handle, p_buffer, count) : bytes_read | p_hbuf, available, offset,
   if not validateHandle(handle)
     debug("  [do_read_h] Invalid handle: ", sdec_(handle))
     return E_INVALID_HANDLE
+  if h_flags[handle] & HF_DIR
+    return E_NOT_A_DIR_HANDLE
 
   ' Calculate how many bytes we can actually read
   available := h_size[handle] - h_position[handle]
@@ -1424,6 +1459,8 @@ PRI do_write_h(handle, p_buffer, count) : bytes_written | p_hbuf, offset, to_wri
   if not validateHandle(handle)
     debug("  [do_write_h] Invalid handle: ", sdec_(handle))
     return E_INVALID_HANDLE
+  if h_flags[handle] & HF_DIR
+    return E_NOT_A_DIR_HANDLE
 
   ' Verify handle is open for writing
   if not (h_flags[handle] & HF_WRITE)
@@ -1518,6 +1555,8 @@ PRI do_seek_h(handle, position) : result | target_cluster_idx, cluster, i, fat_a
   if not validateHandle(handle)
     debug("  [do_seek_h] Invalid handle: ", sdec_(handle))
     return E_INVALID_HANDLE
+  if h_flags[handle] & HF_DIR
+    return E_NOT_A_DIR_HANDLE
 
   ' Validate position is within file
   if position > h_size[handle]
@@ -1578,6 +1617,8 @@ PRI do_sync_h(handle) : result | p_buf
   if not validateHandle(handle)
     debug("  [do_sync_h] Invalid handle: ", sdec_(handle))
     return E_INVALID_HANDLE
+  if h_flags[handle] & HF_DIR
+    return E_NOT_A_DIR_HANDLE
 
   debug("  [do_sync_h] Syncing handle=", udec_(handle), " flags=$", uhex_byte_(h_flags[handle]))
 
@@ -1613,6 +1654,145 @@ PRI do_sync_all() : result | i
       do_sync_h(i)
 
   debug("  [do_sync_all] All handles synced")
+  return SUCCESS
+
+' ═══════════════════════════════════════════════════════════════════════════
+' V3 DIRECTORY HANDLE OPERATIONS
+' Directory handles share the existing unified handle pool.
+' A directory handle reuses per-handle fields with HF_DIR flag.
+' ═══════════════════════════════════════════════════════════════════════════
+
+PRI do_open_dir(p_path) : handle | start_cluster
+' Open directory for enumeration (V3 handle) - returns handle for iterating entries.
+' Directory handles share the existing handle pool with file handles.
+'
+' @param p_path - Pointer to null-terminated path string ("." or "" for CWD)
+' @returns handle - Handle (0 to MAX_OPEN_FILES-1) on success, negative error code on failure
+' @local start_cluster - Starting cluster of the directory
+
+  ' Allocate a handle slot
+  handle := allocateHandle()
+  if handle < 0
+    debug("  [do_open_dir] No free handles")
+    return handle                                                               ' E_TOO_MANY_FILES
+
+  ' Determine which directory to enumerate
+  if byte[p_path] == 0 or (byte[p_path] == "." and byte[p_path + 1] == 0)
+    ' Empty string or "." -- enumerate calling cog's CWD
+    n_sec := cog_dir_sec[pb_caller]
+    start_cluster := sec2clus(n_sec)
+  else
+    ' Search for the named directory
+    if not searchDirectory(p_path)
+      debug("  [do_open_dir] Directory not found: ", zstr_(p_path))
+      freeHandle(handle)
+      return E_FILE_NOT_FOUND
+    ' Verify it's a directory
+    if not (attributes() & %0001_0000)
+      debug("  [do_open_dir] Not a directory: ", zstr_(p_path))
+      freeHandle(handle)
+      return E_NOT_A_DIR
+    start_cluster := firstCluster()
+    if start_cluster < 2
+      start_cluster := 2                                                        ' Root directory
+
+  ' Populate handle state
+  h_flags[handle] := HF_DIR
+  h_start_clus[handle] := start_cluster
+  h_cluster[handle] := start_cluster
+  h_sector[handle] := clus2sec(start_cluster)
+  h_position[handle] := 0                                                      ' Entry index
+  h_size[handle] := 0                                                          ' Not used for directories
+  h_buf_sector[handle] := -1                                                   ' No sector cached yet
+
+  debug("  [do_open_dir] Success: handle=", udec_(handle), " cluster=", udec_(start_cluster))
+  return handle
+
+PRI do_read_dir_h(handle) : result | p_hbuf, offset, char, attrib, cluster, fat_addr, next_cluster
+' Read next directory entry from handle (V3) - skips deleted and LFN entries.
+' Copies valid entry into entry_buffer for caller to inspect via fileName()/attributes().
+'
+' @param handle - Valid directory handle (must have HF_DIR flag)
+' @returns result - SUCCESS on valid entry, E_FILE_NOT_FOUND at end of directory
+' @local p_hbuf - Pointer to handle's buffer
+' @local offset - Byte offset within current sector
+' @local char - First byte of entry
+' @local attrib - Entry attribute byte
+' @local cluster - Current cluster number
+' @local fat_addr - Address of FAT entry
+' @local next_cluster - Next cluster in chain
+
+  ' Validate handle
+  if not validateHandle(handle)
+    return E_INVALID_HANDLE
+  if not (h_flags[handle] & HF_DIR)
+    return E_INVALID_HANDLE
+
+  p_hbuf := getHandleBuffer(handle)
+
+  repeat
+    ' Check if we need to advance to next sector (16 entries per 512-byte sector)
+    if h_position[handle] > 0 and (h_position[handle] & 15) == 0
+      h_sector[handle]++
+      ' Check if we crossed a cluster boundary
+      if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
+        ' Follow FAT chain to next cluster
+        cluster := h_cluster[handle]
+        readSector(cluster >> 7 + fat_sec, BUF_FAT)
+        fat_addr := @fat_buf + ((cluster << 2) & 511)
+        next_cluster := long[fat_addr]
+        if next_cluster >= $0FFF_FFF8
+          return E_FILE_NOT_FOUND                                               ' End of directory chain
+        h_cluster[handle] := next_cluster
+        h_sector[handle] := clus2sec(next_cluster)
+      h_buf_sector[handle] := -1                                                ' Force re-read
+
+    ' Load current sector into handle's buffer if not cached
+    if h_buf_sector[handle] <> h_sector[handle]
+      readSector(h_sector[handle], BUF_DATA)
+      bytemove(p_hbuf, @buf, 512)
+      h_buf_sector[handle] := h_sector[handle]
+
+    ' Calculate byte offset within sector (each entry is 32 bytes)
+    offset := (h_position[handle] & 15) << 5                                   ' (position % 16) * 32
+
+    ' Read first byte and attributes
+    char := byte[p_hbuf + offset]
+    attrib := byte[p_hbuf + offset + 11]
+
+    ' Advance position for next call
+    h_position[handle]++
+
+    ' Check for end of directory
+    if char == $00
+      return E_FILE_NOT_FOUND
+
+    ' Skip deleted entries and LFN entries
+    if char == $E5
+      next
+    if attrib == $0F                                                            ' LFN entry
+      next
+    ' Skip entries with hidden/system attributes that aren't normally shown
+    if attrib & %0000_1110 <> 0
+      next
+
+    ' Valid entry found - copy to entry_buffer
+    bytemove(@entry_buffer, p_hbuf + offset, 32)
+    return SUCCESS
+
+PRI do_close_dir_h(handle) : result
+' Close directory handle (V3) - releases handle back to pool.
+'
+' @param handle - Valid directory handle
+' @returns result - SUCCESS on success, E_INVALID_HANDLE if invalid
+
+  if not validateHandle(handle)
+    return E_INVALID_HANDLE
+  if not (h_flags[handle] & HF_DIR)
+    return E_INVALID_HANDLE
+
+  debug("  [do_close_dir_h] Closing handle=", udec_(handle))
+  freeHandle(handle)
   return SUCCESS
 
 PRI do_read(p_buffer, count) : bytes_read | delta, sectors_to_boundary, full_sectors, multi_count, multi_read
@@ -1925,13 +2105,13 @@ PRI do_chdir(name_ptr) : result
 
   do_close()
   if searchDirectory(name_ptr)
-    if (attributes() & %0001_0000) or (dir_sec == root_sec)
-      dir_sec := n_sec
+    if (attributes() & %0001_0000) or (n_sec == root_sec)
+      cog_dir_sec[pb_caller] := n_sec
       return SUCCESS
     else
       debug("  [do_chdir] NOT a directory: attr=", uhex_byte_(attributes()))
   else
-    debug("  [do_chdir] searchDirectory FAILED for: ", zstr(name_ptr), " dir_sec=", udec_(dir_sec))
+    debug("  [do_chdir] searchDirectory FAILED for: ", zstr(name_ptr), " dir_sec=", udec_(cog_dir_sec[pb_caller]))
   return E_NOT_A_DIR
 
 PRI do_freespace() : result | cluster
@@ -1975,13 +2155,13 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
 ' @local saved_entry - Saved directory entry (32 bytes = 8 longs)
 ' @local p_buf - Pointer to buffer position
 
-  debug("  [do_rename] old=", zstr_(old_name), " new=", zstr_(new_name), " dir_sec=", udec_(dir_sec))
+  debug("  [do_rename] old=", zstr_(old_name), " new=", zstr_(new_name), " dir_sec=", udec_(cog_dir_sec[pb_caller]))
   if searchDirectory(old_name)
     debug("  [do_rename] Found old file, entry_address=", uhex_(entry_address))
     bookmark := entry_address
-    temp_sec := dir_sec
+    temp_sec := cog_dir_sec[pb_caller]
     bytemove(@saved_entry, @entry_buffer, 32)                                  ' Save complete entry (32 bytes)
-    dir_sec := entry_address >> 9                                               ' Search in same directory
+    cog_dir_sec[pb_caller] := entry_address >> 9                                ' Search in same directory
     i := 0
     repeat until byte[new_name + i] == $00
       if byte[new_name + i] == "/"
@@ -2010,7 +2190,7 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
             bytefill(p_buf + i, " ", 8 - i)
             quit
       writeSector(bookmark >> 9, BUF_DIR)
-      dir_sec := temp_sec
+      cog_dir_sec[pb_caller] := temp_sec
       debug("  [do_rename] SUCCESS")
       return SUCCESS
     else
@@ -2033,7 +2213,7 @@ PRI do_movefile(name_ptr, dest_folder) : result | bookmark, p_temp, temp_sec
   if do_open(name_ptr) == SUCCESS
     bookmark := entry_address
     bytemove(p_temp, filename(), 12)
-    temp_sec := dir_sec
+    temp_sec := cog_dir_sec[pb_caller]
     if do_chdir(dest_folder) == SUCCESS
       if bookmark >> 9 == n_sec
         return E_FILE_EXISTS                                                    ' Same directory
@@ -2049,13 +2229,13 @@ PRI do_movefile(name_ptr, dest_folder) : result | bookmark, p_temp, temp_sec
         writeSector(bookmark >> 9, BUF_DIR)
         debug("  [do_movefile] Calling do_close, flags=", uhex_(flags))
         do_close()
-        dir_sec := temp_sec
+        cog_dir_sec[pb_caller] := temp_sec
         return SUCCESS
       else
         debug("  [do_movefile] do_newfile FAILED")
     else
       debug("  [do_movefile] do_chdir FAILED for: ", zstr(dest_folder))
-    dir_sec := temp_sec
+    cog_dir_sec[pb_caller] := temp_sec
   return E_FILE_NOT_FOUND
 
 PRI do_readdir(entry_num) : result | idx, char, attrib
@@ -2068,7 +2248,7 @@ PRI do_readdir(entry_num) : result | idx, char, attrib
 ' @local attrib - Entry attributes
 
   idx := 0
-  n_sec := dir_sec
+  n_sec := cog_dir_sec[pb_caller]
   readSector(n_sec, BUF_DIR)
 
   repeat until entry_num == -1
@@ -3471,6 +3651,38 @@ PUB readDirectory(entry) : result
   else
     return 0
 
+PUB openDirectory(p_path) : handle
+'' Open directory for enumeration (multi-cog safe) - returns handle for iterating entries.
+'' Use readDirectoryHandle() to get entries, closeDirectoryHandle() when done.
+'' Pass "" or "." to enumerate calling cog's current working directory.
+'' Handles share the existing file handle pool (MAX_OPEN_FILES total).
+''
+'' @param p_path - Pointer to null-terminated path string
+'' @returns handle - Handle on success, negative error code on failure
+
+  send_command(CMD_OPEN_DIR, p_path, 0, 0, 0)
+  handle := pb_data0
+  return handle
+
+PUB readDirectoryHandle(handle) : p_entry
+'' Read next entry from directory handle (multi-cog safe) - returns pointer to entry data.
+'' Skips deleted, LFN, and hidden/system entries automatically.
+'' After each call, use fileName() and attributes() to inspect the returned entry.
+''
+'' @param handle - Directory handle from openDirectory()
+'' @returns p_entry - Pointer to entry_buffer on success, 0 at end of directory
+
+  if send_command(CMD_READ_DIR_H, handle, 0, 0, 0) == SUCCESS
+    return @entry_buffer
+  return 0
+
+PUB closeDirectoryHandle(handle)
+'' Close directory handle (multi-cog safe) - releases handle back to pool.
+''
+'' @param handle - Directory handle from openDirectory()
+
+  send_command(CMD_CLOSE_DIR_H, handle, 0, 0, 0)
+
 PUB seek(pos) : result
 '' Seek to position in file (multi-cog safe) - sets file position.
 ''
@@ -3485,7 +3697,7 @@ PUB seek(pos) : result
     return false
 
 CON     '' directory methods
-PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i
+PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i, search_sec
 ' Search directory for a file/directory by name.
 '
 ' @param name_ptr - Pointer to null-terminated path string
@@ -3493,12 +3705,14 @@ PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i
 ' @local p_temp - Pointer to temporary filename buffer
 ' @local p_entry - Pointer to current directory entry
 ' @local i - Loop counter
+' @local search_sec - Local directory sector for path resolution
 
   p_temp := @"FILENAMETXT"
+  search_sec := cog_dir_sec[pb_caller]
   if byte[name_ptr] == "/"
-    dir_sec := root_sec
+    search_sec := root_sec
     name_ptr++
-  n_sec := dir_sec
+  n_sec := search_sec
 
   repeat until byte[name_ptr] == $00
     bytefill(@entry_buffer,0,32)
@@ -3599,7 +3813,7 @@ PUB debugDumpRootDir() | sec, i, p_entry
 '' @local p_entry - Pointer to current directory entry
 
   sec := root_sec
-  debug("  [debugDumpRootDir] root_sec=", udec_(sec), " dir_sec=", udec_(dir_sec))
+  debug("  [debugDumpRootDir] root_sec=", udec_(sec), " cog_dir_sec=", udec_(cog_dir_sec[COGID()]))
   readSector(sec, BUF_DIR)
   debug("  [debugDumpRootDir] Read sector ", udec_(sec), " into dir_buf")
   repeat i from 0 to 15                                                         ' First 16 entries
@@ -3628,11 +3842,11 @@ PUB debugGetRootSec() : result
   return root_sec
 
 PUB debugGetDirSec() : result
-'' DEBUG: Return dir_sec for diagnostic.
+'' DEBUG: Return calling cog's current directory sector for diagnostic.
 ''
-'' @returns result - Current directory sector number
+'' @returns result - Current directory sector number for calling cog
 
-  return dir_sec
+  return cog_dir_sec[COGID()]
 
 PUB debugGetVbrSec() : result
 '' DEBUG: Return VBR sector for diagnostic.

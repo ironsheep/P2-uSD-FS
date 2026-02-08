@@ -4,178 +4,158 @@ Project roadmap for SD card driver development and testing.
 
 ---
 
+## Driver Architecture
+
+The project has a **single unified driver**: `src/SD_card_driver.spin2`
+
+This driver includes all features from the original development phases:
+- Smart pin SPI with hardware-accelerated CRC-16
+- Streamer DMA for 512-byte sector transfers
+- Multi-sector operations (CMD18/CMD25)
+- Handle-based multi-file API (up to 4 simultaneous files)
+- Worker cog with hardware lock serialization
+- Per-cog current working directory
+- Directory handle enumeration
+- Conditional compilation (`SD_MINIMAL` for smaller builds)
+
+---
+
 ## Completed Work
 
-### Phase 0: Foundation (Complete)
+### Phase 0: Foundation
 - [x] Download and study OB4269 FAT32 driver
 - [x] Create technical reference documentation
 - [x] Analyze FAT32 spec compliance
 - [x] Document cross-OS portability issues
 - [x] Create test card content structure
-- [x] Create test program with debug output
 - [x] Add volumeLabel() method to driver
 
-### Driver Fixes (Complete)
+### Driver Fixes
 - [x] Fix 1: FAT mirroring in deleteFile()
 - [x] Fix 2: Preserve high 4 bits when freeing clusters
 - [x] Fix 3: FSInfo sector support
 - [x] Fix 4: Add unmount() method
 - [x] Fix 5: Add sync() method
 
-### Card Characterization (Complete)
+### Card Characterization
 - [x] Create card catalog system
 - [x] Characterize 6 SD cards with CID data
 - [x] Document PNY card SPI timing issues
 - [x] Create performance benchmark suite
-- [x] Document baseline measurements
 
-### Phase 1: Smart Pin SPI (Complete - 2026-01-29)
+### Phase 1: Smart Pin SPI (2026-01-29)
 - [x] initSPIPins() - Configure P_TRANSITION, P_SYNC_TX, P_SYNC_RX
 - [x] setSPISpeed() - Sysclk-independent frequency control
 - [x] sp_transfer_8() - Smart pin byte transfer
 - [x] Streamer DMA for 512-byte sector reads/writes
-- [x] Full regression tests (129/129 passing)
 
-### Phase 2: Adaptive Timing (Complete - 2026-01-29)
+### Phase 2: Adaptive Timing (2026-01-29)
 - [x] CID manufacturer identification (PNY, SanDisk, Samsung)
 - [x] CSD TRAN_SPEED parsing for max speed
 - [x] CSD timeout extraction (TAAC, NSAC, R2W_FACTOR)
 - [x] Brand-specific speed limiting
-- [x] FAT performance optimization (incremental free count)
 
-### Phase 3: Multi-Sector Operations (Complete - 2026-01-29)
+### Phase 3: Multi-Sector Operations (2026-01-29)
 - [x] readSectors() - CMD18 multi-block read
 - [x] writeSectors() - CMD25 multi-block write
 - [x] File API integration (do_read/do_write optimization)
-- [x] Cluster boundary handling with FAT chain following
 - [x] Performance verified: ~4x speedup over single-sector
 
-### Phase 4: Format Utility (Complete - 2026-01-28)
-- [x] Add CMD9 (SEND_CSD) to read card capacity
-- [x] Implement FAT32 parameter calculations
+### Phase 4: Format Utility (2026-01-28)
+- [x] FAT32 parameter calculations from card capacity
 - [x] Write MBR, VBR, FSInfo, backup boot sector
 - [x] Initialize FAT tables and root directory
-- [x] FAT32 audit tool for validation
-- [x] 46 format validation tests passing
+- [x] FAT32 audit tool for read-only validation
 
-### Phase 5: V3 Multi-File Handle API (Complete - 2026-01-30)
-- [x] Handle table for up to 4 simultaneous file opens
-- [x] Single-writer policy enforcement (3 read + 1 read-write)
+### Phase 5: Multi-File Handle API (2026-01-30)
+- [x] Handle table for up to 4 simultaneous file/directory handles
+- [x] Single-writer policy enforcement
 - [x] Per-handle independent file positions
 - [x] Singleton architecture with DAT-based shared state
 - [x] Worker cog pattern for serialized SPI access
-- [x] Handle allocation/deallocation with proper cleanup
-- [x] V3 format utility (SD_format_utility_v3.spin2)
-- [x] V3 testcard validation (SD_RT_testcard_validation_v3.spin2)
-- [x] Critical bug fixes:
-  - [x] Command code conflict (CMD_INIT_CARD_ONLY vs debug commands)
-  - [x] Singleton driver_mode state not reset in stop()
-- [x] Full V3 regression tests passing (83/83 tests)
+
+### Phase 6: Driver Consolidation (2026-02-04)
+- [x] Merged all driver variants into single `SD_card_driver.spin2`
+- [x] Single `regression-tests/` directory for all tests
+- [x] Conditional compilation: `SD_MINIMAL`, `SD_INCLUDE_RAW`, `SD_INCLUDE_REGISTERS`, `SD_INCLUDE_SPEED`
+- [x] Feature matrix documented for minimal vs full builds
+
+### Phase 7: Per-Cog CWD & Directory Handles (2026-02-07)
+- [x] Per-cog current working directory (`cog_dir_sec[8]`)
+- [x] `openDirectory()`, `readDirectoryHandle()`, `closeDirectoryHandle()` API
+- [x] Directory handles share existing unified handle pool (no new arrays)
+- [x] Handle type guards (file ops reject directory handles and vice versa)
+- [x] searchDirectory() refactored to use local variable, no global side effects
+
+### Phase 8: FSCK Utility (2026-02-05)
+- [x] 4-pass filesystem check and repair (`SD_FAT32_fsck.spin2`)
+- [x] Pass 1: Structural validation (MBR, VBR, FSInfo, FAT headers)
+- [x] Pass 2: Directory scan with cross-reference bitmap
+- [x] Pass 3: Unreferenced cluster detection and free
+- [x] Pass 4: FAT sync (FAT2 = FAT1) and free count recalculation
+- [x] 256KB cluster bitmap supports cards up to 64GB
+
+### Phase 9: Demo Shell (2026-02-07)
+- [x] Interactive terminal shell with command parser
+- [x] Navigation: mount, dir, cd, pwd, mkdir, rmdir
+- [x] File ops: type, hexdump, copy, rename, delete, touch
+- [x] Diagnostics: audit, fsck, benchmark
+- [x] Card info: stats, card, version
+- [x] Handle-based directory enumeration
+
+### Phase 10: Bug Fixes & Error Handling (2026-02-07)
+- [x] Pre-mount operations now return `E_NOT_MOUNTED` (was returning stale 0)
+- [x] `changeDirectory()` correctly rejects files (returns `E_NOT_A_DIR`)
+- [x] Regression test coverage: 151+ tests across 6 test suites
 
 ---
 
 ## Current Status
 
-### V2 Driver Certification: PASS (129/129 tests at 320 MHz)
+### Driver Certification: PASS (151+ tests at 270 MHz)
 
 | Test Suite | Pass | Total |
 |------------|------|-------|
-| Mount | 17 | 17 |
-| File Ops | 24 | 24 |
-| Read/Write | 30 | 30 |
-| Directory | 22 | 22 |
-| Seek | 36 | 36 |
-
-### V3 Driver Certification: PASS (83/83 tests at 320 MHz)
-
-| Test Suite | Pass | Total |
-|------------|------|-------|
-| Mount | 17 | 17 |
-| File Ops | 20 | 20 |
-| Format | 46 | 46 |
+| Mount | 21 | 21 |
+| Directory | 28 | 28 |
+| File Ops | 22 | 22 |
+| Read/Write | 29 | 29 |
+| Seek | 37 | 37 |
+| Multicog | 14 | 14 |
 
 ---
 
-## Driver Versions
+## Upcoming Work
 
-| Driver | File | Purpose |
-|--------|------|---------|
-| V1 (Original) | `SD_card_driver.spin2` | Bit-bang SPI, single file API |
-| V2 (Performance) | `SD_card_driver_v2.spin2` | Smart pin SPI, streamer DMA, multi-sector |
-| V3 (Multi-Handle) | `SD_card_driver_v3.spin2` | Handle-based API, 4 simultaneous files, singleton |
+### Exhaustive Error & Exception Testing
+**Status**: Planned (see `TEST-COVERAGE-IMPROVEMENT-PLAN.md`)
 
----
+Expand regression test coverage for error paths and edge cases:
 
-## Upcoming Phases (Release Preparation)
+- [ ] Systematic invalid handle testing (all operations)
+- [ ] Disk full conditions
+- [ ] Boundary conditions (0-byte files, exact sector sizes, deep nesting)
+- [ ] CRC error injection via test hooks
+- [ ] Recovery scenarios after errors
+- [ ] Directory handle error paths
 
-### Phase 6: Exhaustive Error & Exception Testing
-**Status**: UPCOMING
+### Documentation & Release Preparation
+**Status**: In Progress
 
-Expand regression test coverage to thoroughly exercise error paths and edge cases:
-
-- [ ] Invalid handle operations (E_INVALID_HANDLE paths)
-- [ ] File not found scenarios (E_NOT_FOUND)
-- [ ] Disk full conditions (E_DISK_FULL)
-- [ ] Read-only file violations
-- [ ] Directory vs file confusion errors
-- [ ] Invalid filename handling
-- [ ] Seek beyond EOF behavior
-- [ ] Handle exhaustion recovery (open 4, close 1, reopen)
-- [ ] Cluster chain corruption detection
-- [ ] FAT boundary edge cases
-- [ ] Multi-cog error isolation (per-cog error storage)
-- [ ] Card removal during operation (if detectable)
-
-### Phase 7: Multi-Clock Validation (270 MHz)
-**Status**: UPCOMING
-
-Verify sysclk-independent operation at alternate clock speeds:
-
-- [ ] Configure test harness for 270 MHz sysclk
-- [ ] Run full V3 regression suite at 270 MHz
-- [ ] Verify SPI timing remains correct (smart pin independence)
-- [ ] Compare performance metrics (should be similar KB/s)
-- [ ] Test card initialization at 270 MHz
-- [ ] Document any clock-specific issues discovered
-- [ ] Add 270 MHz results to certification documentation
-
-### Phase 8: Documentation & Release Preparation
-**Status**: UPCOMING
-
-Prepare driver package for public release:
-
-- [ ] **API Reference**: Complete method documentation with signatures, parameters, return values
-- [ ] **Quick Start Guide**: Minimal example to mount, read, write, unmount
-- [ ] **Migration Guide**: V1 → V2 → V3 upgrade path documentation
-- [ ] **Error Code Reference**: All E_* codes with descriptions and recovery suggestions
-- [ ] **Performance Guide**: Tuning tips, multi-sector usage, buffer sizing
-- [ ] **Hardware Setup**: Pin assignments, wiring diagrams, supported cards
-- [ ] **Known Limitations**: Document any remaining constraints
-- [ ] **README.md**: Project overview suitable for GitHub/OBEX
-- [ ] **LICENSE**: Confirm MIT license text
-- [ ] **CHANGELOG.md**: Version history with breaking changes noted
-- [ ] **Clean up src/**: Remove deprecated V1/V2 if V3 is the release target
-- [ ] **OBEX submission preparation**: Package structure, metadata
+- [x] README.md with API overview and examples
+- [x] Driver Tutorial with practical examples
+- [x] Regression Testing documentation
+- [x] Card Catalog with performance data
+- [x] Utilities Guide
+- [ ] Error Code Reference: All E_* codes with descriptions
+- [ ] CHANGELOG.md: Version history
+- [ ] OBEX submission preparation
 
 ---
 
-## Future Phases (Post-Release)
+## Future Work (Post-Release)
 
-### Phase 9: Safe FSCK Utility
-**Status**: Future (post-release)
-
-Create a filesystem check/repair utility for SD cards:
-
-- [ ] Sync backup VBR with primary VBR
-- [ ] Sync backup FSInfo with primary FSInfo
-- [ ] Sync FAT2 with FAT1
-- [ ] Recalculate and fix FSInfo free cluster count
-- [ ] Update FSInfo next-free cluster hint
-- [ ] Validate and fix directory . and .. entries
-
-### Phase 10: Advanced Features
-**Status**: Future (post-release)
-
+### Advanced Features
 - [ ] Long filename (LFN) support
 - [ ] Read-ahead caching
 - [ ] Write-back caching
@@ -191,29 +171,14 @@ Create a filesystem check/repair utility for SD cards:
 | `ROADMAP.md` | High-level project timeline (this file) |
 | `TEST-COVERAGE-IMPROVEMENT-PLAN.md` | Error/exception test coverage expansion |
 
-### Archived Plans (Complete)
+### Project Documentation (in `DOCs/`)
 | Document | Purpose |
 |----------|---------|
-| `Archive/SPRINT-PLAN-driver-performance.md` | Performance sprint (Phases 1-6 complete) |
-| `Archive/PHASE1-SMARTPIN-SPI.md` | Phase 1 smart pin implementation |
-| `Archive/SPRINT-PLAN-multicog.md` | Multi-cog architecture |
-| `Archive/SPRINT-PLAN-highspeed.md` | High-speed SPI implementation |
-| `Archive/SPRINT-PLAN-card-characterization.md` | Card compatibility testing |
-
-### Validation Results
-| Document | Purpose |
-|----------|---------|
-| `VALIDATION-RESULTS-V2.md` | V2 driver test results and known issues |
-| `VALIDATION-RESULTS-V3.md` | V3 driver test results and architecture notes |
-
-### Reference
-| Document | Purpose |
-|----------|---------|
-| `V2-THEORY-OF-OPERATIONS.md` | V2 driver architecture and internals |
-| `V2-DRIVER-CERTIFICATION-STATUS.md` | Test results and certification |
-| `THEORY-OF-OPERATIONS.md` | V1 driver (historical) |
-| `BENCHMARK-RESULTS.md` | Performance measurements |
+| `SD-Card-Driver-Tutorial.md` | Complete driver tutorial with examples |
+| `REGRESSION-TESTING.md` | Test infrastructure and validation |
 | `CARD-CATALOG.md` | SD card compatibility data |
+| `UTILITIES.md` | Standalone utility programs |
+| `Utils/` | Theory-of-operations for each utility |
 
 ---
 
@@ -222,28 +187,25 @@ Create a filesystem check/repair utility for SD cards:
 ### Completed
 | Milestone | Date | Status |
 |-----------|------|--------|
-| Baseline documented | 2026-01-21 | ✅ Complete |
-| Phase 1 (Smart Pin SPI) | 2026-01-29 | ✅ Complete |
-| Phase 2 (Adaptive Timing) | 2026-01-29 | ✅ Complete |
-| Phase 3 (Multi-Sector) | 2026-01-29 | ✅ Complete |
-| Phase 4 (Format Utility) | 2026-01-28 | ✅ Complete |
-| V2 Driver Certified | 2026-01-29 | ✅ Complete (129/129 tests) |
-| Phase 5 (V3 Multi-Handle) | 2026-01-30 | ✅ Complete (83/83 tests) |
+| Baseline documented | 2026-01-21 | Done |
+| Phase 1 (Smart Pin SPI) | 2026-01-29 | Done |
+| Phase 2 (Adaptive Timing) | 2026-01-29 | Done |
+| Phase 3 (Multi-Sector) | 2026-01-29 | Done |
+| Phase 4 (Format Utility) | 2026-01-28 | Done |
+| Phase 5 (Multi-Handle API) | 2026-01-30 | Done |
+| Phase 6 (Driver Consolidation) | 2026-02-04 | Done |
+| Phase 7 (Per-Cog CWD + Dir Handles) | 2026-02-07 | Done |
+| Phase 8 (FSCK Utility) | 2026-02-05 | Done |
+| Phase 9 (Demo Shell) | 2026-02-07 | Done |
+| Phase 10 (Bug Fixes) | 2026-02-07 | Done |
 
-### Release Preparation (Upcoming)
+### Upcoming
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Phase 6 (Error/Exception Testing) | TBD | 🔲 Upcoming |
-| Phase 7 (270 MHz Validation) | TBD | 🔲 Upcoming |
-| Phase 8 (Documentation & Release) | TBD | 🔲 Upcoming |
-| **V3 Driver Public Release** | TBD | 🔲 Upcoming |
-
-### Post-Release (Future)
-| Milestone | Target | Status |
-|-----------|--------|--------|
-| Phase 9 (FSCK Utility) | TBD | ⏳ Future |
-| Phase 10 (Advanced Features) | TBD | ⏳ Future |
+| Error/Exception Testing | TBD | Planned |
+| Documentation & Release | TBD | In Progress |
+| **Public Release** | TBD | Planned |
 
 ---
 
-*Last updated: 2026-02-01*
+*Last updated: 2026-02-07*

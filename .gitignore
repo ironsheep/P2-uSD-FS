@@ -17,6 +17,9 @@ OBEX/
 # Reference files (local only)
 REF/
 
+# Archived plans (local only)
+DOCs/Plans/Archive/
+
 # Todo MCP data (local only)
 .todo-mcp/
 

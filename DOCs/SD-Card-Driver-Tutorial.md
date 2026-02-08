@@ -220,7 +220,7 @@ This flushes any pending writes and updates the FSInfo sector with the correct f
 
 ### Concept
 
-The driver maintains a "current directory" that affects all file operations. You navigate the directory tree by changing directories, and can use absolute paths (starting with `/`) or relative paths.
+The driver maintains a "current working directory" (CWD) **per cog** -- each P2 cog has its own independent CWD. This means cog A can navigate to `/LOGS` while cog B works in `/DATA` without interference. You navigate the directory tree by changing directories, and can use absolute paths (starting with `/`) or relative paths.
 
 ### Changing the Current Directory
 
@@ -303,6 +303,45 @@ PUB listDirectory() | entry_num, p_entry
 
     entry_num++
 ```
+
+### Handle-Based Directory Enumeration
+
+For more advanced use cases, the driver provides handle-based directory enumeration. This lets you enumerate a specific directory **without changing your CWD**, and supports concurrent enumeration from multiple cogs since each handle has its own state.
+
+```spin2
+PUB openDirectory(p_path) : handle
+PUB readDirectoryHandle(handle) : p_entry
+PUB closeDirectoryHandle(handle)
+```
+
+Directory handles share the same pool as file handles (`MAX_OPEN_FILES` total). Pass `"."` or `""` to enumerate the calling cog's CWD, or any path to enumerate a specific directory.
+
+**Example - List a Specific Directory Without Changing CWD:**
+```spin2
+PUB listPath(p_path) | dh, p_entry
+  dh := sd.openDirectory(p_path)
+  if dh < 0
+    debug("Cannot open directory: error ", sdec(dh))
+    return
+
+  repeat
+    p_entry := sd.readDirectoryHandle(dh)
+    if p_entry == 0
+      quit                                    ' End of directory
+
+    if sd.attributes() & $10
+      debug("[DIR]  ", zstr(sd.fileName()))
+    else
+      debug("[FILE] ", zstr(sd.fileName()), " (", udec(sd.fileSize()), " bytes)")
+
+  sd.closeDirectoryHandle(dh)
+```
+
+**When to use which:**
+| Approach | Use when... |
+|----------|-------------|
+| `readDirectory(index)` | Simple enumeration of current directory |
+| `openDirectory()` + `readDirectoryHandle()` | Enumerating a different directory without changing CWD, or concurrent enumeration from multiple cogs |
 
 ---
 
@@ -911,9 +950,12 @@ All SPI operations are performed by a dedicated worker cog. This:
 ### Directories
 | Method | Description |
 |--------|-------------|
-| `changeDirectory(name)` | Change current directory |
+| `changeDirectory(name)` | Change current directory (per-cog CWD) |
 | `newDirectory(name)` | Create new directory |
-| `readDirectory(index)` | Get entry at index |
+| `readDirectory(index)` | Get CWD entry at index |
+| `openDirectory(path)` | Open directory for enumeration, returns handle |
+| `readDirectoryHandle(handle)` | Read next entry from directory handle |
+| `closeDirectoryHandle(handle)` | Close directory handle |
 
 ### File Operations
 | Method | Description |

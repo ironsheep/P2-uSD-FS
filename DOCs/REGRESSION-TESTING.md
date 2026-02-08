@@ -203,9 +203,9 @@ PUB testExample()
 **Purpose:** Validate directory listing and file attribute operations.
 
 **Test Groups:**
-- **Directory Enumeration** - `readDirectory()` iteration
+- **Directory Enumeration** - `readDirectory()` index-based iteration
 - **File Attributes** - Name, size, date/time retrieval
-- **Directory Navigation** - `changeDirectory()` operations
+- **Directory Navigation** - `changeDirectory()` operations (per-cog CWD)
 - **Multiple Files** - Listing with many directory entries
 - **Special Entries** - Volume label, dot entries handling
 - **Directory Boundary Conditions** - Deep nesting (5 levels), empty directories, max filename (8.3)
@@ -219,6 +219,11 @@ PUB testExample()
 - Deep directory nesting (5+ levels) navigable
 - Empty directories contain only . and .. entries
 - Max 8.3 filename length accepted
+
+**Planned (not yet covered):**
+- Handle-based directory enumeration (`openDirectory()`/`readDirectoryHandle()`/`closeDirectoryHandle()`)
+- Per-cog CWD isolation (cog A in `/DIR1`, cog B in `/DIR2` simultaneously)
+- Concurrent directory enumeration via handles from multiple cogs
 
 ---
 

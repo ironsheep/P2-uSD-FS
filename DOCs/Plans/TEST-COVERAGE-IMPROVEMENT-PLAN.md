@@ -1,12 +1,13 @@
-# V3 Regression Test Coverage Improvement Plan
+# Regression Test Coverage Improvement Plan
 
-**Status:** Planned
+**Status:** Partially implemented
 **Created:** 2026-01-31
+**Updated:** 2026-02-07
 **Target:** Increase test coverage from ~40% to ~90%
 
 ## Executive Summary
 
-The V3 regression test suite has strong success-path coverage but significant gaps in error condition testing, recovery scenarios, and boundary case validation. This plan addresses those gaps systematically, prioritized from least complex to most complex.
+The regression test suite has strong success-path coverage but significant gaps in error condition testing, recovery scenarios, and boundary case validation. This plan addresses those gaps systematically, prioritized from least complex to most complex.
 
 | Phase | Category | New Files | Augments | Effort | Coverage Gain |
 |-------|----------|-----------|----------|--------|---------------|
@@ -21,31 +22,34 @@ The V3 regression test suite has strong success-path coverage but significant ga
 
 ## Current State
 
-### Error Code Coverage: 19% (3 of 16 tested)
+### Error Code Coverage: 35% (8 of 23 tested)
 
 **Currently Tested:**
-- E_FILE_NOT_FOUND (-40)
-- E_FILE_EXISTS (-41)
-- E_TOO_MANY_FILES (-90)
+- E_NOT_MOUNTED (-20) - mount_tests: openFileRead/createFileNew before mount
+- E_FILE_NOT_FOUND (-40) - file_ops_tests, directory_tests
+- E_FILE_EXISTS (-41) - file_ops_tests, directory_tests
+- E_NOT_A_DIR (-43) - directory_tests: changeDirectory() on file
+- E_NOT_A_DIR_HANDLE (-93) - handle type guards on directory handles
+- E_TOO_MANY_FILES (-90) - multihandle_tests
 - E_INVALID_HANDLE (-91) - partial
-- E_FILE_ALREADY_OPEN (-92)
+- E_FILE_ALREADY_OPEN (-92) - multihandle_tests
 
-**NOT Tested (13 codes):**
+**NOT Tested (15 codes):**
 - E_CRC_ERROR (-4), E_TIMEOUT (-1), E_NO_RESPONSE (-2), E_BAD_RESPONSE (-3)
 - E_WRITE_REJECTED (-5), E_CARD_BUSY (-6), E_IO_ERROR (-7)
 - E_INIT_FAILED (-21), E_NOT_FAT32 (-22), E_BAD_SECTOR_SIZE (-23)
-- E_NOT_A_FILE (-42), E_NOT_A_DIR (-43), E_DISK_FULL (-60), E_NO_LOCK (-64)
-- E_NOT_MOUNTED (-20), E_FILE_NOT_OPEN (-45), E_END_OF_FILE (-46)
+- E_NOT_A_FILE (-42), E_DISK_FULL (-60), E_NO_LOCK (-64)
+- E_FILE_NOT_OPEN (-45), E_END_OF_FILE (-46)
 
 ---
 
-## Phase 1: Parameter Validation (Lowest Complexity)
+## Phase 1: Parameter Validation (Lowest Complexity) -- PARTIALLY COMPLETE
 
 **Effort:** 2-3 hours | **Coverage gain:** +15%
 
 No driver changes required - just call existing APIs with invalid parameters.
 
-### 1.1 Augment: `SD_RT_multihandle_tests.spin2`
+### 1.1 Augment: `SD_RT_multihandle_tests.spin2` -- TODO
 
 Add tests for invalid handle parameters:
 
@@ -63,38 +67,36 @@ Add tests for invalid handle parameters:
 
 **Tests added: 9**
 
-### 1.2 Augment: `SD_RT_file_ops_tests.spin2`
+### 1.2 Augment: `SD_RT_file_ops_tests.spin2` -- TODO (E_NOT_A_FILE)
 
 Add tests for type mismatches:
 
-| Test | Action | Expected |
-|------|--------|----------|
-| openFile on directory | Open "RTDIR1" as file | E_NOT_A_FILE (-42) |
-| changeDirectory on file | chdir to "README.TXT" | E_NOT_A_DIR (-43) |
-| openFileForWrite non-existent | Open missing file | E_FILE_NOT_FOUND (-40) |
-| deleteFile non-existent | Delete missing file | E_FILE_NOT_FOUND (-40) |
-| renameFile non-existent | Rename missing file | E_FILE_NOT_FOUND (-40) |
+| Test | Action | Expected | Status |
+|------|--------|----------|--------|
+| openFile on directory | Open "RTDIR1" as file | E_NOT_A_FILE (-42) | TODO |
+| changeDirectory on file | chdir to "FILE1.TXT" | E_NOT_A_DIR (-43) | DONE (directory_tests) |
+| openFileForWrite non-existent | Open missing file | E_FILE_NOT_FOUND (-40) | TODO |
+| deleteFile non-existent | Delete missing file | E_FILE_NOT_FOUND (-40) | TODO |
+| renameFile non-existent | Rename missing file | E_FILE_NOT_FOUND (-40) | TODO |
 
-**Tests added: 5**
+**Tests remaining: 4** (changeDirectory on file moved to directory_tests, verified passing)
 
-### 1.3 Augment: `SD_RT_mount_tests.spin2`
+### 1.3 Augment: `SD_RT_mount_tests.spin2` -- DONE
 
-Add pre-mount error validation:
+Pre-mount error validation:
 
-| Test | Action | Expected |
-|------|--------|----------|
-| openFile before mount | Call without mount | E_NOT_MOUNTED (-20) |
-| createFileNew before mount | Call without mount | E_NOT_MOUNTED (-20) |
-| readSectorRaw before init | Call without init | E_NOT_MOUNTED (-20) |
-| changeDirectory before mount | Call without mount | E_NOT_MOUNTED (-20) |
+| Test | Action | Expected | Status |
+|------|--------|----------|--------|
+| openFileRead before mount | Call without mount | E_NOT_MOUNTED (-20) | DONE |
+| createFileNew before mount | Call without mount | E_NOT_MOUNTED (-20) | DONE |
+| readSectorRaw before init | Call without init | false (0) | DONE |
+| changeDirectory before mount | Call without mount | false | DONE |
 
-**Tests added: 4**
+**Driver fix applied:** `send_command()` and `fs_worker` mode enforcement now set `pb_data0 := E_NOT_MOUNTED` on early return, so handle-returning methods correctly propagate the error code.
 
-### Phase 1 Totals
-- New test files: 0
-- Augmented files: 3
-- New test cases: 18
-- Error codes covered: +4 (E_INVALID_HANDLE systematic, E_NOT_A_FILE, E_NOT_A_DIR, E_NOT_MOUNTED)
+### Phase 1 Remaining Work
+- 1.1: 9 invalid handle tests (multihandle_tests)
+- 1.2: 4 type mismatch tests (file_ops_tests)
 
 ---
 
@@ -165,16 +167,16 @@ Dedicated file for error conditions requiring specific setup:
 
 **Tests added: 5**
 
-### 3.3 Augment: `SD_RT_directory_tests.spin2`
+### 3.3 Augment: `SD_RT_directory_tests.spin2` -- PARTIALLY DONE
 
-| Test | Description |
-|------|-------------|
-| Deep nesting (5 levels) | A/B/C/D/E navigation |
-| Many files (50) | Directory with 50 files |
-| Empty directory | Verify listing behavior |
-| Max filename (8.3) | "12345678.123" |
+| Test | Description | Status |
+|------|-------------|--------|
+| Deep nesting (5 levels) | A/B/C/D/E navigation | DONE (directory_tests) |
+| Many files (50) | Directory with 50 files | TODO |
+| Empty directory | Verify listing behavior | DONE (directory_tests) |
+| Max filename (8.3) | "12345678.123" | DONE (directory_tests) |
 
-**Tests added: 4**
+**Tests remaining: 1** (many files test)
 
 ### 3.4 Augment: `SD_RT_raw_sector_tests.spin2`
 
@@ -200,7 +202,7 @@ Dedicated file for error conditions requiring specific setup:
 
 ### 4.1 Driver Modification: Test Hooks
 
-Add to `SD_card_driver_v3.spin2`:
+Add to `SD_card_driver.spin2`:
 
 ```spin2
 CON '' test hooks (regression testing only)
@@ -309,24 +311,26 @@ Modify `readSector()` to optionally force CRC mismatch and return E_CRC_ERROR.
 | E_WRITE_REJECTED (-5) | :x: | :white_check_mark: Phase 4 |
 | E_CARD_BUSY (-6) | :x: | :x: (timing) |
 | E_IO_ERROR (-7) | :x: | :x: (hardware) |
-| E_NOT_MOUNTED (-20) | :warning: | :white_check_mark: Phase 1 |
+| E_NOT_MOUNTED (-20) | :white_check_mark: | :white_check_mark: (done) |
 | E_INIT_FAILED (-21) | :x: | :x: (bad card) |
 | E_NOT_FAT32 (-22) | :x: | :x: (bad card) |
 | E_BAD_SECTOR_SIZE (-23) | :x: | :x: (bad card) |
-| E_FILE_NOT_FOUND (-40) | :white_check_mark: | :white_check_mark: Phase 1 |
+| E_FILE_NOT_FOUND (-40) | :white_check_mark: | :white_check_mark: |
 | E_FILE_EXISTS (-41) | :white_check_mark: | :white_check_mark: |
 | E_NOT_A_FILE (-42) | :x: | :white_check_mark: Phase 1 |
-| E_NOT_A_DIR (-43) | :x: | :white_check_mark: Phase 1 |
+| E_NOT_A_DIR (-43) | :white_check_mark: | :white_check_mark: (done) |
 | E_FILE_NOT_OPEN (-45) | :x: | :white_check_mark: Phase 2 |
 | E_END_OF_FILE (-46) | :warning: | :white_check_mark: Phase 2 |
 | E_DISK_FULL (-60) | :x: | :x: (full card) |
 | E_NO_LOCK (-64) | :x: | :x: (multi-cog) |
-| E_TOO_MANY_FILES (-90) | :white_check_mark: | :white_check_mark: Phase 2 |
+| E_TOO_MANY_FILES (-90) | :white_check_mark: | :white_check_mark: |
 | E_INVALID_HANDLE (-91) | :warning: | :white_check_mark: Phase 1 |
 | E_FILE_ALREADY_OPEN (-92) | :white_check_mark: | :white_check_mark: |
+| E_NOT_A_DIR_HANDLE (-93) | :white_check_mark: | :white_check_mark: (done) |
 
-**Testable codes: 14 of 22 (64%)**
-**After plan: 12 of 14 testable covered (86%)**
+**Testable codes: 15 of 23 (65%)**
+**Currently tested: 8 of 15 (53%)**
+**After plan: 13 of 15 testable covered (87%)**
 
 ---
 
@@ -355,6 +359,7 @@ Modify `readSector()` to optionally force CRC mismatch and return E_CRC_ERROR.
 
 ## References
 
-- Audit performed: 2026-01-31
-- Driver version: SD_card_driver_v3.spin2 with GETCRC-based CRC
-- Test framework: SD_RT_utilities.spin2
+- Audit performed: 2026-01-31, updated 2026-02-07
+- Driver: `src/SD_card_driver.spin2` (unified driver with GETCRC-based CRC)
+- Test framework: `regression-tests/SD_RT_utilities.spin2`
+- Test runner: `tools/run_test.sh` (execute from `tools/` directory)

@@ -66,24 +66,19 @@ PUB go() | result, pLabel, freeSpace, handle
 
     ' ----------------------------------
     ' TEST GROUP: Pre-Mount Error Validation (V3 Handle API)
-    ' NOTE: Driver currently returns 0 (not E_NOT_MOUNTED) for pre-mount operations
-    ' See DRIVER-CHANGES-NEEDED.md for enhancement to return proper error codes
     ' ----------------------------------
     utils.startTestGroup(@"Pre-Mount Error Validation (V3 Handle API)")
 
-    utils.startTest(@"openFileRead() before mount fails gracefully")
+    utils.startTest(@"openFileRead() before mount returns E_NOT_MOUNTED")
     handle := sd.openFileRead(@testfile1)
-    ' Driver returns 0 (not valid handle, not E_NOT_MOUNTED)
-    utils.evaluateSingleValue(handle, @"openFileRead()", 0)
+    utils.evaluateSingleValue(handle, @"openFileRead()", E_NOT_MOUNTED)
 
-    utils.startTest(@"createFileNew() before mount fails gracefully")
+    utils.startTest(@"createFileNew() before mount returns E_NOT_MOUNTED")
     handle := sd.createFileNew(@testfile1)
-    ' Driver returns 0 (not valid handle, not E_NOT_MOUNTED)
-    utils.evaluateSingleValue(handle, @"createFileNew()", 0)
+    utils.evaluateSingleValue(handle, @"createFileNew()", E_NOT_MOUNTED)
 
-    utils.startTest(@"readSectorRaw() before mount fails gracefully")
+    utils.startTest(@"readSectorRaw() before mount returns false")
     result := sd.readSectorRaw(0, @sectorBuffer)
-    ' Driver returns 0 (success code, but no data read)
     utils.evaluateSingleValue(result, @"readSectorRaw()", 0)
 
     utils.startTest(@"changeDirectory() before mount returns false")

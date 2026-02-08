@@ -14,13 +14,15 @@ This project provides a robust, high-performance SD card driver for the P2 micro
 
 - **FAT32 Filesystem Support**: Full read/write access to FAT32-formatted SD cards
 - **High-Performance SPI**: Smart pin hardware acceleration with streamer DMA
-- **Multi-File Handles**: Up to 4 files open simultaneously (3 read + 1 write)
+- **Multi-File Handles**: Up to 4 simultaneous file and directory handles (configurable)
 - **Cross-OS Compatibility**: Works with cards formatted on Windows, macOS, and Linux
-- **SDHC/SDXC Support**: Block-addressed cards up to 32GB (FAT32 limit)
+- **SDHC/SDXC Support**: Block-addressed cards tested up to 128GB (reformatted as FAT32)
 - **CRC Validation**: Hardware-accelerated CRC-16 on all data transfers
-- **Directory Operations**: Create, navigate, and enumerate directories
+- **Directory Operations**: Create, navigate, and enumerate directories (index-based and handle-based)
 - **File Operations**: Create, open, read, write, seek, rename, delete
 - **Multi-Cog Safe**: Dedicated worker cog with hardware lock serialization
+- **Per-Cog Working Directory**: Each cog maintains its own CWD for safe concurrent navigation
+- **Regression Tested**: 151+ automated tests across 6 test suites verify mount, file operations, directory navigation, read/write, seek, and multi-cog scenarios
 
 ## Hardware Requirements
 
@@ -95,6 +97,7 @@ PUB copyFile(src_name, dest_name) | src_h, dest_h, buf[128], bytes
 
 ### Directory Navigation
 
+**Index-based** (enumerates calling cog's CWD):
 ```spin2
 PUB listDirectory() | entry, p_entry
     entry := 0
@@ -108,6 +111,26 @@ PUB listDirectory() | entry, p_entry
             debug("[FILE] ", zstr(sd.fileName()), " ", udec(sd.fileSize()), " bytes")
 ```
 
+**Handle-based** (enumerate any directory without changing CWD):
+```spin2
+PUB listPath(p_path) | dh, p_entry
+    dh := sd.openDirectory(p_path)
+    if dh < 0
+        debug("Cannot open directory")
+        return
+    repeat
+        p_entry := sd.readDirectoryHandle(dh)
+        if p_entry == 0
+            quit
+        if sd.attributes() & $10
+            debug("[DIR]  ", zstr(sd.fileName()))
+        else
+            debug("[FILE] ", zstr(sd.fileName()), " ", udec(sd.fileSize()), " bytes")
+    sd.closeDirectoryHandle(dh)
+```
+
+Use `readDirectory()` for simple CWD listing. Use `openDirectory()`/`readDirectoryHandle()`/`closeDirectoryHandle()` when you need to enumerate a specific path without changing CWD, or when multiple cogs enumerate concurrently.
+
 ## Documentation
 
 - **[Driver Tutorial](DOCs/SD-Card-Driver-Tutorial.md)** - Complete guide with practical examples
@@ -119,40 +142,54 @@ PUB listDirectory() | entry, p_entry
 ## Project Structure
 
 ```
-P2-SD-Card-Driver/
-├── src/                        # Driver and utilities
+P2-uSD-Study/
+├── src/                        # Driver and application source
 │   ├── SD_card_driver.spin2        # The SD card driver
-│   ├── UTILS/                      # Utility programs
+│   ├── UTILS/                      # Standalone utility programs
 │   │   ├── SD_format_utility.spin2     # FAT32 formatter
-│   │   ├── SD_card_characterize.spin2  # Card register reader
-│   │   ├── SD_speed_characterize.spin2 # Speed testing
-│   │   ├── SD_FAT32_audit.spin2        # Filesystem validator
-│   │   └── SD_FAT32_fsck.spin2         # Filesystem check & repair
-│   └── DEMO/                       # Demo application
-│       └── SD_demo_shell.spin2         # Interactive terminal shell
+│   │   ├── SD_card_characterize.spin2  # Card register reader (CID/CSD/SCR)
+│   │   ├── SD_speed_characterize.spin2 # Maximum SPI speed tester
+│   │   ├── SD_FAT32_audit.spin2        # Filesystem validator (read-only)
+│   │   ├── SD_FAT32_fsck.spin2         # Filesystem check & repair
+│   │   └── SD_performance_benchmark.spin2  # Read/write throughput bench
+│   └── DEMO/                       # Interactive demo application
+│       └── SD_demo_shell.spin2         # Terminal shell (dir, cd, type, etc.)
 │
-├── regression-tests/           # Test suite
-│   ├── SD_RT_*.spin2               # Test files
-│   ├── SD_RT_utilities.spin2       # Test framework
-│   └── TestCard/                   # Test card validation
+├── regression-tests/           # Regression test suite
+│   ├── SD_RT_*.spin2               # Test files (mount, file ops, seek, etc.)
+│   └── SD_RT_utilities.spin2       # Shared test framework
 │
 ├── tools/                      # Build and test scripts
-│   └── run_test.sh                 # Test runner
+│   ├── run_test.sh                 # Test runner (compile + download + capture)
+│   └── logs/                       # Test output logs
 │
-└── DOCs/                       # Documentation
+├── DOCs/                       # Documentation, tutorials, analysis
+└── REF/                        # Reference material and external code
 ```
 
 ## Performance
 
-Typical performance at 270 MHz sysclk with 25 MHz SPI:
+Measured performance at 320 MHz sysclk with 25 MHz SPI, smart pin hardware acceleration, and streamer DMA:
 
-| Operation | Throughput |
-|-----------|------------|
-| Sequential Read | 200-300 KB/sec |
-| Sequential Write | 150-250 KB/sec |
-| Multi-sector Read | 400+ KB/sec |
+| Operation | PNY 16GB | Gigastone 32GB | SanDisk Extreme 64GB |
+|-----------|----------|----------------|----------------------|
+| Sequential Read (256KB) | 850 KB/s | 1,339 KB/s | 1,467 KB/s |
+| Multi-sector Write (32KB) | 216 KB/s | 325 KB/s | 425 KB/s |
+| Single-sector Write (512B) | 52 KB/s | 85 KB/s | 90 KB/s |
+| Mount | 139 ms | 138 ms | 152 ms |
 
-Performance varies by card. See [Card Catalog](DOCs/CARD-CATALOG.md) for tested cards.
+Internal card throughput (single-sector reads at 25 MHz SPI) varies widely by card:
+
+| Card | Throughput | Class |
+|------|------------|-------|
+| Lexar V30 U3 64GB | 1,059 KB/s | HIGH |
+| Gigastone Camera Plus 64GB | 944 KB/s | HIGH |
+| SanDisk Extreme PRO 64GB | 866 KB/s | HIGH |
+| Samsung EVO Select 128GB | 783 KB/s | HIGH |
+| Gigastone High Endurance 16GB | 368 KB/s | MEDIUM |
+| PNY 16GB (Phison) | 31 KB/s | LOW |
+
+Performance varies significantly by card controller, not just speed class rating. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization of 15 tested cards and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for file-level throughput measurements.
 
 ## API Overview
 
@@ -176,9 +213,12 @@ Performance varies by card. See [Card Catalog](DOCs/CARD-CATALOG.md) for tested 
 ### Directory Operations
 | Method | Description |
 |--------|-------------|
-| `changeDirectory(pPath)` | Navigate to directory |
+| `changeDirectory(pPath)` | Navigate to directory (per-cog CWD) |
 | `newDirectory(pName)` | Create new directory |
-| `readDirectory(entry)` | Enumerate directory entries |
+| `readDirectory(entry)` | Enumerate CWD entries by index |
+| `openDirectory(pPath)` | Open directory for enumeration, returns handle |
+| `readDirectoryHandle(handle)` | Read next entry from directory handle |
+| `closeDirectoryHandle(handle)` | Close directory handle |
 | `deleteFile(pName)` | Delete file or empty directory |
 | `rename(pOld, pNew)` | Rename file or directory |
 
@@ -215,46 +255,64 @@ SD:/> help
   del <file>   Delete file (alias: rm)
   stats        Show filesystem statistics
   card         Show card identification
+  audit        Filesystem integrity check
+  fsck         Filesystem check & repair
   benchmark    Quick speed test
 ```
 
-Connect at 230,400 baud to use the shell.
+Connect at 2,000,000 baud (2 Mbit) to use the shell.
+
+**Compile from the `src/DEMO/` directory:**
+
+```bash
+cd src/DEMO/
+pnut-ts -d -I .. SD_demo_shell.spin2
+```
+
+See [`src/DEMO/README.md`](src/DEMO/README.md) for full build and usage documentation.
 
 ## Testing
 
-See [REGRESSION-TESTING.md](REGRESSION-TESTING.md) for complete test documentation.
+The driver is validated by **151+ automated regression tests** across 6 test suites, all running on real P2 hardware with actual SD cards:
 
-Run tests from the `tools/` directory:
+| Test Suite | Tests | Coverage |
+|------------|-------|----------|
+| Mount | 21 | Card init, mount/unmount, pre-mount error handling |
+| File Operations | 22 | Create, open, read, write, rename, delete |
+| Directory | 28 | Navigation, nesting (5 levels), handle enumeration |
+| Read/Write | 29 | Sector boundaries, multi-sector, large files |
+| Seek | 37 | Random access, boundary conditions, cluster chain traversal |
+| Multi-Cog | 14 | Concurrent access, per-cog CWD isolation, handle sharing |
+
+Tests compile with `pnut-ts`, download to P2, and capture debug output automatically. Run from the `tools/` directory:
 
 ```bash
 cd tools/
 ./run_test.sh ../regression-tests/SD_RT_mount_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_file_ops_tests.spin2
 ./run_test.sh ../regression-tests/SD_RT_read_write_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_directory_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_seek_tests.spin2
+./run_test.sh ../regression-tests/SD_RT_multicog_tests.spin2
 ```
+
+See [REGRESSION-TESTING.md](DOCs/REGRESSION-TESTING.md) for complete test documentation.
 
 ## Known Limitations
 
-- 8.3 filename format (no long filename support)
-- FAT32 only (no FAT12/FAT16/exFAT)
-- SPI mode only (no SD native mode)
-- Maximum 32GB cards (FAT32 specification limit)
+- **8.3 filenames only** - no long filename (LFN) support
+- **FAT32 only** - no FAT12, FAT16, or exFAT; cards >32GB ship as exFAT and must be reformatted (use the included format utility)
+- **SPI mode only** - no SD native 4-bit bus mode
+- **25 MHz SPI maximum** - CMD6 High Speed mode switch fails on all tested cards
 
 ## Credits
 
 - **Original Driver Concept**: Chris Gadd (Parallax OBEX)
 - **Driver Development**: Stephen M. Moraco, Iron Sheep Productions
-- **Architecture & Testing**: Claude (Anthropic)
 
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
-
-## Author
-
-Stephen M. Moraco
-Iron Sheep Productions, LLC
-stephen@ironsheep.biz
 
 ---
 
