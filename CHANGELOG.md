@@ -7,60 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-01-16
+## [1.0.0] - 2026-02-09
 
-### Added
+Initial release.
 
-- **SD Card Driver** (`SD_card_driver.spin2`)
-  - Full FAT32 filesystem support for read/write operations
-  - Cross-OS compatibility (Windows, macOS, Linux formatted cards)
-  - SDHC/SDXC support with block addressing up to 2TB
-  - Directory operations: create, navigate, enumerate
-  - File operations: create, open, read, write, seek, rename, delete
-  - Multi-cluster file support for files larger than cluster size
-  - Dual FAT mirroring for FAT32 compliance
-  - FSInfo sector updates for accurate free space reporting
-  - Volume label support
-  - Low-level methods for formatting: `initCardOnly()`, `cardSizeSectors()`, `readSectorRaw()`, `writeSectorRaw()`
-
-- **FAT32 Format Utility** (`SD_format_utility.spin2`)
-  - Format SD cards with FAT32 filesystem directly from P2
-  - Default volume label "P2-XFER" or custom labels up to 11 characters
-  - Proper partition alignment (4MB) for modern SD cards
-  - Creates MBR, VBR, FSInfo, backup boot sector, dual FAT tables, and root directory
-  - Automatic cluster size selection based on card capacity
-
-- **Regression Test Suite**
-  - `SD_RT_mount_tests.spin2` - Mount/unmount cycle tests
-  - `SD_RT_file_ops_tests.spin2` - File create/open/close/delete/rename tests
-  - `SD_RT_read_write_tests.spin2` - Data read/write pattern tests
-  - `SD_RT_directory_tests.spin2` - Directory operation tests
-  - `SD_RT_seek_tests.spin2` - Random access and seek tests
-  - `SD_RT_format_tests.spin2` - FAT32 format verification tests
-  - `SD_RT_utilities.spin2` - Shared test framework utilities
-
-- **Test Card Validation**
-  - `SD_RT_testcard_validation.spin2` - Cross-OS compatibility validation
-  - `SD_Test_Suite.spin2` - Complete test suite runner
-  - Test card specification for reproducible testing
-
-- **Documentation**
-  - API Reference documentation
-  - Theory of Operations
-  - FAT32 Compliance Analysis
-  - SPI Bus State Analysis
-
-### Fixed
-
-- FAT32 compliance: Dual FAT table mirroring (both FAT1 and FAT2 updated on writes)
-- FAT32 compliance: FSInfo sector properly updated on unmount
-- FAT32 compliance: High 4 bits of FAT entries preserved during allocation
-- Proper volume label reading from VBR
+- FAT32-compliant SD card filesystem driver for the Parallax Propeller 2
+- Smart pin SPI with streamer DMA for hardware-accelerated transfers
+- Dedicated worker cog with hardware lock serialization
+- Multi-file handle system (up to 4 simultaneous file and directory handles)
+- Per-cog current working directory for safe multi-cog navigation
+- Handle-based file API: open, read, write, seek, close
+- Handle-based directory enumeration API
+- Directory operations: create, navigate, enumerate, delete, rename
+- Low-level raw sector read/write and multi-sector (CMD18/CMD25) bulk transfers
+- Hardware-accelerated CRC-16 validation on all data transfers
+- FAT32 format utility with cross-OS compatibility (Windows, macOS, Linux)
+- FSCK utility: 4-pass filesystem check and repair
+- FAT32 audit utility: read-only filesystem validation
+- Card characterization, SPI speed testing, and performance benchmark utilities
+- Interactive demo shell with DOS and Unix-style commands
+- 251 automated regression tests across 11 test suites
+- Documentation: tutorial, theory of operations, card catalog, benchmark results
 
 ### Credits
 
-- Original driver by Chris Gadd (OB4269 from Parallax OBEX)
-- FAT32 compliance fixes by Stephen M. Moraco, Iron Sheep Productions
+- Original driver concept by Chris Gadd (OB4269 from Parallax OBEX)
+- Driver development by Stephen M. Moraco, Iron Sheep Productions
 - Testing and documentation assistance by Claude (Anthropic)
 
 [Unreleased]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v1.0.0...HEAD

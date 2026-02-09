@@ -15,32 +15,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnut-ts compiler
-        run: npm install -g pnut-ts
-
-      - name: Compile to verify build
+      - name: Parse version from tag
+        id: version
         run: |
-          pnut-ts src/SD_card_driver.spin2
-          pnut-ts -I src src/SD_format_utility.spin2
-
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          TAG="${GITHUB_REF#refs/tags/v}"
+          # Parse major.minor.patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$TAG"
+          # Format as 2-digit each: v1.0.0 -> 010000, v0.11.22 -> 001122
+          VERSION_CODE=$(printf "%02d%02d%02d" "$MAJOR" "$MINOR" "$PATCH")
+          FOLDER_NAME="sd-card-driver-${VERSION_CODE}"
+          echo "TAG=v${TAG}" >> $GITHUB_OUTPUT
+          echo "VERSION_CODE=${VERSION_CODE}" >> $GITHUB_OUTPUT
+          echo "FOLDER_NAME=${FOLDER_NAME}" >> $GITHUB_OUTPUT
 
       - name: Extract release notes from CHANGELOG
         id: changelog
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          # Remove 'v' prefix for changelog lookup
-          VERSION_NUM="${VERSION#v}"
-
-          # Extract the section for this version from CHANGELOG.md
-          # Finds content between ## [VERSION] and the next ## [ or end of file
+          TAG="${{ steps.version.outputs.TAG }}"
+          VERSION_NUM="${TAG#v}"
           NOTES=$(awk -v ver="$VERSION_NUM" '
             /^## \[/ {
               if (found) exit
@@ -49,35 +41,83 @@ jobs:
             }
             found { print }
           ' CHANGELOG.md)
-
-          # Handle multi-line output for GitHub Actions
           echo "NOTES<<EOF" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create release archive
+      - name: Build release package
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          ARCHIVE_NAME="P2-uSD-FileSystem-${VERSION}"
+          DEST="${{ steps.version.outputs.FOLDER_NAME }}"
 
-          # Create release folder with all files at root level
-          mkdir -p "${ARCHIVE_NAME}"
-          cp README.md "${ARCHIVE_NAME}/"
-          cp CHANGELOG.md "${ARCHIVE_NAME}/"
-          cp LICENSE "${ARCHIVE_NAME}/"
-          cp src/SD_card_driver.spin2 "${ARCHIVE_NAME}/"
-          cp src/SD_format_utility.spin2 "${ARCHIVE_NAME}/"
+          # Root documentation
+          mkdir -p "${DEST}"
+          cp src/README.md "${DEST}/README.md"
+          cp LICENSE "${DEST}/"
+          cp CHANGELOG.md "${DEST}/"
+          cp DOCs/BENCHMARK-RESULTS.md "${DEST}/"
+          cp DOCs/CARD-CATALOG.md "${DEST}/"
+          cp DOCs/FAT32-API-CONCEPTS-REFERENCE.md "${DEST}/"
+          cp DOCs/SD-CARD-DRIVER-THEORY.md "${DEST}/"
+          cp DOCs/SD-CARD-DRIVER-TUTORIAL.md "${DEST}/"
+          cp DOCs/SD-CARD-SPI-COMPATIBILITY.md "${DEST}/"
 
-          # Create zip archive
-          zip -r "${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
+          # src/ - driver
+          mkdir -p "${DEST}/src"
+          cp src/SD_card_driver.spin2 "${DEST}/src/"
 
-          echo "ARCHIVE_NAME=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
+          # src/DEMO/ - demo shell and support files
+          mkdir -p "${DEST}/src/DEMO"
+          cp src/DEMO/README.md "${DEST}/src/DEMO/"
+          cp src/DEMO/SD_demo_shell.spin2 "${DEST}/src/DEMO/"
+          cp src/DEMO/isp_serial_singleton.spin2 "${DEST}/src/DEMO/"
+          cp src/DEMO/isp_mem_strings.spin2 "${DEST}/src/DEMO/"
+          cp src/DEMO/jm_nstr.spin2 "${DEST}/src/DEMO/"
+
+          # src/UTILS/ - utility programs
+          mkdir -p "${DEST}/src/UTILS"
+          cp src/UTILS/README.md "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_format_utility.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_format_card.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_card_characterize.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_speed_characterize.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_frequency_characterize.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_performance_benchmark.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_FAT32_audit.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/SD_FAT32_fsck.spin2 "${DEST}/src/UTILS/"
+
+          # regression-tests/ - test framework and test files
+          mkdir -p "${DEST}/regression-tests"
+          cp regression-tests/README.md "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_utilities.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_mount_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_file_ops_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_read_write_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_directory_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_seek_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_format_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_multiblock_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_multicog_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_multihandle_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_raw_sector_tests.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/SD_RT_error_handling_tests.spin2 "${DEST}/regression-tests/"
+
+          # regression-tests/TestCard/ - test card validation and data files
+          mkdir -p "${DEST}/regression-tests/TestCard"
+          cp regression-tests/TestCard/SD_RT_testcard_validation.spin2 "${DEST}/regression-tests/TestCard/"
+          cp regression-tests/TestCard/TEST-CARD-SPECIFICATION.md "${DEST}/regression-tests/TestCard/"
+          cp -r regression-tests/TestCard/TESTROOT "${DEST}/regression-tests/TestCard/TESTROOT"
+
+          # Remove any macOS artifacts
+          find "${DEST}" -name '.DS_Store' -delete
+
+          # Create zip
+          zip -r "${DEST}.zip" "${DEST}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          name: Release ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.TAG }}
           body: ${{ steps.changelog.outputs.NOTES }}
-          files: ${{ env.ARCHIVE_NAME }}
+          files: ${{ steps.version.outputs.FOLDER_NAME }}.zip
           draft: false
           prerelease: false

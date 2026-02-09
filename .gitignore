@@ -20,6 +20,9 @@ REF/
 # Archived plans (local only)
 DOCs/Plans/Archive/
 
+# Release staging (local only)
+RELEASE-CHECK/
+
 # Todo MCP data (local only)
 .todo-mcp/
 

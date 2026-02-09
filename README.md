@@ -135,7 +135,7 @@ Use `readDirectory()` for simple CWD listing. Use `openDirectory()`/`readDirecto
 
 - **[Driver Theory of Operations](DOCs/SD-CARD-DRIVER-THEORY.md)** - Architecture, handle system, SPI, and internals
 - **[Driver Tutorial](DOCs/SD-CARD-DRIVER-TUTORIAL.md)** - Complete guide with practical examples
-- **[Regression Testing](DOCs/REGRESSION-TESTING.md)** - Test infrastructure and validation
+- **[Regression Testing](regression-tests/README.md)** - Test infrastructure and validation
 - **[Card Catalog](DOCs/CARD-CATALOG.md)** - Tested SD cards with performance data
 - **[Utilities Guide](DOCs/UTILITIES.md)** - Standalone utility programs
 - **[Utility Internals](DOCs/Utils/)** - Theory of operations for each utility
@@ -298,7 +298,7 @@ cd tools/
 ./run_test.sh ../regression-tests/SD_RT_multicog_tests.spin2
 ```
 
-See [REGRESSION-TESTING.md](DOCs/REGRESSION-TESTING.md) for complete test documentation.
+See [REGRESSION-TESTING.md](regression-tests/README.md) for complete test documentation.
 
 ## Known Limitations
 
@@ -309,7 +309,7 @@ See [REGRESSION-TESTING.md](DOCs/REGRESSION-TESTING.md) for complete test docume
 
 ## Credits
 
-- **Original Driver Concept**: Chris Gadd (Parallax OBEX)
+- **Original Driver Concept**: Chris Gadd (OB4269 from Parallax OBEX)
 - **Driver Development**: Stephen M. Moraco, Iron Sheep Productions
 
 ## License

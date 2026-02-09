@@ -11,24 +11,25 @@ An interactive command-line shell for exploring the P2 SD card filesystem driver
 | `isp_mem_strings.spin2` | In-memory string formatting utilities |
 | `jm_nstr.spin2` | Number-to-string conversion utilities |
 
-The shell also uses `SD_card_driver.spin2` from the parent `src/` directory (included via `-I ..`).
+The shell also uses `SD_card_driver.spin2` from the parent directory (included via `-I ..`).
 
-## Building
+## Building and Running
 
-From the `src/DEMO/` directory:
+### Prerequisites
+
+- **pnut-ts** and **pnut-term-ts** - See detailed installation instructions for **[macOS](https://github.com/ironsheep/P2-vscode-langserv-extension/blob/main/TASKS-User-macOS.md#installing-pnut-term-ts-on-macos)**, **[Windows](https://github.com/ironsheep/P2-vscode-langserv-extension/blob/main/TASKS-User-win.md#installing-pnut-term-ts-on-windows)**, and **[Linux/RPi](https://github.com/ironsheep/P2-vscode-langserv-extension/blob/main/TASKS-User-RPi.md#installing-pnut-term-ts-on-rpilinux)**
+- Parallax Propeller 2 (P2 Edge or P2 board with microSD add-on) connected via USB
+
+### Compile and Run
+
+From this `DEMO/` directory:
 
 ```bash
-cd src/DEMO/
 pnut-ts -d -I .. SD_demo_shell.spin2
+pnut-term-ts -r SD_demo_shell.bin
 ```
 
-The `-I ..` flag tells the compiler to find `SD_card_driver.spin2` in the parent `src/` directory.
-
-To download to the P2:
-
-```bash
-pnut-term-ts SD_demo_shell.bin
-```
+The `-I ..` flag tells the compiler to find `SD_card_driver.spin2` in the parent directory.
 
 ## Terminal Setup
 
@@ -234,16 +235,28 @@ SD:/> bench
 
 ## Hardware Configuration
 
-Default pin assignments for the P2 Edge Module:
+The microSD add-on board connects to any 8-pin header group on the P2. Pins are defined as offsets from the base pin of the group:
 
-| Signal | Pin | Direction |
-|--------|-----|-----------|
-| CS (DAT3) | P60 | Output |
-| SCK (CLK) | P61 | Output |
-| MOSI (CMD) | P59 | Output |
-| MISO (DAT0) | P58 | Input |
+| Offset | Signal | Description |
+|--------|--------|-------------|
+| +5 | CLK (SCK) | Serial Clock |
+| +4 | CS (DAT3) | Chip Select |
+| +3 | MOSI (CMD) | Master Out, Slave In |
+| +2 | MISO (DAT0) | Master In, Slave Out |
+| +1 | Insert Detect | Active low when card inserted (not used by driver) |
 
-To change pins, edit the `CON { SD card pins }` section in `SD_demo_shell.spin2`.
+The default configuration uses base pin 56 (P2 Edge Module):
+
+```spin2
+CON
+    SD_BASE = 56
+    SD_SCK  = SD_BASE + 5    ' P61 - Serial Clock
+    SD_CS   = SD_BASE + 4    ' P60 - Chip Select
+    SD_MOSI = SD_BASE + 3    ' P59 - Master Out Slave In
+    SD_MISO = SD_BASE + 2    ' P58 - Master In Slave Out
+```
+
+To use a different 8-pin group, change `SD_BASE` in the `CON` section of `SD_demo_shell.spin2`.
 
 ## Architecture
 

@@ -4,7 +4,7 @@
 
 This tutorial shows how to perform common filesystem operations using the SD card driver. If you're familiar with standard FAT32 APIs (FatFs, POSIX file I/O), this guide maps those concepts to our driver's interface.
 
-> **Reference:** For background on FAT32 internals and standard API concepts, see [FAT32-API-CONCEPTS-REFERENCE.md](Reference/FAT32-API-CONCEPTS-REFERENCE.md)
+> **Reference:** For background on FAT32 internals and standard API concepts, see [FAT32-API-CONCEPTS-REFERENCE.md](FAT32-API-CONCEPTS-REFERENCE.md)
 
 ---
 
@@ -33,11 +33,12 @@ OBJ
   sd : "SD_card_driver"
 
 CON
-  ' Define your SD card pins (P2 Edge Module)
-  SD_CS   = 60
-  SD_MOSI = 59
-  SD_MISO = 58
-  SD_SCK  = 61
+  ' SD card pins - offsets from 8-pin header base pin
+  SD_BASE = 56                        ' P2 Edge Module default
+  SD_SCK  = SD_BASE + 5              ' Serial Clock
+  SD_CS   = SD_BASE + 4              ' Chip Select
+  SD_MOSI = SD_BASE + 3              ' Master Out, Slave In
+  SD_MISO = SD_BASE + 2              ' Master In, Slave Out
 
 PUB main() | handle, buf[128], bytes_read
   ' Mount the card
@@ -191,10 +192,11 @@ PUB mount(_cs, _mosi, _miso, _sck) : result
 **Example:**
 ```spin2
 CON
-  SD_CS   = 60
-  SD_MOSI = 59
-  SD_MISO = 58
-  SD_SCK  = 61
+  SD_BASE = 56                        ' P2 Edge Module default
+  SD_SCK  = SD_BASE + 5
+  SD_CS   = SD_BASE + 4
+  SD_MOSI = SD_BASE + 3
+  SD_MISO = SD_BASE + 2
 
 PUB setup()
   if sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
@@ -734,7 +736,7 @@ PUB safeFileOperation() | handle
 
 ```spin2
 CON
-  SD_CS = 60, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 61
+  SD_BASE = 56, SD_SCK = SD_BASE + 5, SD_CS = SD_BASE + 4, SD_MOSI = SD_BASE + 3, SD_MISO = SD_BASE + 2
   MAX_LINE = 80
 
 OBJ
@@ -780,7 +782,7 @@ PUB readConfig() | handle, i, ch
 
 ```spin2
 CON
-  SD_CS = 60, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 61
+  SD_BASE = 56, SD_SCK = SD_BASE + 5, SD_CS = SD_BASE + 4, SD_MOSI = SD_BASE + 3, SD_MISO = SD_BASE + 2
 
 OBJ
   sd : "SD_card_driver"
@@ -848,7 +850,7 @@ PRI formatLogName(num) | tens, ones
 
 ```spin2
 CON
-  SD_CS = 60, SD_MOSI = 59, SD_MISO = 58, SD_SCK = 61
+  SD_BASE = 56, SD_SCK = SD_BASE + 5, SD_CS = SD_BASE + 4, SD_MOSI = SD_BASE + 3, SD_MISO = SD_BASE + 2
   RECORD_SIZE = 32
 
 OBJ

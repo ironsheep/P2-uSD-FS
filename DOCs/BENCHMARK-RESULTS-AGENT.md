@@ -112,6 +112,7 @@ Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD
 #### 320 MHz Run
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 234.9 ms
+**Log**: `tools/logs/SD_performance_benchmark_260207-231730.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -143,6 +144,7 @@ Multi-sector improvement: 64x single reads = 43,549 us vs 1x CMD18 = 14,870 us (
 #### 270 MHz Run
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 235.7 ms
+**Log**: `tools/logs/SD_performance_benchmark_260207-234226.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -194,6 +196,7 @@ SPI frequency changes slightly (22,857 vs 22,500 kHz = -1.6%) but the Spin2 over
 #### 320 MHz Run
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 212.3 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-025046.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -225,6 +228,7 @@ Multi-sector improvement: 64x single reads = 30,644 us vs 1x CMD18 = 15,068 us (
 #### 270 MHz Run
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 213.4 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-025603.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -274,6 +278,7 @@ Multi-sector improvement: 64x single reads = 32,857 us vs 1x CMD18 = 15,889 us (
 #### 320 MHz Run
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.0 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-114914.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -305,6 +310,7 @@ Multi-sector improvement: 64x single reads = 34,382 us vs 1x CMD18 = 16,754 us (
 #### 270 MHz Run
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 204.0 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-115429.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -358,6 +364,7 @@ The raw multi-sector operations show the typical ~5% sysclk effect. However, fil
 #### 320 MHz Run
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.3 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-225455.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -383,6 +390,7 @@ The raw multi-sector operations show the typical ~5% sysclk effect. However, fil
 #### 270 MHz Run
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 214.4 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-225554.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -426,6 +434,7 @@ File reads at small sizes show the typical ~5% sysclk effect. At large sizes, th
 #### 320 MHz Run
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 203.0 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-235803.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -457,6 +466,7 @@ Multi-sector improvement: 64x single reads = 57,030 us vs 1x CMD18 = 17,088 us (
 #### 270 MHz Run
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 204.3 ms
+**Log**: `tools/logs/SD_performance_benchmark_260208-235858.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -508,6 +518,7 @@ Slowest card tested. File write 32 KB at 105 KB/s is 3.5x slower than the Gigast
 #### 320 MHz Run
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.7 ms
+**Log**: `tools/logs/SD_performance_benchmark_260209-000722.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
@@ -539,6 +550,7 @@ Multi-sector improvement: 64x single reads = 46,658 us vs 1x CMD18 = 15,033 us (
 #### 270 MHz Run
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 203.9 ms
+**Log**: `tools/logs/SD_performance_benchmark_260209-000809.log`
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
