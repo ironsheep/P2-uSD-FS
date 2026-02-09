@@ -105,11 +105,11 @@ There is no single authoritative "SPI compatibility list", but trends emerge fro
 
 ### Tested and Verified for P2 SPI
 
-Based on our own testing with 15 cards across 7 manufacturers:
+Based on our own testing with 16 cards across 7 manufacturers:
 
 | Brand | P2 Test Results | Notes |
 |-------|----------------|-------|
-| **SanDisk** | Excellent | 4 cards tested (Extreme, Extreme PRO, Nintendo Switch). 780-866 KB/s throughput. Fastest file open times. |
+| **SanDisk** | Excellent | 5 cards tested (Industrial, Extreme, Extreme PRO, Nintendo Switch). 780-866 KB/s throughput. Industrial line recommended for embedded SPI. |
 | **Samsung** | Excellent | EVO Select 128GB tested. 783 KB/s throughput. Reliable at 25 MHz. |
 | **Lexar** | Excellent | V30 U3 64GB. **Fastest card tested** (1,059 KB/s). |
 | **Gigastone** | Excellent | 3 cards tested (Camera Plus 64GB, High Endurance 16GB, 32GB). 368-944 KB/s. Primary test cards. |
@@ -197,6 +197,7 @@ For Propeller 2 and other MCU-based SPI hosts:
 | Samsung EVO Select 128GB | Samsung | 128 GB | 783 KB/s | 25 MHz |
 | Gigastone Camera Plus 64GB | Gigastone | 64 GB | 944 KB/s | 25 MHz |
 | Gigastone High Endurance 16GB | Gigastone | 16 GB | 368 KB/s | 25 MHz |
+| SanDisk Industrial 16GB | SanDisk | 16 GB | 824 KB/s | 25 MHz |
 | PNY 16GB | PNY (Phison) | 16 GB | 31 KB/s | 25 MHz |
 
 8 additional cards are catalogued but not yet characterized. See [Card Catalog](CARD-CATALOG.md) for full details.

@@ -1,34 +1,40 @@
 '' =================================================================================================
 ''
-''   File....... SD_RT_performance_benchmark.spin2
-''   Purpose.... Performance benchmark for SD card driver - establishes baseline measurements
+''   File....... SD_performance_benchmark.spin2
+''   Purpose.... Performance benchmark for SD card driver - measures real-world throughput
 ''   Author..... Stephen M Moraco
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
 ''   Started.... JAN 2026
-''   Updated.... 21 JAN 2026
+''   Updated.... 07 FEB 2026
 ''
 '' =================================================================================================
 ''
-'' This benchmark measures SD card driver performance to establish baselines before optimization.
-'' Run this test on each card to build a performance catalog.
+'' Measures SD card driver performance across three levels:
 ''
-'' Measurements:
-''   - Mount/unmount timing
-''   - Raw sector read/write (hardware baseline)
-''   - Multi-sector read/write (CMD18/CMD25 bulk transfers)
-''   - Filesystem read/write (real-world performance)
-''   - File open/close overhead
+''   1. RAW SINGLE-SECTOR: readSectorsRaw/writeSectorsRaw with count=1
+''      - Isolates: command dispatch + SPI transfer + card latency
+''      - Uses multi-sector API with count=1 to avoid debug print overhead
 ''
-'' Test sizes based on embedded use cases:
+''   2. RAW MULTI-SECTOR: readSectorsRaw/writeSectorsRaw with CMD18/CMD25
+''      - Shows benefit of amortizing command overhead across N sectors
+''      - Tests at 8, 32, and 64 sector counts
+''
+''   3. FILE-LEVEL: createFileNew/openFileRead + writeHandle/readHandle + closeFileHandle
+''      - Includes FAT traversal, cluster allocation, sector caching
+''      - Real-world throughput an application developer will see
+''
+'' Run on each card, at both 320 MHz and 270 MHz sysclk, to build performance catalog.
+''
+'' Test sizes (embedded use cases):
 ''   Write: 512B (log entry), 4KB (config), 32KB (data batch)
-''   Read:  4KB (config), 32KB (icon), 128KB (small image), 256KB (display image)
+''   Read:  4KB (config), 32KB (icon), 128KB (small image), 256KB (large image)
 ''
 '' =================================================================================================
 
 CON
 
-    _CLKFREQ        = 270_000_000
+    _CLKFREQ        = 320_000_000       ' Change to 270_000_000 for low-sysclk runs
 
     ' Pin configuration for P2 Edge with SD card
     SD_CS   = 60
@@ -37,14 +43,14 @@ CON
     SD_SCK  = 61
 
     ' Test parameters
-    ITERATIONS      = 10                ' Number of iterations for min/avg/max
+    ITERATIONS      = 10                ' Number of iterations per test
 
     ' Test sizes (in bytes)
-    SIZE_512B       = 512               ' Single log entry
-    SIZE_4KB        = 4096              ' Config file
-    SIZE_32KB       = 32768             ' Icon / small data batch
-    SIZE_128KB      = 131072            ' Small display image
-    SIZE_256KB      = 262144            ' Larger display image
+    SIZE_512B       = 512
+    SIZE_4KB        = 4096
+    SIZE_32KB       = 32768
+    SIZE_128KB      = 131072
+    SIZE_256KB      = 262144
 
     ' Buffer size - must accommodate largest test
     BUFFER_SIZE     = 262144 + 512      ' 256KB + margin
@@ -54,7 +60,7 @@ CON
     MULTI_8         = 8                 ' 4KB
     MULTI_32        = 32                ' 16KB
     MULTI_64        = 64                ' 32KB
-    TEST_SECTOR     = 200_000           ' Safe test sector (not in filesystem area)
+    TEST_SECTOR     = 200_000           ' Safe test sector (away from FAT/data area)
 
 '' Enable full driver features for this utility
 #PRAGMA EXPORTDEF SD_INCLUDE_ALL
@@ -70,105 +76,72 @@ testFile        BYTE    "PERFTEST.BIN", 0
 ' Large buffer for read/write tests (256KB)
 testBuffer      BYTE    0[BUFFER_SIZE]
 
-' Statistics arrays (for ITERATIONS measurements)
+' Statistics arrays
 timings         LONG    0[ITERATIONS]
 
 ' Card identification buffer
 cid_buf         BYTE    0[16]
 
-' Known card names for display
-card_gigastone32    BYTE    "Gigastone 32GB (Transcend)", 0
-card_pny16          BYTE    "PNY 16GB (Phison)", 0
-card_sandisk_pro    BYTE    "SanDisk Extreme PRO 128GB", 0
-card_sandisk_ext    BYTE    "SanDisk Extreme 64GB", 0
-card_sandisk_switch BYTE    "SanDisk Nintendo 128GB", 0
-card_sandisk_other  BYTE    "SanDisk (unknown model)", 0
-card_kingston       BYTE    "Kingston 8GB", 0
-card_samsung        BYTE    "Samsung EVO Select 128GB", 0
-card_gigastone64    BYTE    "Gigastone Camera Plus 64GB", 0
-card_lexar64        BYTE    "Lexar 64GB", 0
-card_unknown        BYTE    "Unknown Card", 0
-
-' Product name patterns (5 chars from CID bytes 3-7)
-pnm_00000           BYTE    "00000", 0       ' Gigastone 32GB (also 8GB High Endurance)
-pnm_SD16G           BYTE    "SD16G", 0       ' PNY 16GB or Gigastone 16GB High Endurance
-pnm_AGGCF           BYTE    "AGGCF", 0       ' SanDisk Extreme PRO 128GB
-pnm_SN64G           BYTE    "SN64G", 0       ' SanDisk Extreme 64GB
-pnm_SN128           BYTE    "SN128", 0       ' SanDisk Nintendo 128GB
-pnm_SD8GB           BYTE    "SD8GB", 0       ' Kingston 8GB
-pnm_GD4QT           BYTE    "GD4QT", 0       ' Samsung EVO Select 128GB
-pnm_ASTC            BYTE    "ASTC", 0, 0     ' Gigastone Camera Plus 64GB
-pnm_MSSD0           BYTE    "MSSD0", 0       ' Lexar 64GB
-
-' Identified card name (set by identifyCard)
-card_name_ptr       LONG    0
-
-PUB go() | result
+PUB go() | result, spi_hz
 '' Main entry point - runs comprehensive SD card performance benchmark.
-'' Measures mount/unmount, multi-sector, and filesystem operations.
 
     debug(" ")
     debug("======================================================")
-    debug("  SD Card Performance Benchmark v1.0")
+    debug("  SD Card Performance Benchmark v2.0")
     debug("======================================================")
     debug(" ")
-    debug("SysClk: ", udec(clkfreq / 1_000_000), " MHz")
-    debug("Iterations per test: ", udec(ITERATIONS))
+    debug("SysClk: ", udec_(clkfreq / 1_000_000), " MHz")
+    debug("Iterations per test: ", udec_(ITERATIONS))
     debug(" ")
 
-    ' Identify card BEFORE mount (reads CID directly)
-    debug("------------------------------------------------------")
-    debug("  CARD IDENTIFICATION")
-    debug("------------------------------------------------------")
-    result := identifyCard()
-    if result == false
-        debug("  WARNING: Could not read CID, continuing with unknown card")
-        card_name_ptr := @card_unknown
-    else
-        debug("  Card: ", zstr_(card_name_ptr))
-        showCID()
-    debug(" ")
-
-    ' Release pins from main cog before mount starts worker cog
-    ' (P2 pins are OR'd when multiple cogs drive them)
-    pinfloat(SD_CS)
-    pinfloat(SD_MOSI)
-    pinfloat(SD_MISO)
-    pinfloat(SD_SCK)
-
-    ' Mount the card (timing benchmark)
+    ' Mount the card first (for accurate cold-mount timing)
     result := runMountBenchmark()
     if result == false
         debug("ERROR: Could not mount SD card!")
         debug("END_SESSION")
         return
 
-    ' Show volume info from mounted filesystem
+    ' Show SPI frequency and volume info
+    spi_hz := sd.getSPIFrequency()
+    debug("  SPI Frequency: ", udec_(spi_hz / 1000), " kHz")
     showVolumeInfo()
 
-    ' Run multi-sector benchmarks (CMD18/CMD25 bulk transfers)
+    ' Identify card AFTER mount (reads CID via worker cog)
+    debug("------------------------------------------------------")
+    debug("  CARD IDENTIFICATION")
+    debug("------------------------------------------------------")
+    result := identifyCard()
+    if result == false
+        debug("  WARNING: Could not read CID")
+    debug(" ")
+
+    ' === RAW SINGLE-SECTOR BENCHMARKS ===
     debug(" ")
     debug("------------------------------------------------------")
-    debug("  MULTI-SECTOR OPERATIONS (CMD18/CMD25 bulk transfers)")
+    debug("  RAW SINGLE-SECTOR (1x512B per operation)")
+    debug("------------------------------------------------------")
+    runSingleSectorBenchmarks()
+
+    ' === RAW MULTI-SECTOR BENCHMARKS ===
+    debug(" ")
+    debug("------------------------------------------------------")
+    debug("  RAW MULTI-SECTOR (CMD18/CMD25 bulk transfers)")
     debug("------------------------------------------------------")
     runMultiSectorBenchmarks()
 
-    ' Run filesystem benchmarks (these go through worker cog correctly)
+    ' === FILE-LEVEL BENCHMARKS ===
     debug(" ")
     debug("------------------------------------------------------")
-    debug("  FILESYSTEM OPERATIONS (real-world performance)")
+    debug("  FILE-LEVEL (handle API, includes FAT overhead)")
     debug("------------------------------------------------------")
-    runFilesystemBenchmarks()
-
-    ' NOTE: Raw sector operations skipped - they require direct SPI access
-    ' which conflicts with worker cog architecture after mount().
-    ' Filesystem operations provide the meaningful real-world measurements.
+    runFileLevelBenchmarks()
 
     ' Unmount with timing
     debug(" ")
     debug("------------------------------------------------------")
-    debug("  UNMOUNT TIMING")
+    debug("  OVERHEAD")
     debug("------------------------------------------------------")
+    runFileOpenCloseBenchmark()
     runUnmountBenchmark()
 
     debug(" ")
@@ -178,10 +151,36 @@ PUB go() | result
     debug("END_SESSION")
 
 
+' ════════════════════════════════════════════════════════════════════════════════
+' CARD IDENTIFICATION
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI identifyCard() : result | mid, pnm[2]
+'' Identify card by reading CID (call after mount).
+'' Displays MID, product name, and raw CID bytes.
+
+    result := sd.readCIDRaw(@cid_buf)
+    if result == false
+        debug("  readCIDRaw FAILED")
+        return false
+
+    ' Extract MID and product name
+    mid := cid_buf[0]
+    bytemove(@pnm, @cid_buf + 3, 5)
+    pnm.byte[5] := 0
+
+    debug("  MID: ", uhex_byte_(mid), "  Product: ", zstr_(@pnm))
+    debug("  CID: ", uhex_byte_(cid_buf[0]), " ", uhex_byte_(cid_buf[1]), " ", uhex_byte_(cid_buf[2]), " ", uhex_byte_(cid_buf[3]), " ", uhex_byte_(cid_buf[4]), " ", uhex_byte_(cid_buf[5]), " ", uhex_byte_(cid_buf[6]), " ", uhex_byte_(cid_buf[7]))
+    debug("       ", uhex_byte_(cid_buf[8]), " ", uhex_byte_(cid_buf[9]), " ", uhex_byte_(cid_buf[10]), " ", uhex_byte_(cid_buf[11]), " ", uhex_byte_(cid_buf[12]), " ", uhex_byte_(cid_buf[13]), " ", uhex_byte_(cid_buf[14]), " ", uhex_byte_(cid_buf[15]))
+    return true
+
+
+' ════════════════════════════════════════════════════════════════════════════════
+' MOUNT / UNMOUNT TIMING
+' ════════════════════════════════════════════════════════════════════════════════
+
 PRI runMountBenchmark() : result | start_ct, elapsed_ct, elapsed_us
-' Run mount timing benchmark and return mount success status.
-'
-' @returns result - TRUE if mount succeeded, FALSE otherwise
+'' Mount card and display timing.
 
     debug("MOUNT:")
     start_ct := getct()
@@ -189,301 +188,116 @@ PRI runMountBenchmark() : result | start_ct, elapsed_ct, elapsed_us
     elapsed_ct := getct() - start_ct
 
     elapsed_us := elapsed_ct / (clkfreq / 1_000_000)
-    debug("  Mount time: ", udec(elapsed_us / 1000), ".", udec_((elapsed_us // 1000) / 100), " ms")
+    debug("  Mount time: ", udec_(elapsed_us / 1000), ".", udec_((elapsed_us // 1000) / 100), " ms")
 
 
 PRI runUnmountBenchmark() | start_ct, elapsed_ct, elapsed_ms
-' Run unmount timing benchmark and display results.
+'' Unmount card and display timing.
 
-    debug("UNMOUNT:")
+    debug(" ")
+    debug("Unmount:")
     start_ct := getct()
     sd.unmount()
     elapsed_ct := getct() - start_ct
 
     elapsed_ms := elapsed_ct / (clkfreq / 1000)
-    debug("  Unmount time: ", udec(elapsed_ms), " ms")
-    if elapsed_ms > 1000
-        debug("  WARNING: Unmount > 1 second (FSInfo scan issue)")
-
-
-PRI identifyCard() : result | mid, pnm[2]
-' Initialize card and identify it by reading CID before mount.
-' Sets card_name_ptr to appropriate card name string.
-'
-' @returns result - TRUE if card identified (even if unknown), FALSE if init failed
-
-    ' Initialize card (does NOT start worker cog)
-    result := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
-    if result == false
-        debug("  initCardOnly FAILED")
-        return false
-
-    ' Read CID register
-    result := sd.readCIDRaw(@cid_buf)
-    if result == false
-        debug("  readCIDRaw FAILED")
-        return false
-
-    ' Extract MID (byte 0) and product name (bytes 3-7)
-    mid := cid_buf[0]
-    bytemove(@pnm, @cid_buf + 3, 5)
-    pnm.byte[5] := 0  ' null terminate
-
-    ' Match against known cards by MID and product name
-    if mid == $74 and strcomp(@pnm, @pnm_00000)
-        card_name_ptr := @card_gigastone32
-    elseif mid == $27 and strcomp(@pnm, @pnm_SD16G)
-        card_name_ptr := @card_pny16
-    elseif mid == $03 and strcomp(@pnm, @pnm_AGGCF)
-        card_name_ptr := @card_sandisk_pro
-    elseif mid == $03 and strcomp(@pnm, @pnm_SN64G)
-        card_name_ptr := @card_sandisk_ext
-    elseif mid == $03 and strcomp(@pnm, @pnm_SN128)
-        card_name_ptr := @card_sandisk_switch
-    elseif mid == $41 and strcomp(@pnm, @pnm_SD8GB)
-        card_name_ptr := @card_kingston
-    elseif mid == $1B and strcomp(@pnm, @pnm_GD4QT)
-        card_name_ptr := @card_samsung
-    elseif mid == $12 and strcomp(@pnm, @pnm_ASTC)
-        card_name_ptr := @card_gigastone64
-    elseif mid == $AD and strcomp(@pnm, @pnm_MSSD0)
-        card_name_ptr := @card_lexar64
-    elseif mid == $03
-        card_name_ptr := @card_sandisk_other  ' Unknown SanDisk model
-    else
-        card_name_ptr := @card_unknown
-
-    return true
-
-
-PRI showCID() | i
-' Display the CID register bytes in hexadecimal format.
-
-    debug("  CID: ", uhex_byte_(cid_buf[0]), " ", uhex_byte_(cid_buf[1]), " ", uhex_byte_(cid_buf[2]), " ", uhex_byte_(cid_buf[3]), " ", uhex_byte_(cid_buf[4]), " ", uhex_byte_(cid_buf[5]), " ", uhex_byte_(cid_buf[6]), " ", uhex_byte_(cid_buf[7]))
-    debug("       ", uhex_byte_(cid_buf[8]), " ", uhex_byte_(cid_buf[9]), " ", uhex_byte_(cid_buf[10]), " ", uhex_byte_(cid_buf[11]), " ", uhex_byte_(cid_buf[12]), " ", uhex_byte_(cid_buf[13]), " ", uhex_byte_(cid_buf[14]), " ", uhex_byte_(cid_buf[15]))
+    debug("  Unmount time: ", udec_(elapsed_ms), " ms")
 
 
 PRI showVolumeInfo() | free_sectors, free_mb
-' Display volume information from mounted filesystem.
+'' Display mounted volume info.
 
-    debug("  Volume Label: ", zstr_(sd.volumeLabel()))
-
-    ' Get free space (this goes through worker cog correctly)
+    debug("  Volume: ", zstr_(sd.volumeLabel()))
     free_sectors := sd.freeSpace()
-    free_mb := free_sectors / 2048                                ' sectors to MB
-    debug("  Free Space: ", udec(free_mb), " MB (", udec(free_sectors), " sectors)")
-
+    free_mb := free_sectors / 2048
+    debug("  Free: ", udec_(free_mb), " MB (", udec_(free_sectors), " sectors)")
     debug(" ")
-
-
-PRI runFilesystemBenchmarks()
-' Run all filesystem benchmark tests including open/close, read, and write.
-
-    ' Delete test file if exists
-    sd.deleteFile(@testFile)
-
-    ' File open/close overhead
-    debug(" ")
-    debug("File Open/Close Overhead:")
-    runFileOpenCloseTest()
-
-    ' Small write tests (embedded logging use case)
-    debug(" ")
-    debug("Write 512B - Log Entry (", udec(ITERATIONS), " iterations):")
-    runFileWriteTest(SIZE_512B)
-
-    debug(" ")
-    debug("Write 4KB - Config Save (", udec(ITERATIONS), " iterations):")
-    runFileWriteTest(SIZE_4KB)
-
-    debug(" ")
-    debug("Write 32KB - Data Batch (", udec(ITERATIONS), " iterations):")
-    runFileWriteTest(SIZE_32KB)
-
-    ' Read tests (display/config use cases)
-    debug(" ")
-    debug("Read 4KB - Config Load (", udec(ITERATIONS), " iterations):")
-    runFileReadTest(SIZE_4KB)
-
-    debug(" ")
-    debug("Read 32KB - Icon/Small Image (", udec(ITERATIONS), " iterations):")
-    runFileReadTest(SIZE_32KB)
-
-    debug(" ")
-    debug("Read 128KB - Display Image (", udec(ITERATIONS), " iterations):")
-    runFileReadTest(SIZE_128KB)
-
-    debug(" ")
-    debug("Read 256KB - Large Image (", udec(ITERATIONS), " iterations):")
-    runFileReadTest(SIZE_256KB)
-
-    ' Cleanup
-    sd.deleteFile(@testFile)
-
-
-PRI runFileOpenCloseTest() | iter, start_ct, elapsed_ct, open_min, open_max, open_total, close_min, close_max, close_total, open_avg, close_avg
-' Measure file open/close overhead with min/avg/max timing.
-
-    ' First create a small test file
-    if sd.newFile(@testFile)
-        fillBuffer(1024, $AA)
-        sd.write(@testBuffer, 1024)
-        sd.closeFile()
-
-    open_min := $7FFF_FFFF
-    open_max := 0
-    open_total := 0
-    close_min := $7FFF_FFFF
-    close_max := 0
-    close_total := 0
-
-    repeat iter from 0 to ITERATIONS - 1
-        ' Measure open
-        start_ct := getct()
-        sd.openFile(@testFile)
-        elapsed_ct := getct() - start_ct
-        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
-        open_total += timings[iter]
-        if timings[iter] < open_min
-            open_min := timings[iter]
-        if timings[iter] > open_max
-            open_max := timings[iter]
-
-        ' Measure close
-        start_ct := getct()
-        sd.closeFile()
-        elapsed_ct := getct() - start_ct
-        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
-        close_total += timings[iter]
-        if timings[iter] < close_min
-            close_min := timings[iter]
-        if timings[iter] > close_max
-            close_max := timings[iter]
-
-    open_avg := open_total / ITERATIONS
-    close_avg := close_total / ITERATIONS
-
-    debug("  Open:  Min: ", udec(open_min), " us  Avg: ", udec(open_avg), " us  Max: ", udec(open_max), " us")
-    debug("  Close: Min: ", udec(close_min), " us  Avg: ", udec(close_avg), " us  Max: ", udec(close_max), " us")
-
-
-PRI runFileWriteTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps
-' Run file write benchmark for specified size.
-'
-' @param size - Number of bytes to write per iteration
-
-    fillBuffer(size, $5A)
-
-    min_us := $7FFF_FFFF
-    max_us := 0
-    total_us := 0
-
-    repeat iter from 0 to ITERATIONS - 1
-        ' Delete and recreate file each iteration
-        sd.deleteFile(@testFile)
-
-        if sd.newFile(@testFile)
-            start_ct := getct()
-            sd.write(@testBuffer, size)
-            sd.closeFile()
-            elapsed_ct := getct() - start_ct
-
-            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
-            total_us += timings[iter]
-            if timings[iter] < min_us
-                min_us := timings[iter]
-            if timings[iter] > max_us
-                max_us := timings[iter]
-
-    avg_us := total_us / ITERATIONS
-
-    if avg_us > 0
-        kbps := (size * 1000) / avg_us
-    else
-        kbps := 0
-
-    debug("  Min: ", udec(min_us), " us  Avg: ", udec(avg_us), " us  Max: ", udec(max_us), " us")
-    debug("  Throughput: ", udec(kbps), " KB/s")
-
-
-PRI runFileReadTest(size) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, bytesRead
-' Run file read benchmark for specified size.
-'
-' @param size - Number of bytes to read per iteration
-
-    ' First create a file of the required size
-    sd.deleteFile(@testFile)
-    if sd.newFile(@testFile)
-        fillBuffer(size, $A5)
-        sd.write(@testBuffer, size)
-        sd.closeFile()
-
-    min_us := $7FFF_FFFF
-    max_us := 0
-    total_us := 0
-
-    repeat iter from 0 to ITERATIONS - 1
-        if sd.openFile(@testFile)
-            start_ct := getct()
-            bytesRead := sd.read(@testBuffer, size)
-            elapsed_ct := getct() - start_ct
-            sd.closeFile()
-
-            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
-            total_us += timings[iter]
-            if timings[iter] < min_us
-                min_us := timings[iter]
-            if timings[iter] > max_us
-                max_us := timings[iter]
-
-    avg_us := total_us / ITERATIONS
-
-    if avg_us > 0
-        kbps := (size * 1000) / avg_us
-    else
-        kbps := 0
-
-    debug("  Min: ", udec(min_us), " us  Avg: ", udec(avg_us), " us  Max: ", udec(max_us), " us")
-    debug("  Throughput: ", udec(kbps), " KB/s")
-
-
-PRI fillBuffer(size, value) | idx
-' Fill the test buffer with a specified value.
-'
-' @param size - Number of bytes to fill
-' @param value - Byte value to fill with
-
-    bytefill(@testBuffer, value, size)
 
 
 ' ════════════════════════════════════════════════════════════════════════════════
-' MULTI-SECTOR BENCHMARKS (CMD18/CMD25)
+' RAW SINGLE-SECTOR BENCHMARKS
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI runSingleSectorBenchmarks()
+'' Measure raw single-sector read and write performance.
+'' Uses readSectorsRaw/writeSectorsRaw with count=1 to avoid debug print overhead.
+
+    debug(" ")
+    debug("Single-Sector Read (", udec_(ITERATIONS), " iterations):")
+    runRawReadTest(1)
+
+    debug(" ")
+    debug("Single-Sector Write (", udec_(ITERATIONS), " iterations):")
+    runRawWriteTest(1)
+
+
+' ════════════════════════════════════════════════════════════════════════════════
+' RAW MULTI-SECTOR BENCHMARKS
 ' ════════════════════════════════════════════════════════════════════════════════
 
 PRI runMultiSectorBenchmarks()
-' Run all multi-sector benchmark tests (CMD18/CMD25 bulk transfers).
-
-    debug(" ")
-    debug("Multi-Sector Write (CMD25):")
-    runMultiWriteTest(MULTI_8)
-    runMultiWriteTest(MULTI_32)
-    runMultiWriteTest(MULTI_64)
+'' Run all multi-sector read and write benchmarks at multiple sector counts.
 
     debug(" ")
     debug("Multi-Sector Read (CMD18):")
-    runMultiReadTest(MULTI_8)
-    runMultiReadTest(MULTI_32)
-    runMultiReadTest(MULTI_64)
+    runRawReadTest(MULTI_8)
+    runRawReadTest(MULTI_32)
+    runRawReadTest(MULTI_64)
 
     debug(" ")
-    debug("Single vs Multi-Sector Comparison (64 sectors):")
+    debug("Multi-Sector Write (CMD25):")
+    runRawWriteTest(MULTI_8)
+    runRawWriteTest(MULTI_32)
+    runRawWriteTest(MULTI_64)
+
+    debug(" ")
+    debug("Single vs Multi Comparison (", udec_(MULTI_64), " sectors):")
     runComparisonTest(MULTI_64)
 
 
-PRI runMultiWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, written
-' Run multi-sector write benchmark (CMD25).
-'
-' @param count - Number of sectors to write per operation
+PRI runRawReadTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, readCt
+'' Benchmark raw sector read at specified count.
+'' Works for both single-sector (count=1) and multi-sector operations.
+
+    size := count * SECTOR_SIZE
+
+    ' Ensure test area has data
+    fillBuffer(size, $A5)
+    sd.writeSectorsRaw(TEST_SECTOR, count, @testBuffer)
+
+    min_us := $7FFF_FFFF
+    max_us := 0
+    total_us := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        start_ct := getct()
+        readCt := sd.readSectorsRaw(TEST_SECTOR, count, @testBuffer)
+        elapsed_ct := getct() - start_ct
+
+        if readCt == count
+            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+            total_us += timings[iter]
+            if timings[iter] < min_us
+                min_us := timings[iter]
+            if timings[iter] > max_us
+                max_us := timings[iter]
+        else
+            debug("  ERROR: readSectorsRaw returned ", sdec_(readCt), " (expected ", udec_(count), ")")
+            return
+
+    avg_us := total_us / ITERATIONS
+
+    if avg_us > 0
+        kbps := (size * 1000) / avg_us
+    else
+        kbps := 0
+
+    debug("  ", udec_(count), " sector(s) (", udec_(size), "B): Min=", udec_(min_us), " Avg=", udec_(avg_us), " Max=", udec_(max_us), " us => ", udec_(kbps), " KB/s")
+
+
+PRI runRawWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, written
+'' Benchmark raw sector write at specified count.
+'' Works for both single-sector (count=1) and multi-sector operations.
 
     size := count * SECTOR_SIZE
     fillBuffer(size, $5A)
@@ -505,7 +319,7 @@ PRI runMultiWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total
             if timings[iter] > max_us
                 max_us := timings[iter]
         else
-            debug("  ERROR: writeSectorsRaw returned ", udec(written), " (expected ", udec(count), ")")
+            debug("  ERROR: writeSectorsRaw returned ", sdec_(written), " (expected ", udec_(count), ")")
             return
 
     avg_us := total_us / ITERATIONS
@@ -515,39 +329,101 @@ PRI runMultiWriteTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total
     else
         kbps := 0
 
-    debug("  ", udec(count), " sectors (", udec(size / 1024), "KB): Avg ", udec(avg_us), " us = ", udec(kbps), " KB/s")
+    debug("  ", udec_(count), " sector(s) (", udec_(size), "B): Min=", udec_(min_us), " Avg=", udec_(avg_us), " Max=", udec_(max_us), " us => ", udec_(kbps), " KB/s")
 
 
-PRI runMultiReadTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, size, readCt
-' Run multi-sector read benchmark (CMD18).
-'
-' @param count - Number of sectors to read per operation
+PRI runComparisonTest(count) | i, start_ct, elapsed_ct, single_us, multi_us, size, improvement, readCt
+'' Compare N individual single-sector reads vs one multi-sector read.
 
     size := count * SECTOR_SIZE
 
-    ' First write test data so we have something to read
-    fillBuffer(size, $A5)
+    ' Ensure test data exists
+    fillBuffer(size, $CC)
     sd.writeSectorsRaw(TEST_SECTOR, count, @testBuffer)
+
+    ' Time N individual single-sector reads
+    start_ct := getct()
+    repeat i from 0 to count - 1
+        readCt := sd.readSectorsRaw(TEST_SECTOR + i, 1, @testBuffer + (i * SECTOR_SIZE))
+    elapsed_ct := getct() - start_ct
+    single_us := elapsed_ct / (clkfreq / 1_000_000)
+
+    ' Time one multi-sector read
+    start_ct := getct()
+    readCt := sd.readSectorsRaw(TEST_SECTOR, count, @testBuffer)
+    elapsed_ct := getct() - start_ct
+    multi_us := elapsed_ct / (clkfreq / 1_000_000)
+
+    if single_us > 0
+        improvement := ((single_us - multi_us) * 100) / single_us
+    else
+        improvement := 0
+
+    debug("  ", udec_(count), "x single-sector (CMD18x", udec_(count), "): ", udec_(single_us), " us")
+    debug("  1x multi-sector  (CMD18x1):     ", udec_(multi_us), " us")
+    debug("  Improvement: ", udec_(improvement), "%")
+
+
+' ════════════════════════════════════════════════════════════════════════════════
+' FILE-LEVEL BENCHMARKS (handle-based API)
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI runFileLevelBenchmarks()
+'' Run all file-level benchmarks using handle-based API.
+'' Timing includes open + transfer + close (the full user-visible cost).
+
+    ' Clean up any leftover test file
+    sd.deleteFile(@testFile)
+
+    debug(" ")
+    debug("File Write (create + write + close):")
+    runFileWriteTest(SIZE_512B, string("512B"))
+    runFileWriteTest(SIZE_4KB, string("4KB"))
+    runFileWriteTest(SIZE_32KB, string("32KB"))
+
+    debug(" ")
+    debug("File Read (open + read + close):")
+    runFileReadTest(SIZE_4KB, string("4KB"))
+    runFileReadTest(SIZE_32KB, string("32KB"))
+    runFileReadTest(SIZE_128KB, string("128KB"))
+    runFileReadTest(SIZE_256KB, string("256KB"))
+
+    ' Cleanup
+    sd.deleteFile(@testFile)
+
+
+PRI runFileWriteTest(size, p_label) | iter, handle, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, written
+'' Benchmark file write: create + writeHandle + closeFileHandle.
+'' Measures the full cycle an application would perform.
+
+    fillBuffer(size, $5A)
 
     min_us := $7FFF_FFFF
     max_us := 0
     total_us := 0
 
     repeat iter from 0 to ITERATIONS - 1
+        ' Delete previous iteration's file
+        sd.deleteFile(@testFile)
+
+        ' Time the full write cycle
         start_ct := getct()
-        readCt := sd.readSectorsRaw(TEST_SECTOR, count, @testBuffer)
+        handle := sd.createFileNew(@testFile)
+        if handle >= 0
+            written := sd.writeHandle(handle, @testBuffer, size)
+            sd.closeFileHandle(handle)
         elapsed_ct := getct() - start_ct
 
-        if readCt == count
-            timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
-            total_us += timings[iter]
-            if timings[iter] < min_us
-                min_us := timings[iter]
-            if timings[iter] > max_us
-                max_us := timings[iter]
-        else
-            debug("  ERROR: readSectorsRaw returned ", udec(readCt), " (expected ", udec(count), ")")
+        if handle < 0
+            debug("  ERROR: createFileNew failed (", sdec_(handle), ")")
             return
+
+        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+        total_us += timings[iter]
+        if timings[iter] < min_us
+            min_us := timings[iter]
+        if timings[iter] > max_us
+            max_us := timings[iter]
 
     avg_us := total_us / ITERATIONS
 
@@ -556,42 +432,122 @@ PRI runMultiReadTest(count) | iter, start_ct, elapsed_ct, min_us, max_us, total_
     else
         kbps := 0
 
-    debug("  ", udec(count), " sectors (", udec(size / 1024), "KB): Avg ", udec(avg_us), " us = ", udec(kbps), " KB/s")
+    debug("  ", zstr_(p_label), ": Min=", udec_(min_us), " Avg=", udec_(avg_us), " Max=", udec_(max_us), " us => ", udec_(kbps), " KB/s")
 
 
-PRI runComparisonTest(count) | i, start_ct, elapsed_ct, single_us, multi_us, size, improvement
-' Compare single-sector vs multi-sector read performance.
-'
-' @param count - Number of sectors to use for comparison
+PRI runFileReadTest(size, p_label) | iter, handle, start_ct, elapsed_ct, min_us, max_us, total_us, avg_us, kbps, bytesRead
+'' Benchmark file read: openFileRead + readHandle + closeFileHandle.
+'' Creates a file of the target size first, then times repeated reads.
 
-    size := count * SECTOR_SIZE
+    ' Create test file of required size
+    sd.deleteFile(@testFile)
+    handle := sd.createFileNew(@testFile)
+    if handle < 0
+        debug("  ERROR: Could not create test file for read benchmark")
+        return
+    fillBuffer(size, $A5)
+    sd.writeHandle(handle, @testBuffer, size)
+    sd.closeFileHandle(handle)
 
-    ' First write test data
-    fillBuffer(size, $CC)
-    sd.writeSectorsRaw(TEST_SECTOR, count, @testBuffer)
+    min_us := $7FFF_FFFF
+    max_us := 0
+    total_us := 0
 
-    ' Time single-sector reads (N individual calls)
-    start_ct := getct()
-    repeat i from 0 to count - 1
-        sd.readSectorRaw(TEST_SECTOR + i, @testBuffer + (i * SECTOR_SIZE))
-    elapsed_ct := getct() - start_ct
-    single_us := elapsed_ct / (clkfreq / 1_000_000)
+    repeat iter from 0 to ITERATIONS - 1
+        ' Time the full read cycle
+        start_ct := getct()
+        handle := sd.openFileRead(@testFile)
+        if handle >= 0
+            bytesRead := sd.readHandle(handle, @testBuffer, size)
+            sd.closeFileHandle(handle)
+        elapsed_ct := getct() - start_ct
 
-    ' Time multi-sector read (one CMD18 call)
-    start_ct := getct()
-    sd.readSectorsRaw(TEST_SECTOR, count, @testBuffer)
-    elapsed_ct := getct() - start_ct
-    multi_us := elapsed_ct / (clkfreq / 1_000_000)
+        if handle < 0
+            debug("  ERROR: openFileRead failed (", sdec_(handle), ")")
+            return
 
-    ' Calculate improvement
-    if multi_us > 0
-        improvement := ((single_us - multi_us) * 100) / single_us
+        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+        total_us += timings[iter]
+        if timings[iter] < min_us
+            min_us := timings[iter]
+        if timings[iter] > max_us
+            max_us := timings[iter]
+
+    avg_us := total_us / ITERATIONS
+
+    if avg_us > 0
+        kbps := (size * 1000) / avg_us
     else
-        improvement := 0
+        kbps := 0
 
-    debug("  Single-sector (", udec(count), "x CMD17): ", udec(single_us), " us")
-    debug("  Multi-sector  (1x CMD18):    ", udec(multi_us), " us")
-    debug("  Improvement: ", udec(improvement), "%")
+    debug("  ", zstr_(p_label), ": Min=", udec_(min_us), " Avg=", udec_(avg_us), " Max=", udec_(max_us), " us => ", udec_(kbps), " KB/s")
+
+
+' ════════════════════════════════════════════════════════════════════════════════
+' FILE OPEN/CLOSE OVERHEAD
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI runFileOpenCloseBenchmark() | iter, handle, start_ct, elapsed_ct, open_min, open_max, open_total, close_min, close_max, close_total, open_avg, close_avg
+'' Measure file open and close overhead independently.
+'' Uses a small existing file to isolate open/close latency.
+
+    ' Create a small test file
+    sd.deleteFile(@testFile)
+    handle := sd.createFileNew(@testFile)
+    if handle >= 0
+        fillBuffer(1024, $AA)
+        sd.writeHandle(handle, @testBuffer, 1024)
+        sd.closeFileHandle(handle)
+
+    open_min := $7FFF_FFFF
+    open_max := 0
+    open_total := 0
+    close_min := $7FFF_FFFF
+    close_max := 0
+    close_total := 0
+
+    repeat iter from 0 to ITERATIONS - 1
+        ' Measure open
+        start_ct := getct()
+        handle := sd.openFileRead(@testFile)
+        elapsed_ct := getct() - start_ct
+        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+        open_total += timings[iter]
+        if timings[iter] < open_min
+            open_min := timings[iter]
+        if timings[iter] > open_max
+            open_max := timings[iter]
+
+        ' Measure close
+        start_ct := getct()
+        sd.closeFileHandle(handle)
+        elapsed_ct := getct() - start_ct
+        timings[iter] := elapsed_ct / (clkfreq / 1_000_000)
+        close_total += timings[iter]
+        if timings[iter] < close_min
+            close_min := timings[iter]
+        if timings[iter] > close_max
+            close_max := timings[iter]
+
+    open_avg := open_total / ITERATIONS
+    close_avg := close_total / ITERATIONS
+
+    debug(" ")
+    debug("File Open/Close:")
+    debug("  Open:  Min=", udec_(open_min), " Avg=", udec_(open_avg), " Max=", udec_(open_max), " us")
+    debug("  Close: Min=", udec_(close_min), " Avg=", udec_(close_avg), " Max=", udec_(close_max), " us")
+
+    ' Cleanup
+    sd.deleteFile(@testFile)
+
+
+' ════════════════════════════════════════════════════════════════════════════════
+' UTILITY
+' ════════════════════════════════════════════════════════════════════════════════
+
+PRI fillBuffer(size, value)
+'' Fill the test buffer with a byte value.
+    bytefill(@testBuffer, value, size)
 
 
 con { license }

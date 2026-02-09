@@ -186,11 +186,12 @@ Internal card throughput (single-sector reads at 25 MHz SPI) varies widely by ca
 | Lexar V30 U3 64GB | 1,059 KB/s | HIGH |
 | Gigastone Camera Plus 64GB | 944 KB/s | HIGH |
 | SanDisk Extreme PRO 64GB | 866 KB/s | HIGH |
+| SanDisk Industrial 16GB | 824 KB/s | HIGH |
 | Samsung EVO Select 128GB | 783 KB/s | HIGH |
 | Gigastone High Endurance 16GB | 368 KB/s | MEDIUM |
 | PNY 16GB (Phison) | 31 KB/s | LOW |
 
-Performance varies significantly by card controller, not just speed class rating. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization of 15 tested cards and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for file-level throughput measurements.
+Performance varies significantly by card controller, not just speed class rating. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization of 16 tested cards and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for file-level throughput measurements.
 
 ## API Overview
 
