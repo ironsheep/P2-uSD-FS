@@ -33,7 +33,7 @@ Initial release.
 
 - Original driver concept by Chris Gadd (OB4269 from Parallax OBEX)
 - Driver development by Stephen M. Moraco, Iron Sheep Productions
-- Testing and documentation assistance by Claude (Anthropic)
+
 
 [Unreleased]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/ironsheep/P2-uSD-FileSystem/releases/tag/v1.0.0

@@ -341,6 +341,7 @@ SCR: $02 $C5 $84 $83 $00 $00 $00 $00
 - DATA_STAT_AFTER_ERASE=1 (erased data reads as 1s)
 - Formatted with P2FMTER (P2 Flash Filesystem Formatter)
 - Currently used as scratch/test card for development
+- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements (raw, multi-sector, and file-level)
 
 ### SPI Speed Characterization
 
@@ -519,6 +520,7 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 - Very recent manufacture (November 2024)
 - Needs FAT32 reformat before use with P2 SD driver
 - DATA_STAT_AFTER_ERASE=0 (erased data reads as 0s)
+- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements (raw, multi-sector, and file-level)
 
 ### SPI Speed Characterization
 
@@ -1032,6 +1034,7 @@ SCR: $02 $B5 $80 $43 $00 $00 $00 $00
 - DATA_STAT_AFTER_ERASE=1 (erased data reads as 1s)
 - **MEDIUM throughput (368 KB/s)** - slower than premium cards but reliable
 - MLC flash may prioritize endurance over raw speed
+- **Benchmark data available** — see BENCHMARK-RESULTS.md; slowest card tested (file write 32 KB at 105 KB/s, raw single-sector write latency 3.6 ms)
 
 ---
 
@@ -1180,6 +1183,7 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 - Originally shipped with exFAT, now reformatted with P2FMTER for FAT32
 - Volume label "P2-BENCH" indicates use as benchmark/test card
 - SD 4.xx spec compliant (SD_SPEC4=1)
+- **Baseline benchmark data available** — see BENCHMARK-RESULTS.md (best overall in baseline testing: 1,467 KB/s read, 425 KB/s write)
 
 ---
 
@@ -1326,6 +1330,8 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 - CMD20 (Speed Class) supported per SCR CMD_SUPPORT field
 - 8 KB clusters (smaller than typical 32 KB) due to P2FMTER formatting
 - driver fixes resolved previous V2 unmount hang issue
+- **File open latency: 16.9 ms** (85x slower than other cards' ~200 us) — the Phison controller's internal metadata lookup is extremely slow, dominating small-file operations
+- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements; multi-sector reads surprisingly competitive (2,110 KB/s) despite slow single-sector and write performance
 
 ### SPI Speed Characterization
 
@@ -1806,6 +1812,7 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 - Originally factory formatted with exFAT, now reformatted with P2FMTER
 - Largest card in catalog (128GB / ~119GB usable)
 - DATA_STAT_AFTER_ERASE=1 (erased data reads as 1s, not 0s)
+- **Benchmark data available** — see BENCHMARK-RESULTS.md for file-level throughput measurements (raw sector results pending re-test)
 
 ### SPI Speed Characterization
 
@@ -2754,6 +2761,7 @@ SCR: $02 $35 $84 $43 $00 $00 $00 $00
 - Card arrived pre-formatted as FAT32 with 64 sectors/cluster (32 KB clusters)
 - OEM name blank, volume label "NO NAME" - factory default format
 - Industrial cards are recommended for embedded SPI use due to wider temperature range and longer endurance
+- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements at both 320 and 270 MHz sysclk
 
 ### SPI Speed Characterization
 

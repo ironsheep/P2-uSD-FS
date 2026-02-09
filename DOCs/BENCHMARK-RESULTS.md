@@ -36,12 +36,14 @@ These measurements represent the driver performance **before** Smart Pin optimiz
 
 ## Detailed Card Results
 
-### Gigastone 32GB (Class 10, U1)
+### Gigastone 32GB (Transcend Silicon, Class 10, U1)
 
 **Card Identification**:
-- MID: $74
-- Product Name: "00000"
+- MID: $74 (Transcend OEM — Gigastone-branded card using Transcend flash/controller)
+- Product Name: "00000" (white-label)
 - CID: `$74 $49 $54 $30 $30 $30 $30 $30 $1E $62 $4D $D6 $D1 $00 $E7 $E3`
+
+**Note**: This is a different physical card than the Gigastone 32GB in CARD-CATALOG.md (different OID and serial number), but the same model with identical Transcend MID $74 silicon.
 
 **Results**:
 | Test | Value | Notes |
@@ -58,9 +60,11 @@ These measurements represent the driver performance **before** Smart Pin optimiz
 ### PNY 16GB (Phison Controller)
 
 **Card Identification**:
-- MID: $27
+- MID: $27 (Phison)
 - Product Name: "SD16G"
 - CID: `$27 $50 $48 $53 $44 $31 $36 $47 $40 $D0 $2C $93 $C2 $01 $4E $83`
+
+**Note**: This is a different physical PNY card (PRV 4.0) than the one used in the current-driver benchmarks below and in CARD-CATALOG.md (PRV 3.0, different serial number). Both are PNY 16GB with identical Phison MID $27 controllers.
 
 **Results**:
 | Test | Value | Notes |
@@ -76,12 +80,13 @@ These measurements represent the driver performance **before** Smart Pin optimiz
 
 ---
 
-### SanDisk Extreme 64GB
+### SanDisk Extreme 64GB (SN64G, MID $03)
 
 **Card Identification**:
-- MID: $03 (SanDisk)
+- MID: $03 (SanDisk / Western Digital)
 - Product Name: "SN64G"
 - CID: `$03 $53 $44 $53 $4E $36 $34 $47 $86 $7E $65 $07 $71 $01 $6B $8D`
+- Catalog ID: `SanDisk_SN64G_8.6_7E650771_202211`
 
 **Results**:
 | Test | Value | Notes |
@@ -353,7 +358,7 @@ The raw multi-sector operations show the typical ~5% sysclk effect. However, fil
 **CID**: `$1B $53 $4D $47 $44 $34 $51 $54 $30 $C0 $30 $55 $65 $01 $25 $E9`
 **Note**: Largest card tested (119 GB, 64 sectors/cluster = 32 KB clusters). FAT32 formatted (OEM "P2FMTER"), volume "P2-XFER".
 
-**Raw Sector API Issue**: `readSectorsRaw()` and `writeSectorsRaw()` return 0 on this card for all timed raw sector tests. File-level operations (which use the handle API internally) work correctly. This appears to be a card-specific compatibility issue with the raw sector API that needs investigation. Raw sector results are omitted; file-level results below are valid.
+**Raw Sector Results Incomplete**: The initial benchmark run returned 0 for all raw sector tests due to a test seeding issue (not a card compatibility problem — file-level operations, which use the same underlying sector I/O, work correctly). Raw sector results need to be re-collected; file-level results below are valid.
 
 #### 320 MHz Run
 
