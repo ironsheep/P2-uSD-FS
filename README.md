@@ -27,7 +27,7 @@ This project provides a robust, high-performance SD card driver for the P2 micro
 ## Hardware Requirements
 
 - Parallax Propeller 2 (P2) microcontroller
-- P2 Edge Module ([P2-EC](https://www.parallax.com/product/p2-edge-module/) or [P2-EC32MB](https://www.parallax.com/product/p2-edge-module-32mb/)) or custom board
+- P2 Edge Module ([P2-EC](https://www.parallax.com/product/p2-edge-module/) or [P2-EC32MB](https://www.parallax.com/product/p2-edge-module-32mb/))
 - microSD Add-on Board ([#64009](https://www.parallax.com/product/micro-sd-card-add-on-board/)) - provides the microSD card slot
 - FAT32-formatted SD card
 
