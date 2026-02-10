@@ -31,7 +31,7 @@ CON { timing }
 CON { terminal }
 
 '  BR_TERM  = 230_400                                            ' terminal baud rate
-  BR_TERM  = 2_000_000                                            ' terminal baud rate
+  BR_TERM  = 1_000_000                                            ' terminal baud rate
 
 
 CON { SD card pins - P2 Edge Module }
@@ -173,6 +173,8 @@ VAR { parser }
 PUB main() | len, eCmd
 
   setup()
+  serial.tx(serial.CLS)
+  serial.fstr0(@"* Press return to start...\n")
   wait_for_terminal(false, 0)
 
   serial.tx(serial.CLS)
@@ -525,10 +527,8 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
     ' Display as text
     repeat i from 0 to bytes_read - 1
       c := buffer[i]
-      if (c == 13)                                              ' CR
-        serial.tx(13)
-      elseif (c == 10)                                          ' LF - skip (CR handles newline)
-        ' skip
+      if (c == 13) or (c == 10)                                  ' CR or LF
+        serial.tx(c)
       elseif (c >= 32 and c < 127)                              ' printable
         serial.tx(c)
       else
@@ -1900,9 +1900,12 @@ PRI enqueue(c) : done
 ' Add character to input buffer
 ' -- returns true when CR received
 
-  if (c == 0) or (c == 13)                                     ' end of input?
+  if (c == 13)                                                  ' CR = end of input
     cliBuf[cliIdx] := 0                                         '  terminate buffer
     return true
+
+  if (c == 10)                                                  ' LF = ignore
+    return false
 
   if (c == 8) and (cliIdx > 0)                                 ' backspace?
     cliBuf[--cliIdx] := 0                                       '  erase last char
@@ -1971,39 +1974,21 @@ CON { strings / lists }
 
 DAT { help text }
 
-  s_Help        byte    10
-                byte    "  === Navigation ===", 10
-                byte    "  mount        Mount SD card", 10
-                byte    "  unmount      Safely unmount SD card (alias: eject)", 10
-                byte    "  dir          List directory (alias: ls)", 10
-                byte    "  cd <path>    Change directory", 10
-                byte    "  pwd          Print working directory", 10
-                byte    10
-                byte    "  === File Operations ===", 10
-                byte    "  type <file>  Display text file (alias: cat)", 10
-                byte    "  hexdump <f>  Display file in hex (alias: hd)", 10
-                byte    "  copy <s> <d> Copy file (alias: cp)", 10
-                byte    "  ren <o> <n>  Rename file (alias: mv)", 10
-                byte    "  del <file>   Delete file (alias: rm)", 10
-                byte    "  touch <file> Create empty file", 10
-                byte    "  mkdir <dir>  Create directory", 10
-                byte    "  rmdir <dir>  Remove empty directory", 10
-                byte    10
-                byte    "  === Information ===", 10
-                byte    "  stats        Show filesystem statistics (alias: info)", 10
-                byte    "  card         Show card identification (alias: cid)", 10
-                byte    "  version      Show driver version", 10
-                byte    10
-                byte    "  === Diagnostics ===", 10
-                byte    "  audit        Check filesystem integrity (read-only)", 10
-                byte    "  fsck         Check and repair filesystem", 10
-                byte    "  bench        Read-only throughput benchmark (alias: benchmark, perf)", 10
-                byte    10
-                byte    "  === Utility ===", 10
-                byte    "  label [name] Show or set volume label (alias: vol)", 10
-                byte    "  demo         Create sample demo files", 10
-                byte    "  cls          Clear screen (alias: clear)", 10
-                byte    "  help         Show this help", 10
+  s_Help        byte    13, 10
+                byte    "  Navigation                          File Operations", 13, 10
+                byte    "  mount       Mount SD card           type <f>    Show text (cat)", 13, 10
+                byte    "  unmount     Unmount (eject)         hexdump <f> Hex dump (hd)", 13, 10
+                byte    "  dir         List files (ls)         copy <s><d> Copy file (cp)", 13, 10
+                byte    "  cd <path>   Change directory        ren <o> <n> Rename (mv)", 13, 10
+                byte    "  pwd         Working directory       del <f>     Delete (rm)", 13, 10
+                byte    "  mkdir <d>   Create directory        touch <f>   Create file", 13, 10
+                byte    "  rmdir <d>   Remove directory        demo        Create demo files", 13, 10
+                byte    "  Information                         Diagnostics & Utility", 13, 10
+                byte    "  stats       Card stats (info)       audit       Check FS integrity", 13, 10
+                byte    "  card        Card ID (cid)           fsck        Check & repair FS", 13, 10
+                byte    "  version     Driver version          bench       Throughput test", 13, 10
+                byte    "  label [n]   Volume label (vol)      format      Format SD card", 13, 10
+                byte    "  cls         Clear screen            help        This help", 13, 10
                 byte    0
 
 

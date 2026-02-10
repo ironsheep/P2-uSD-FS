@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-02-10
+
+### Fixed
+
+- Demo shell help text rewritten as two-column layout to fit 80x25 terminal (was 33 lines, now 15)
+- Help text DAT strings use CR+LF line endings for correct terminal output
+- Input parser explicitly ignores LF; only CR terminates command input
+- File display (`type` command) passes through both CR and LF from file data
+
 ## [0.9.1] - 2026-02-09
 
 Initial release.
@@ -35,5 +44,6 @@ Initial release.
 - Driver development by Stephen M. Moraco, Iron Sheep Productions
 
 
-[Unreleased]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/ironsheep/P2-uSD-FileSystem/releases/tag/v0.9.1
