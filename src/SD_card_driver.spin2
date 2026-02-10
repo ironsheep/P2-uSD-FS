@@ -119,6 +119,7 @@ CON '' command codes for worker cog
   CMD_OPEN_DIR    = 43      ' Open directory: param0=path ptr, returns data0=handle
   CMD_READ_DIR_H  = 44      ' Read next dir entry: param0=handle, returns data0=ptr
   CMD_CLOSE_DIR_H = 45      ' Close directory handle: param0=handle
+  CMD_SET_VOL_LABEL = 46    ' Set volume label: param0=new label string ptr
 
 CON '' buffer types for sector read/write (diagnostic: separate buffers to isolate conflicts)
   BUF_DIR  = 0      ' Directory sector buffer
@@ -554,7 +555,7 @@ PRI fs_worker() | cur_cmd
     ' Raw sector commands are allowed in both MODE_RAW and MODE_FILESYSTEM
     ' Mode transitions (MOUNT, UNMOUNT, INIT_CARD_ONLY) have their own logic
     ' V3: Include handle-based commands (CMD_OPEN_READ through CMD_CLOSE_DIR_H)
-    if (cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE) or (cur_cmd >= CMD_OPEN_READ and cur_cmd <= CMD_CLOSE_DIR_H)
+    if (cur_cmd >= CMD_OPEN and cur_cmd <= CMD_MOVEFILE) or (cur_cmd >= CMD_OPEN_READ and cur_cmd <= CMD_SET_VOL_LABEL)
       if driver_mode <> MODE_FILESYSTEM
         debug("  [fs_worker] REJECTED: File operation requires MODE_FILESYSTEM")
         pb_status := E_NOT_MOUNTED
@@ -757,6 +758,9 @@ PRI fs_worker() | cur_cmd
 
       CMD_CLOSE_DIR_H:
         pb_status := do_close_dir_h(pb_param0)
+
+      CMD_SET_VOL_LABEL:
+        pb_status := do_set_vol_label(pb_param0)
 
       other:
         debug("  [fs_worker] Unknown command: ", udec_(cur_cmd))
@@ -2198,6 +2202,55 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
   else
     debug("  [do_rename] Old file NOT FOUND")
   return E_FILE_NOT_FOUND
+
+PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3]
+' Internal set volume label - updates BPB and root directory volume label entry.
+'
+' @param p_label - Pointer to new volume label string (max 11 chars)
+' @returns result - SUCCESS on success, E_IO_ERROR on failure
+
+  ' Format label: uppercase, space-pad to 11 chars
+  bytefill(@label_83, " ", 11)
+  i := 0
+  repeat while byte[p_label + i] <> 0 and i < 11
+    ch := byte[p_label + i]
+    if ch >= "a" and ch <= "z"
+      ch -= $20
+    BYTE[@label_83][i] := ch
+    i++
+
+  debug("  [do_set_vol_label] new label=[", lstr_(@label_83, 11), "]")
+
+  ' Step 1: Update BPB volume label (VBR sector, offset $47)
+  readSector(vbr_sec, BUF_DATA)
+  bytemove(@buf + $47, @label_83, 11)
+  if writeSector(vbr_sec, BUF_DATA) == 0
+    debug("  [do_set_vol_label] FAIL: write VBR")
+    return E_IO_ERROR
+
+  ' Step 2: Find and update volume label entry in root directory
+  n_sec := root_sec
+  readSector(n_sec, BUF_DIR)
+  i := 0
+  repeat
+    p_entry := @dir_buf + (i & 511)
+    if byte[p_entry] == $00                                                            ' End of directory
+      quit
+    if byte[p_entry] <> $E5 and byte[p_entry + $0B] == $08                             ' Volume label entry found
+      bytemove(p_entry, @label_83, 11)
+      writeSector(n_sec, BUF_DIR)
+      debug("  [do_set_vol_label] Updated root dir entry")
+      quit
+    i += 32
+    if i & 511 == 0
+      readNextSector(BUF_DIR)
+
+  ' Step 3: Update in-memory copy
+  bytemove(@vol_label, @label_83, 11)
+  vol_label[11] := 0
+
+  debug("  [do_set_vol_label] SUCCESS")
+  return SUCCESS
 
 PRI do_movefile(name_ptr, dest_folder) : result | bookmark, p_temp, temp_sec
 ' Internal move file operation - moves file from current directory to destination.
@@ -3801,6 +3854,20 @@ PUB volumeLabel() : result
 '' @returns result - Pointer to volume label (11 chars + null)
 
   return @vol_label
+
+PUB setVolumeLabel(p_label) : result
+'' Set the volume label on the mounted SD card.
+'' Updates both the BPB and root directory volume label entry.
+''
+'' @param p_label - Pointer to new volume label string (max 11 chars)
+'' @returns result - TRUE on success, FALSE on failure
+
+  result := send_command(CMD_SET_VOL_LABEL, p_label, 0, 0, 0)
+  if result == SUCCESS
+    return true
+  else
+    set_error(result)
+    return false
 
 PUB debugDumpRootDir() | sec, i, p_entry
 '' DEBUG: Dump root directory entries to debug output.
