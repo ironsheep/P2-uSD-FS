@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-02-09
+## [0.9.1] - 2026-02-09
 
 Initial release.
 
@@ -35,5 +35,5 @@ Initial release.
 - Driver development by Stephen M. Moraco, Iron Sheep Productions
 
 
-[Unreleased]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/ironsheep/P2-uSD-FileSystem/releases/tag/v1.0.0
+[Unreleased]: https://github.com/ironsheep/P2-uSD-FileSystem/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/ironsheep/P2-uSD-FileSystem/releases/tag/v0.9.1
