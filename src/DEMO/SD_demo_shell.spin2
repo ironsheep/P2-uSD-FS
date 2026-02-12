@@ -174,13 +174,13 @@ PUB main() | len, eCmd
 
   setup()
   serial.tx(serial.CLS)
-  serial.fstr0(@"* Press return to start...\n")
+  serial.fstr0(@"* Press return to start...\r\n")
   wait_for_terminal(false, 0)
 
   serial.tx(serial.CLS)
-  serial.fstr0(@"P2 SD Card Filesystem Shell\n")
-  serial.fstr0(@"- type 'help' for commands\n")
-  serial.fstr0(@"\n")
+  serial.fstr0(@"P2 SD Card Filesystem Shell\r\n")
+  serial.fstr0(@"- type 'help' for commands\r\n")
+  serial.fstr0(@"\r\n")
 
   ' Initialize current working directory
   bytemove(@cwd, @"/", 2)
@@ -233,7 +233,7 @@ PUB run_command(eCmd)
 '' Run command identified by enum value eCmd
 
   if (eCmd == CMD_UNKNOWN)
-    serial.fstr1(@"'%s' is not recognized as a command\n", token(0))
+    serial.fstr1(@"'%s' is not recognized as a command\r\n", token(0))
     return
 
   case eCmd
@@ -283,8 +283,8 @@ PUB show_version()
     bad_syntax()
     return
 
-  serial.fstr0(@"SD Card Driver - Iron Sheep Productions\n")
-  serial.fstr1(@"SPI Frequency: %d Hz\n", sd.getSPIFrequency())
+  serial.fstr0(@"SD Card Driver - Iron Sheep Productions\r\n")
+  serial.fstr1(@"SPI Frequency: %d Hz\r\n", sd.getSPIFrequency())
 
 
 PUB do_cls()
@@ -307,19 +307,19 @@ PUB do_mount() | result
     return
 
   if (mounted)
-    serial.fstr0(@"SD card is already mounted\n")
+    serial.fstr0(@"SD card is already mounted\r\n")
     return
 
-  serial.fstr0(@"Mounting SD card...\n")
+  serial.fstr0(@"Mounting SD card...\r\n")
   result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
 
   if (result)
     mounted := true
     bytemove(@cwd, @"/", 2)                                     ' reset to root
-    serial.fstr0(@"Mounted successfully\n")
+    serial.fstr0(@"Mounted successfully\r\n")
     show_card_summary()
   else
-    serial.fstr1(@"Mount failed, error: %d\n", sd.error())
+    serial.fstr1(@"Mount failed, error: %d\r\n", sd.error())
 
 
 PUB do_unmount()
@@ -335,7 +335,7 @@ PUB do_unmount()
 
   sd.unmount()
   mounted := false
-  serial.fstr0(@"SD card unmounted\n")
+  serial.fstr0(@"SD card unmounted\r\n")
 
 
 PUB do_format()
@@ -346,9 +346,9 @@ PUB do_format()
     bad_syntax()
     return
 
-  serial.fstr0(@"WARNING: Format will erase ALL data on the SD card!\n")
-  serial.fstr0(@"This feature is not yet implemented in this shell.\n")
-  serial.fstr0(@"Use SD_format_utility.spin2 instead.\n")
+  serial.fstr0(@"WARNING: Format will erase ALL data on the SD card!\r\n")
+  serial.fstr0(@"This feature is not yet implemented in this shell.\r\n")
+  serial.fstr0(@"Use SD_format_utility.spin2 instead.\r\n")
 
 
 PUB do_stats() | free_sectors, total_sectors, free_mb, total_mb
@@ -368,11 +368,11 @@ PUB do_stats() | free_sectors, total_sectors, free_mb, total_mb
   total_mb := total_sectors / 2048                              ' sectors to MB (512 * 2048 = 1MB)
   free_mb := free_sectors / 2048
 
-  serial.fstr0(@"\n--- SD Card Statistics ---\n")
-  serial.fstr2(@"Total size:    %d sectors (%d MB)\n", total_sectors, total_mb)
-  serial.fstr2(@"Free space:    %d sectors (%d MB)\n", free_sectors, free_mb)
-  serial.fstr1(@"Volume label:  %s\n", sd.volumeLabel())
-  serial.fstr1(@"SPI frequency: %d Hz\n", sd.getSPIFrequency())
+  serial.fstr0(@"\r\n--- SD Card Statistics ---\r\n")
+  serial.fstr2(@"Total size:    %d sectors (%d MB)\r\n", total_sectors, total_mb)
+  serial.fstr2(@"Free space:    %d sectors (%d MB)\r\n", free_sectors, free_mb)
+  serial.fstr1(@"Volume label:  %s\r\n", sd.volumeLabel())
+  serial.fstr1(@"SPI frequency: %d Hz\r\n", sd.getSPIFrequency())
 
 
 PUB do_dir() | dh, result, count, total_size, attrib, size, p_name
@@ -386,13 +386,13 @@ PUB do_dir() | dh, result, count, total_size, attrib, size, p_name
   if (check_mount() == false)
     return
 
-  serial.fstr1(@"\n Directory of %s\n\n", @cwd)
-  serial.fstr0(@"  Attr      Size  Name\n")
-  serial.fstr0(@"  ----  --------  --------------------------------\n")
+  serial.fstr1(@"\r\n Directory of %s\r\n\r\n", @cwd)
+  serial.fstr0(@"  Attr      Size  Name\r\n")
+  serial.fstr0(@"  ----  --------  --------------------------------\r\n")
 
   dh := sd.openDirectory(@".")
   if (dh < 0)
-    serial.fstr1(@"  Error opening directory: %d\n", dh)
+    serial.fstr1(@"  Error opening directory: %d\r\n", dh)
     return
 
   count := 0
@@ -418,18 +418,18 @@ PUB do_dir() | dh, result, count, total_size, attrib, size, p_name
     serial.tx((attrib & $04) ? "S" : "-")                         ' system
 
     if (attrib & $10)                                           ' directory
-      serial.fstr1(@"    <DIR>  %s\n", p_name)
+      serial.fstr1(@"    <DIR>  %s\r\n", p_name)
     else
-      serial.fstr2(@"  %8d  %s\n", size, p_name)
+      serial.fstr2(@"  %8d  %s\r\n", size, p_name)
       total_size += size
 
     count++
 
   sd.closeDirectoryHandle(dh)
 
-  serial.fstr0(@"\n")
-  serial.fstr2(@"  %d file(s), %d bytes\n", count, total_size)
-  serial.fstr1(@"  %d bytes free\n", sd.freeSpace() * SECTOR_SIZE)
+  serial.fstr0(@"\r\n")
+  serial.fstr2(@"  %d file(s), %d bytes\r\n", count, total_size)
+  serial.fstr1(@"  %d bytes free\r\n", sd.freeSpace() * SECTOR_SIZE)
 
 
 PUB do_cd() | p_path
@@ -461,7 +461,7 @@ PUB do_cd() | p_path
   if (sd.changeDirectory(p_path))
     update_cwd(p_path)
   else
-    serial.fstr1(@"Directory not found: %s\n", p_path)
+    serial.fstr1(@"Directory not found: %s\r\n", p_path)
 
 
 PUB do_pwd()
@@ -475,7 +475,7 @@ PUB do_pwd()
   if (check_mount() == false)
     return
 
-  serial.fstr1(@"%s\n", @cwd)
+  serial.fstr1(@"%s\r\n", @cwd)
 
 
 PUB do_mkdir() | p_name, result
@@ -493,9 +493,9 @@ PUB do_mkdir() | p_name, result
   result := sd.newDirectory(p_name)
 
   if (result)
-    serial.fstr1(@"Created directory: %s\n", p_name)
+    serial.fstr1(@"Created directory: %s\r\n", p_name)
   else
-    serial.fstr1(@"Failed to create directory: %s\n", p_name)
+    serial.fstr1(@"Failed to create directory: %s\r\n", p_name)
 
 
 PUB do_type() | p_filename, handle, bytes_read, total, c, i
@@ -513,10 +513,10 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
   handle := sd.openFileRead(p_filename)
 
   if (handle < 0)
-    serial.fstr1(@"File not found: %s\n", p_filename)
+    serial.fstr1(@"File not found: %s\r\n", p_filename)
     return
 
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
   total := 0
 
   repeat
@@ -537,7 +537,7 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
     total += bytes_read
 
   sd.closeFileHandle(handle)
-  serial.fstr1(@"\n\n[%d bytes]\n", total)
+  serial.fstr1(@"\r\n\r\n[%d bytes]\r\n", total)
 
 
 PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
@@ -555,10 +555,10 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
   handle := sd.openFileRead(p_filename)
 
   if (handle < 0)
-    serial.fstr1(@"File not found: %s\n", p_filename)
+    serial.fstr1(@"File not found: %s\r\n", p_filename)
     return
 
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
   offset := 0
 
   repeat
@@ -588,16 +588,16 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
       else
         serial.tx(".")
 
-    serial.fstr0(@"|\n")
+    serial.fstr0(@"|\r\n")
     offset += bytes_read
 
     ' Limit output to first 512 bytes
     if (offset >= 512)
-      serial.fstr0(@"... (truncated at 512 bytes)\n")
+      serial.fstr0(@"... (truncated at 512 bytes)\r\n")
       quit
 
   sd.closeFileHandle(handle)
-  serial.fstr1(@"\n[%d bytes total]\n", sd.fileSizeHandle(handle) > 0 ? sd.fileSizeHandle(handle) : offset)
+  serial.fstr1(@"\r\n[%d bytes total]\r\n", sd.fileSizeHandle(handle) > 0 ? sd.fileSizeHandle(handle) : offset)
 
 
 PUB do_rename() | p_old, p_new, result
@@ -617,9 +617,9 @@ PUB do_rename() | p_old, p_new, result
   result := sd.rename(p_old, p_new)
 
   if (result)
-    serial.fstr2(@"Renamed '%s' to '%s'\n", p_old, p_new)
+    serial.fstr2(@"Renamed '%s' to '%s'\r\n", p_old, p_new)
   else
-    serial.fstr1(@"Failed to rename: %s\n", p_old)
+    serial.fstr1(@"Failed to rename: %s\r\n", p_old)
 
 
 PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
@@ -637,18 +637,18 @@ PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
   p_dst := token(2)
 
   if (strcomp(p_src, p_dst))
-    serial.fstr0(@"Cannot copy file to itself\n")
+    serial.fstr0(@"Cannot copy file to itself\r\n")
     return
 
   h_src := sd.openFileRead(p_src)
   if (h_src < 0)
-    serial.fstr1(@"Source file not found: %s\n", p_src)
+    serial.fstr1(@"Source file not found: %s\r\n", p_src)
     return
 
   h_dst := sd.createFileNew(p_dst)
   if (h_dst < 0)
     sd.closeFileHandle(h_src)
-    serial.fstr1(@"Cannot create destination: %s\n", p_dst)
+    serial.fstr1(@"Cannot create destination: %s\r\n", p_dst)
     return
 
   total := 0
@@ -662,7 +662,7 @@ PUB do_copy() | p_src, p_dst, h_src, h_dst, bytes_read, total
   sd.closeFileHandle(h_src)
   sd.closeFileHandle(h_dst)
 
-  serial.fstr2(@"Copied %d bytes to %s\n", total, p_dst)
+  serial.fstr2(@"Copied %d bytes to %s\r\n", total, p_dst)
 
 
 PUB do_delete() | p_filename, result
@@ -680,9 +680,9 @@ PUB do_delete() | p_filename, result
   result := sd.deleteFile(p_filename)
 
   if (result)
-    serial.fstr1(@"Deleted: %s\n", p_filename)
+    serial.fstr1(@"Deleted: %s\r\n", p_filename)
   else
-    serial.fstr1(@"Failed to delete: %s\n", p_filename)
+    serial.fstr1(@"Failed to delete: %s\r\n", p_filename)
 
 
 PUB do_rmdir()
@@ -696,7 +696,7 @@ PUB do_rmdir()
   if (check_mount() == false)
     return
 
-  serial.fstr0(@"rmdir not yet implemented\n")
+  serial.fstr0(@"rmdir not yet implemented\r\n")
 
 
 PUB do_demo() | handle, i
@@ -710,14 +710,14 @@ PUB do_demo() | handle, i
   if (check_mount() == false)
     return
 
-  serial.fstr0(@"Creating demo files...\n")
+  serial.fstr0(@"Creating demo files...\r\n")
 
   ' Create text file 1
   write_demo_file(@"HELLO.TXT", @demo_hello)
   write_demo_file(@"README.TXT", @demo_readme)
   write_demo_file(@"NUMBERS.TXT", @demo_numbers)
 
-  serial.fstr0(@"Demo files created.\n")
+  serial.fstr0(@"Demo files created.\r\n")
 
 
 PUB do_card_info() | cid[4], csd[4], mid, oid[3], pnm[6], prv, psn, mdt
@@ -744,16 +744,16 @@ PUB do_card_info() | cid[4], csd[4], mid, oid[3], pnm[6], prv, psn, mdt
   psn := (cid.byte[9] << 24) | (cid.byte[10] << 16) | (cid.byte[11] << 8) | cid.byte[12]
   mdt := ((cid.byte[13] & $0F) << 8) | cid.byte[14]
 
-  serial.fstr0(@"\n--- SD Card Identification ---\n")
-  serial.fstr1(@"Manufacturer ID:  0x%.2x\n", mid)
-  serial.fstr1(@"OEM/Application:  %s\n", @oid)
-  serial.fstr1(@"Product Name:     %s\n", @pnm)
-  serial.fstr2(@"Product Revision: %d.%d\n", prv >> 4, prv & $0F)
-  serial.fstr1(@"Serial Number:    0x%.8x\n", psn)
-  serial.fstr2(@"Manufacture Date: %d/%d\n", (mdt >> 4) + 2000, mdt & $0F)
-  serial.fstr1(@"Card Size:        %d MB\n", sd.cardSizeSectors() / 2048)
-  serial.fstr1(@"SPI Frequency:    %d Hz\n", sd.getSPIFrequency())
-  serial.fstr1(@"High-Speed Mode:  %s\n", sd.isHighSpeedActive() ? @"Active" : @"Inactive")
+  serial.fstr0(@"\r\n--- SD Card Identification ---\r\n")
+  serial.fstr1(@"Manufacturer ID:  0x%.2x\r\n", mid)
+  serial.fstr1(@"OEM/Application:  %s\r\n", @oid)
+  serial.fstr1(@"Product Name:     %s\r\n", @pnm)
+  serial.fstr2(@"Product Revision: %d.%d\r\n", prv >> 4, prv & $0F)
+  serial.fstr1(@"Serial Number:    0x%.8x\r\n", psn)
+  serial.fstr2(@"Manufacture Date: %d/%d\r\n", (mdt >> 4) + 2000, mdt & $0F)
+  serial.fstr1(@"Card Size:        %d MB\r\n", sd.cardSizeSectors() / 2048)
+  serial.fstr1(@"SPI Frequency:    %d Hz\r\n", sd.getSPIFrequency())
+  serial.fstr1(@"High-Speed Mode:  %s\r\n", sd.isHighSpeedActive() ? @"Active" : @"Inactive")
 
 
 PUB do_audit() | wasMounted, result
@@ -769,21 +769,21 @@ PUB do_audit() | wasMounted, result
 
   ' If not mounted, initialize card for raw access
   if (not mounted)
-    serial.fstr0(@"Initializing card...\n")
+    serial.fstr0(@"Initializing card...\r\n")
     if (not initRawAccess())
-      serial.fstr0(@"ERROR: Cannot initialize card\n")
+      serial.fstr0(@"ERROR: Cannot initialize card\r\n")
       return
 
   ' Reset statistics
   passCount := 0
   failCount := 0
 
-  serial.fstr0(@"\n=== FAT32 Filesystem Audit (read-only) ===\n")
-  serial.fstr1(@"Card: %d MB\n\n", sd.cardSizeSectors() / 2048)
+  serial.fstr0(@"\r\n=== FAT32 Filesystem Audit (read-only) ===\r\n")
+  serial.fstr1(@"Card: %d MB\r\n\r\n", sd.cardSizeSectors() / 2048)
 
   ' Read geometry
   if (not readGeometry())
-    serial.fstr0(@"ERROR: Cannot read filesystem geometry\n")
+    serial.fstr0(@"ERROR: Cannot read filesystem geometry\r\n")
     if (not wasMounted)
       sd.stop()
     return
@@ -802,14 +802,14 @@ PUB do_audit() | wasMounted, result
     sd.stop()
 
   ' Summary
-  serial.fstr0(@"\n=== AUDIT COMPLETE ===\n")
+  serial.fstr0(@"\r\n=== AUDIT COMPLETE ===\r\n")
   serial.fstr2(@"Tests: %d  Pass: %d", passCount + failCount, passCount)
-  serial.fstr1(@"  Fail: %d\n", failCount)
+  serial.fstr1(@"  Fail: %d\r\n", failCount)
   if (failCount == 0)
-    serial.fstr0(@"FILESYSTEM INTEGRITY: OK\n")
+    serial.fstr0(@"FILESYSTEM INTEGRITY: OK\r\n")
   else
-    serial.fstr0(@"FILESYSTEM INTEGRITY: ISSUES DETECTED\n")
-    serial.fstr0(@"  Consider running 'fsck' to repair.\n")
+    serial.fstr0(@"FILESYSTEM INTEGRITY: ISSUES DETECTED\r\n")
+    serial.fstr0(@"  Consider running 'fsck' to repair.\r\n")
 
 
 PUB do_fsck() | cardSectors
@@ -827,12 +827,12 @@ PUB do_fsck() | cardSectors
       return
     sd.unmount()
     mounted := false
-    serial.fstr0(@"Unmounted.\n")
+    serial.fstr0(@"Unmounted.\r\n")
 
   ' Initialize card for raw access
-  serial.fstr0(@"Initializing card...\n")
+  serial.fstr0(@"Initializing card...\r\n")
   if (not initRawAccess())
-    serial.fstr0(@"ERROR: Cannot initialize card\n")
+    serial.fstr0(@"ERROR: Cannot initialize card\r\n")
     return
 
   ' Reset statistics
@@ -846,23 +846,23 @@ PUB do_fsck() | cardSectors
   fatBufDirty := false
 
   cardSectors := sd.cardSizeSectors()
-  serial.fstr0(@"\n=== FAT32 Filesystem Check & Repair ===\n")
-  serial.fstr2(@"Card: %d sectors (%d MB)\n\n", cardSectors, cardSectors / 2048)
+  serial.fstr0(@"\r\n=== FAT32 Filesystem Check & Repair ===\r\n")
+  serial.fstr2(@"Card: %d sectors (%d MB)\r\n\r\n", cardSectors, cardSectors / 2048)
 
   ' Read filesystem geometry
   if (not readGeometry())
-    serial.fstr0(@"FATAL: Cannot read filesystem geometry\n")
+    serial.fstr0(@"FATAL: Cannot read filesystem geometry\r\n")
     sd.stop()
     return
 
   ' Determine if bitmap can cover the whole card
   bitmapCapable := (geoTotalClus <= MAX_BITMAP_CLUSTERS)
   if (not bitmapCapable)
-    serial.fstr2(@"NOTE: Card has %d clusters (bitmap max: %d)\n", geoTotalClus, MAX_BITMAP_CLUSTERS)
-    serial.fstr0(@"  Deep scan (passes 2-3) skipped.\n")
+    serial.fstr2(@"NOTE: Card has %d clusters (bitmap max: %d)\r\n", geoTotalClus, MAX_BITMAP_CLUSTERS)
+    serial.fstr0(@"  Deep scan (passes 2-3) skipped.\r\n")
     warningCount++
 
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
   ' Pass 1: Structural integrity
   fsckPass1()
@@ -879,22 +879,22 @@ PUB do_fsck() | cardSectors
   fsckPass4()
 
   ' Summary
-  serial.fstr0(@"\n=== FSCK COMPLETE ===\n")
+  serial.fstr0(@"\r\n=== FSCK COMPLETE ===\r\n")
   serial.fstr2(@"Errors: %d  Repairs: %d", errorCount, repairCount)
-  serial.fstr1(@"  Warnings: %d\n", warningCount)
+  serial.fstr1(@"  Warnings: %d\r\n", warningCount)
   if (bitmapCapable)
-    serial.fstr2(@"Directories: %d  Files: %d\n", dirCount, fileCount)
+    serial.fstr2(@"Directories: %d  Files: %d\r\n", dirCount, fileCount)
   if (errorCount == 0 AND repairCount == 0)
-    serial.fstr0(@"STATUS: CLEAN\n")
+    serial.fstr0(@"STATUS: CLEAN\r\n")
   elseif (errorCount == 0)
-    serial.fstr0(@"STATUS: REPAIRED\n")
+    serial.fstr0(@"STATUS: REPAIRED\r\n")
   else
-    serial.fstr0(@"STATUS: ERRORS REMAIN\n")
+    serial.fstr0(@"STATUS: ERRORS REMAIN\r\n")
 
   sd.stop()
 
   ' Offer to re-mount
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
   if (confirmYN(@"Re-mount card"))
     do_mount()
 
@@ -912,14 +912,14 @@ PUB do_bench() | wasMounted, tStart, tElapsed, sector, i, rate, nSectors, readRe
 
   ' If not mounted, initialize card for raw access
   if (not mounted)
-    serial.fstr0(@"Initializing card...\n")
+    serial.fstr0(@"Initializing card...\r\n")
     if (not initRawAccess())
-      serial.fstr0(@"ERROR: Cannot initialize card\n")
+      serial.fstr0(@"ERROR: Cannot initialize card\r\n")
       return
 
-  serial.fstr0(@"\n=== Read-Only Throughput Benchmark ===\n")
-  serial.fstr2(@"Card: %d MB, SPI: %d Hz\n", sd.cardSizeSectors() / 2048, sd.getSPIFrequency())
-  serial.fstr1(@"Test area: sectors %d+\n\n", BENCH_SECTOR_BASE)
+  serial.fstr0(@"\r\n=== Read-Only Throughput Benchmark ===\r\n")
+  serial.fstr2(@"Card: %d MB, SPI: %d Hz\r\n", sd.cardSizeSectors() / 2048, sd.getSPIFrequency())
+  serial.fstr1(@"Test area: sectors %d+\r\n\r\n", BENCH_SECTOR_BASE)
 
   msPerTick := clkfreq / 1000
 
@@ -933,7 +933,7 @@ PUB do_bench() | wasMounted, tStart, tElapsed, sector, i, rate, nSectors, readRe
   tElapsed := getct() - tStart
 
   rate := (100 * 512 * msPerTick) / tElapsed                    ' bytes/ms = KB/s approx
-  serial.fstr2(@"%d ms, %d KB/s\n", tElapsed / msPerTick, rate)
+  serial.fstr2(@"%d ms, %d KB/s\r\n", tElapsed / msPerTick, rate)
 
   ' --- Multi-sector x8 ---
   serial.fstr0(@"Multi-sector x8 (100 reads)... ")
@@ -945,7 +945,7 @@ PUB do_bench() | wasMounted, tStart, tElapsed, sector, i, rate, nSectors, readRe
   tElapsed := getct() - tStart
 
   rate := (100 * 8 * 512 * (msPerTick / 10)) / (tElapsed / 10)
-  serial.fstr2(@"%d ms, %d KB/s\n", tElapsed / msPerTick, rate)
+  serial.fstr2(@"%d ms, %d KB/s\r\n", tElapsed / msPerTick, rate)
 
   ' --- Multi-sector x32 ---
   serial.fstr0(@"Multi-sector x32 (25 reads)... ")
@@ -957,7 +957,7 @@ PUB do_bench() | wasMounted, tStart, tElapsed, sector, i, rate, nSectors, readRe
   tElapsed := getct() - tStart
 
   rate := (25 * 32 * 512 * (msPerTick / 10)) / (tElapsed / 10)
-  serial.fstr2(@"%d ms, %d KB/s\n", tElapsed / msPerTick, rate)
+  serial.fstr2(@"%d ms, %d KB/s\r\n", tElapsed / msPerTick, rate)
 
   ' --- Multi-sector x64 ---
   serial.fstr0(@"Multi-sector x64 (16 reads)... ")
@@ -969,9 +969,9 @@ PUB do_bench() | wasMounted, tStart, tElapsed, sector, i, rate, nSectors, readRe
   tElapsed := getct() - tStart
 
   rate := (16 * 64 * 512 * (msPerTick / 10)) / (tElapsed / 10)
-  serial.fstr2(@"%d ms, %d KB/s\n", tElapsed / msPerTick, rate)
+  serial.fstr2(@"%d ms, %d KB/s\r\n", tElapsed / msPerTick, rate)
 
-  serial.fstr0(@"\rBenchmark complete.\n")
+  serial.fstr0(@"\rBenchmark complete.\r\n")
 
   ' Clean up if we initialized raw access
   if (not wasMounted)
@@ -994,9 +994,9 @@ PUB do_touch() | p_filename, handle
 
   if (handle >= 0)
     sd.closeFileHandle(handle)
-    serial.fstr1(@"Created: %s\n", p_filename)
+    serial.fstr1(@"Created: %s\r\n", p_filename)
   else
-    serial.fstr1(@"Failed to create: %s\n", p_filename)
+    serial.fstr1(@"Failed to create: %s\r\n", p_filename)
 
 
 PUB do_label() | p_label
@@ -1013,21 +1013,21 @@ PUB do_label() | p_label
     return
 
   if (ntokens == 1)
-    serial.fstr1(@"Volume label: %s\n", sd.volumeLabel())
+    serial.fstr1(@"Volume label: %s\r\n", sd.volumeLabel())
   else
     p_label := token(1)
     if strsize(p_label) > 11
-      serial.fstr0(@"Label too long (max 11 characters)\n")
+      serial.fstr0(@"Label too long (max 11 characters)\r\n")
       return
     if sd.setVolumeLabel(p_label)
-      serial.fstr1(@"Volume label set to: %s\n", sd.volumeLabel())
+      serial.fstr1(@"Volume label set to: %s\r\n", sd.volumeLabel())
     else
-      serial.fstr0(@"Failed to set volume label\n")
+      serial.fstr0(@"Failed to set volume label\r\n")
 
 
 PUB not_implemented()
 
-  serial.fstr1(@"%s is not implemented\n", token(0))
+  serial.fstr1(@"%s is not implemented\r\n", token(0))
 
 
 CON { helper methods }
@@ -1038,11 +1038,11 @@ PRI write_demo_file(p_name, p_content) | handle, len
 '' Write demo content to file
 
   len := strsize(p_content)
-  serial.fstr2(@"  Writing %s (%d bytes)...\n", p_name, len)
+  serial.fstr2(@"  Writing %s (%d bytes)...\r\n", p_name, len)
 
   handle := sd.createFileNew(p_name)
   if (handle < 0)
-    serial.fstr0(@"    ERROR: Could not create file\n")
+    serial.fstr0(@"    ERROR: Could not create file\r\n")
     return
 
   sd.writeHandle(handle, p_content, len)
@@ -1056,9 +1056,9 @@ PRI show_card_summary() | total_mb, free_mb
   total_mb := sd.cardSizeSectors() / 2048
   free_mb := sd.freeSpace() / 2048
 
-  serial.fstr1(@"  Volume: %s\n", sd.volumeLabel())
-  serial.fstr2(@"  Size: %d MB, Free: %d MB\n", total_mb, free_mb)
-  serial.fstr1(@"  SPI: %d Hz\n", sd.getSPIFrequency())
+  serial.fstr1(@"  Volume: %s\r\n", sd.volumeLabel())
+  serial.fstr2(@"  Size: %d MB, Free: %d MB\r\n", total_mb, free_mb)
+  serial.fstr1(@"  SPI: %d Hz\r\n", sd.getSPIFrequency())
 
 
 PRI check_mount() : status
@@ -1067,7 +1067,7 @@ PRI check_mount() : status
 
   status := mounted
   if (status == false)
-    serial.fstr0(@"SD card not mounted. Use 'mount' command first.\n")
+    serial.fstr0(@"SD card not mounted. Use 'mount' command first.\r\n")
 
 
 PRI go_up_directory() | i, len
@@ -1116,7 +1116,7 @@ PRI update_cwd(p_path) | len, cwd_len
 
 PRI bad_syntax()
 
-  serial.fstr0(@"Syntax error. Type 'help' for command list.\n")
+  serial.fstr0(@"Syntax error. Type 'help' for command list.\r\n")
 
 
 CON { audit sub-methods }
@@ -1128,17 +1128,17 @@ PRI auditRunTest(pTestName, passed)
 
   if (passed)
     passCount++
-    serial.fstr1(@"  [PASS] %s\n", pTestName)
+    serial.fstr1(@"  [PASS] %s\r\n", pTestName)
   else
     failCount++
-    serial.fstr1(@"  [FAIL] %s\n", pTestName)
+    serial.fstr1(@"  [FAIL] %s\r\n", pTestName)
 
 
 PRI auditMBR() | result
 
 '' Audit MBR structure (sector 0)
 
-  serial.fstr0(@"--- MBR ---\n")
+  serial.fstr0(@"--- MBR ---\r\n")
 
   sd.readSectorRaw(0, @buffer)
 
@@ -1152,18 +1152,18 @@ PRI auditMBR() | result
 
   result := LONG[@buffer + $1C6]
   auditRunTest(@"Partition start > 0", result > 0)
-  serial.fstr1(@"    Partition start: sector %d\n", result)
+  serial.fstr1(@"    Partition start: sector %d\r\n", result)
 
   result := LONG[@buffer + $1CA]
   auditRunTest(@"Partition size > 0", result > 0)
-  serial.fstr1(@"    Partition size: %d sectors\n\n", result)
+  serial.fstr1(@"    Partition size: %d sectors\r\n\r\n", result)
 
 
 PRI auditVBR() | result
 
 '' Audit VBR (primary boot sector at partition start)
 
-  serial.fstr0(@"--- VBR ---\n")
+  serial.fstr0(@"--- VBR ---\r\n")
 
   sd.readSectorRaw(geoPartStart, @buffer)
 
@@ -1177,7 +1177,7 @@ PRI auditVBR() | result
 
   result := buffer[$0D]
   auditRunTest(@"Sectors/cluster power of 2", result >= 1 AND result <= 128 AND (result & (result - 1)) == 0)
-  serial.fstr1(@"    Sectors/cluster: %d\n", result)
+  serial.fstr1(@"    Sectors/cluster: %d\r\n", result)
 
   result := WORD[@buffer + $0E]
   auditRunTest(@"Reserved sectors = 32", result == 32)
@@ -1201,10 +1201,10 @@ PRI auditVBR() | result
   auditRunTest(@"Hidden sectors = partition start", result == geoPartStart)
 
   auditRunTest(@"Total sectors 32-bit > 0", geoTotalSec > 0)
-  serial.fstr1(@"    Total sectors: %d\n", geoTotalSec)
+  serial.fstr1(@"    Total sectors: %d\r\n", geoTotalSec)
 
   auditRunTest(@"Sectors per FAT > 0", geoSecPerFat > 0)
-  serial.fstr1(@"    Sectors/FAT: %d\n", geoSecPerFat)
+  serial.fstr1(@"    Sectors/FAT: %d\r\n", geoSecPerFat)
 
   result := LONG[@buffer + $2C]
   auditRunTest(@"Root cluster = 2", result == 2)
@@ -1222,14 +1222,14 @@ PRI auditVBR() | result
   if buffer[$52] <> "F" OR buffer[$53] <> "A" OR buffer[$54] <> "T" OR buffer[$55] <> "3" OR buffer[$56] <> "2"
     result := false
   auditRunTest(@"FS type = FAT32", result)
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
 
 PRI auditBackupVBR() | idx, mismatch
 
 '' Verify backup VBR matches primary
 
-  serial.fstr0(@"--- Backup VBR ---\n")
+  serial.fstr0(@"--- Backup VBR ---\r\n")
 
   sd.readSectorRaw(geoPartStart, @buffer)
   sd.readSectorRaw(geoPartStart + 6, @buf2)
@@ -1241,14 +1241,14 @@ PRI auditBackupVBR() | idx, mismatch
       quit
 
   auditRunTest(@"Backup VBR matches primary", mismatch == false)
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
 
 PRI auditFSInfo() | result, idx, mismatch
 
 '' Verify FSInfo sector and backup
 
-  serial.fstr0(@"--- FSInfo ---\n")
+  serial.fstr0(@"--- FSInfo ---\r\n")
 
   sd.readSectorRaw(geoPartStart + 1, @buffer)
 
@@ -1263,7 +1263,7 @@ PRI auditFSInfo() | result, idx, mismatch
 
   result := LONG[@buffer + 488]
   auditRunTest(@"Free cluster count set", result <> 0)
-  serial.fstr1(@"    Free clusters: %d\n", result)
+  serial.fstr1(@"    Free clusters: %d\r\n", result)
 
   result := LONG[@buffer + 492]
   auditRunTest(@"Next free hint valid", result == $FFFFFFFF OR result >= 2)
@@ -1279,14 +1279,14 @@ PRI auditFSInfo() | result, idx, mismatch
       quit
 
   auditRunTest(@"Backup FSInfo matches primary", mismatch == false)
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
 
 PRI auditFAT() | result, idx, mismatch
 
 '' Verify FAT table entries and consistency
 
-  serial.fstr0(@"--- FAT Table ---\n")
+  serial.fstr0(@"--- FAT Table ---\r\n")
 
   sd.readSectorRaw(geoFat1Start, @buffer)
 
@@ -1312,14 +1312,14 @@ PRI auditFAT() | result, idx, mismatch
       quit
 
   auditRunTest(@"FAT1 first sector == FAT2", mismatch == false)
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
 
 PRI auditRootDir() | result
 
 '' Verify root directory structure
 
-  serial.fstr0(@"--- Root Directory ---\n")
+  serial.fstr0(@"--- Root Directory ---\r\n")
 
   sd.readSectorRaw(geoDataStart, @buffer)
 
@@ -1331,14 +1331,14 @@ PRI auditRootDir() | result
 
   result := buffer[$20]
   auditRunTest(@"Second entry valid or end", result == $00 OR result == $E5 OR (result >= $20 AND result <= $7E))
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
 
 PRI auditMountTest() | result
 
 '' Test mount/unmount cycle
 
-  serial.fstr0(@"--- Mount Test ---\n")
+  serial.fstr0(@"--- Mount Test ---\r\n")
 
   result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
   auditRunTest(@"mount() succeeds", result)
@@ -1346,10 +1346,10 @@ PRI auditMountTest() | result
   if (result)
     result := sd.freeSpace()
     auditRunTest(@"Free space > 0", result > 0)
-    serial.fstr1(@"    Free: %d sectors\n", result)
+    serial.fstr1(@"    Free: %d sectors\r\n", result)
     sd.unmount()
 
-  serial.fstr0(@"\n")
+  serial.fstr0(@"\r\n")
 
 
 CON { fsck sub-methods }
@@ -1359,7 +1359,7 @@ PRI fsckPass1() | idx, mismatch, fsinfoDirty, startRepairs
 
 '' Pass 1: Check and repair structural elements
 
-  serial.fstr0(@"--- Pass 1: Structural Integrity ---\n")
+  serial.fstr0(@"--- Pass 1: Structural Integrity ---\r\n")
   startRepairs := repairCount
 
   ' === VBR backup (sector 6) ===
@@ -1373,30 +1373,30 @@ PRI fsckPass1() | idx, mismatch, fsinfoDirty, startRepairs
       quit
 
   if (mismatch)
-    serial.fstr0(@"  REPAIR: Backup VBR mismatch - copying\n")
+    serial.fstr0(@"  REPAIR: Backup VBR mismatch - copying\r\n")
     sd.writeSectorRaw(geoPartStart + 6, @buffer)
     repairCount++
   else
-    serial.fstr0(@"  [OK] Backup VBR matches\n")
+    serial.fstr0(@"  [OK] Backup VBR matches\r\n")
 
   ' === FSInfo signatures (sector 1) ===
   sd.readSectorRaw(geoPartStart + 1, @buffer)
   fsinfoDirty := false
 
   if (LONG[@buffer] <> FSINFO_SIG1)
-    serial.fstr0(@"  REPAIR: FSInfo lead signature\n")
+    serial.fstr0(@"  REPAIR: FSInfo lead signature\r\n")
     LONG[@buffer] := FSINFO_SIG1
     fsinfoDirty := true
     repairCount++
 
   if (LONG[@buffer + 484] <> FSINFO_SIG2)
-    serial.fstr0(@"  REPAIR: FSInfo struct signature\n")
+    serial.fstr0(@"  REPAIR: FSInfo struct signature\r\n")
     LONG[@buffer + 484] := FSINFO_SIG2
     fsinfoDirty := true
     repairCount++
 
   if (LONG[@buffer + $1FC] <> FSINFO_TRAIL_SIG)
-    serial.fstr0(@"  REPAIR: FSInfo trail signature\n")
+    serial.fstr0(@"  REPAIR: FSInfo trail signature\r\n")
     LONG[@buffer + $1FC] := FSINFO_TRAIL_SIG
     fsinfoDirty := true
     repairCount++
@@ -1404,7 +1404,7 @@ PRI fsckPass1() | idx, mismatch, fsinfoDirty, startRepairs
   if (fsinfoDirty)
     sd.writeSectorRaw(geoPartStart + 1, @buffer)
   else
-    serial.fstr0(@"  [OK] FSInfo signatures\n")
+    serial.fstr0(@"  [OK] FSInfo signatures\r\n")
 
   ' === FSInfo backup (sector 7) ===
   sd.readSectorRaw(geoPartStart + 1, @buffer)
@@ -1417,49 +1417,49 @@ PRI fsckPass1() | idx, mismatch, fsinfoDirty, startRepairs
       quit
 
   if (mismatch)
-    serial.fstr0(@"  REPAIR: Backup FSInfo mismatch - copying\n")
+    serial.fstr0(@"  REPAIR: Backup FSInfo mismatch - copying\r\n")
     sd.writeSectorRaw(geoPartStart + 7, @buffer)
     repairCount++
   else
-    serial.fstr0(@"  [OK] Backup FSInfo matches\n")
+    serial.fstr0(@"  [OK] Backup FSInfo matches\r\n")
 
   ' === FAT[0] media type ===
   sd.readSectorRaw(geoFat1Start, @buffer)
 
   if ((LONG[@buffer] & FAT_MASK) <> ($0FFFFFF8 & FAT_MASK))
-    serial.fstr0(@"  REPAIR: FAT[0] media type\n")
+    serial.fstr0(@"  REPAIR: FAT[0] media type\r\n")
     LONG[@buffer] := $0FFFFFF8 | (LONG[@buffer] & $F0000000)
     sd.writeSectorRaw(geoFat1Start, @buffer)
     repairCount++
   else
-    serial.fstr0(@"  [OK] FAT[0] media type\n")
+    serial.fstr0(@"  [OK] FAT[0] media type\r\n")
 
   ' === FAT[1] EOC marker ===
   if ((LONG[@buffer + 4] & FAT_MASK) <> FAT_EOC)
-    serial.fstr0(@"  REPAIR: FAT[1] EOC marker\n")
+    serial.fstr0(@"  REPAIR: FAT[1] EOC marker\r\n")
     LONG[@buffer + 4] := FAT_EOC | (LONG[@buffer + 4] & $F0000000)
     sd.writeSectorRaw(geoFat1Start, @buffer)
     repairCount++
   else
-    serial.fstr0(@"  [OK] FAT[1] EOC marker\n")
+    serial.fstr0(@"  [OK] FAT[1] EOC marker\r\n")
 
   ' === FAT[2] root cluster ===
   if ((LONG[@buffer + 8] & FAT_MASK) == FAT_FREE)
-    serial.fstr0(@"  REPAIR: FAT[2] root cluster was free\n")
+    serial.fstr0(@"  REPAIR: FAT[2] root cluster was free\r\n")
     LONG[@buffer + 8] := FAT_EOC | (LONG[@buffer + 8] & $F0000000)
     sd.writeSectorRaw(geoFat1Start, @buffer)
     repairCount++
   else
-    serial.fstr0(@"  [OK] FAT[2] root cluster\n")
+    serial.fstr0(@"  [OK] FAT[2] root cluster\r\n")
 
-  serial.fstr1(@"  Pass 1: %d repairs\n\n", repairCount - startRepairs)
+  serial.fstr1(@"  Pass 1: %d repairs\r\n\r\n", repairCount - startRepairs)
 
 
 PRI fsckPass2() | startRepairs
 
 '' Pass 2: Walk directory tree and validate all cluster chains
 
-  serial.fstr0(@"--- Pass 2: Directory & Chain Validation ---\n")
+  serial.fstr0(@"--- Pass 2: Directory & Chain Validation ---\r\n")
   startRepairs := repairCount
 
   ' Clear cluster bitmap
@@ -1478,8 +1478,8 @@ PRI fsckPass2() | startRepairs
   scanDepth := 0
   fsckScanDir(geoRootClus)
 
-  serial.fstr2(@"  Dirs: %d  Files: %d\n", dirCount, fileCount)
-  serial.fstr1(@"  Pass 2: %d repairs\n\n", repairCount - startRepairs)
+  serial.fstr2(@"  Dirs: %d  Files: %d\r\n", dirCount, fileCount)
+  serial.fstr1(@"  Pass 2: %d repairs\r\n\r\n", repairCount - startRepairs)
 
 
 PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus, fSize, name0, nextClus
@@ -1490,7 +1490,7 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
   scanDepth++
 
   if (scanDepth > MAX_DIR_DEPTH)
-    serial.fstr0(@"  WARNING: Max dir depth exceeded\n")
+    serial.fstr0(@"  WARNING: Max dir depth exceeded\r\n")
     warningCount++
     scanDepth--
     return
@@ -1543,7 +1543,7 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
             ' Re-read our sector after recursion
             sd.readSectorRaw(sector + entSector, @buffer)
           elseif (startClus <> 0)
-            serial.fstr1(@"  ERROR: Bad dir start cluster %d\n", startClus)
+            serial.fstr1(@"  ERROR: Bad dir start cluster %d\r\n", startClus)
             errorCount++
         else
           ' --- Regular file ---
@@ -1551,7 +1551,7 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
           if (startClus >= 2 AND startClus < (geoTotalClus + 2))
             fsckValidateChain(startClus, fSize, false)
           elseif (startClus == 0 AND fSize > 0)
-            serial.fstr1(@"  ERROR: File has size %d but no cluster\n", fSize)
+            serial.fstr1(@"  ERROR: File has size %d but no cluster\r\n", fSize)
             errorCount++
 
     ' Advance to next cluster in directory chain
@@ -1559,7 +1559,7 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
     if (nextClus >= FAT_EOC_MIN)
       quit
     if (nextClus < 2 OR nextClus >= (geoTotalClus + 2))
-      serial.fstr1(@"  ERROR: Bad cluster in dir chain: %d\n", nextClus)
+      serial.fstr1(@"  ERROR: Bad cluster in dir chain: %d\r\n", nextClus)
       errorCount++
       quit
     dirCluster := nextClus
@@ -1577,7 +1577,7 @@ PRI fsckValidateChain(startClus, fSize, isDir) | clus, nextClus, chainLen, expec
   repeat while clus >= 2 AND clus < (geoTotalClus + 2)
     ' Check for cross-link
     if (fsckTestBit(clus))
-      serial.fstr1(@"  ERROR: Cross-linked cluster %d\n", clus)
+      serial.fstr1(@"  ERROR: Cross-linked cluster %d\r\n", clus)
       errorCount++
       return
 
@@ -1587,7 +1587,7 @@ PRI fsckValidateChain(startClus, fSize, isDir) | clus, nextClus, chainLen, expec
 
     ' Safety: detect loops
     if (chainLen > MAX_CHAIN_LENGTH)
-      serial.fstr1(@"  ERROR: Chain too long from cluster %d\n", startClus)
+      serial.fstr1(@"  ERROR: Chain too long from cluster %d\r\n", startClus)
       errorCount++
       return
 
@@ -1601,10 +1601,10 @@ PRI fsckValidateChain(startClus, fSize, isDir) | clus, nextClus, chainLen, expec
     ' Bad reference?
     if (nextClus < 2 OR (nextClus >= (geoTotalClus + 2) AND nextClus <> FAT_BAD))
       serial.fstr1(@"  ERROR: Bad ref %d", nextClus)
-      serial.fstr1(@" from cluster %d\n", startClus)
+      serial.fstr1(@" from cluster %d\r\n", startClus)
       ' Truncate chain
       fsckWriteFAT(clus, FAT_EOC)
-      serial.fstr1(@"  REPAIR: Truncated at cluster %d\n", clus)
+      serial.fstr1(@"  REPAIR: Truncated at cluster %d\r\n", clus)
       repairCount++
       quit
 
@@ -1618,7 +1618,7 @@ PRI fsckValidateChain(startClus, fSize, isDir) | clus, nextClus, chainLen, expec
   if (not isDir AND fSize > 0)
     expectedLen := (fSize + (geoSecPerClus * 512) - 1) / (geoSecPerClus * 512)
     if (chainLen <> expectedLen)
-      serial.fstr2(@"  WARNING: Chain %d clusters, expected %d\n", chainLen, expectedLen)
+      serial.fstr2(@"  WARNING: Chain %d clusters, expected %d\r\n", chainLen, expectedLen)
       warningCount++
 
 
@@ -1626,7 +1626,7 @@ PRI fsckPass3() | clus, fatVal, lostCount, startRepairs
 
 '' Pass 3: Find and free lost clusters
 
-  serial.fstr0(@"--- Pass 3: Lost Cluster Recovery ---\n")
+  serial.fstr0(@"--- Pass 3: Lost Cluster Recovery ---\r\n")
   startRepairs := repairCount
   lostCount := 0
 
@@ -1648,19 +1648,19 @@ PRI fsckPass3() | clus, fatVal, lostCount, startRepairs
   fsckFlushFAT()
 
   if (lostCount > 0)
-    serial.fstr1(@"\r  REPAIR: Freed %d lost clusters\n", lostCount)
+    serial.fstr1(@"\r  REPAIR: Freed %d lost clusters\r\n", lostCount)
     repairCount += lostCount
   else
-    serial.fstr0(@"  [OK] No lost clusters\n")
+    serial.fstr0(@"  [OK] No lost clusters\r\n")
 
-  serial.fstr1(@"  Pass 3: %d repairs\n\n", repairCount - startRepairs)
+  serial.fstr1(@"  Pass 3: %d repairs\r\n\r\n", repairCount - startRepairs)
 
 
 PRI fsckPass4() | fatSector, entIdx, clus, fatVal, freeCount, syncCount, mismatch, idx, startRepairs
 
 '' Pass 4: Sync FAT1 -> FAT2 and correct free cluster count
 
-  serial.fstr0(@"--- Pass 4: FAT Sync & Free Count ---\n")
+  serial.fstr0(@"--- Pass 4: FAT Sync & Free Count ---\r\n")
   startRepairs := repairCount
 
   ' Ensure prior writes flushed
@@ -1700,26 +1700,26 @@ PRI fsckPass4() | fatSector, entIdx, clus, fatVal, freeCount, syncCount, mismatc
       syncCount++
 
   if (syncCount > 0)
-    serial.fstr1(@"\r  REPAIR: Synced %d FAT sectors\n", syncCount)
+    serial.fstr1(@"\r  REPAIR: Synced %d FAT sectors\r\n", syncCount)
     repairCount += syncCount
   else
-    serial.fstr0(@"\r  [OK] FAT1 and FAT2 in sync\n")
+    serial.fstr0(@"\r  [OK] FAT1 and FAT2 in sync\r\n")
 
-  serial.fstr1(@"  Free clusters: %d\n", freeCount)
+  serial.fstr1(@"  Free clusters: %d\r\n", freeCount)
 
   ' Update FSInfo free cluster count
   sd.readSectorRaw(geoPartStart + 1, @buffer)
 
   if (LONG[@buffer + 488] <> freeCount)
-    serial.fstr2(@"  REPAIR: FSInfo free count %d -> %d\n", LONG[@buffer + 488], freeCount)
+    serial.fstr2(@"  REPAIR: FSInfo free count %d -> %d\r\n", LONG[@buffer + 488], freeCount)
     LONG[@buffer + 488] := freeCount
     sd.writeSectorRaw(geoPartStart + 1, @buffer)
     sd.writeSectorRaw(geoPartStart + 7, @buffer)
     repairCount++
   else
-    serial.fstr0(@"  [OK] FSInfo free count correct\n")
+    serial.fstr0(@"  [OK] FSInfo free count correct\r\n")
 
-  serial.fstr1(@"  Pass 4: %d repairs\n\n", repairCount - startRepairs)
+  serial.fstr1(@"  Pass 4: %d repairs\r\n\r\n", repairCount - startRepairs)
 
 
 PRI fsckReadFAT(cluster) : value | sector, offset
@@ -1806,10 +1806,10 @@ PRI confirmYN(p_prompt) : confirmed | c
   serial.fstr1(@"%s (y/N)? ", p_prompt)
   c := serial.rxtime(10_000)
   if (c == "y" or c == "Y")
-    serial.fstr0(@"yes\n")
+    serial.fstr0(@"yes\r\n")
     confirmed := true
   else
-    serial.fstr0(@"no\n")
+    serial.fstr0(@"no\r\n")
     confirmed := false
 
 
@@ -1829,18 +1829,18 @@ PRI readGeometry() : ok | numFats
   ' Read MBR to get partition start
   sd.readSectorRaw(0, @buf2)
   if WORD[@buf2 + $1FE] <> MBR_SIGNATURE
-    serial.fstr0(@"  ERROR: Invalid MBR signature\n")
+    serial.fstr0(@"  ERROR: Invalid MBR signature\r\n")
     return false
 
   geoPartStart := LONG[@buf2 + $1C6]
   if geoPartStart == 0
-    serial.fstr0(@"  ERROR: Partition start is 0\n")
+    serial.fstr0(@"  ERROR: Partition start is 0\r\n")
     return false
 
   ' Read VBR (Volume Boot Record)
   sd.readSectorRaw(geoPartStart, @buf2)
   if WORD[@buf2 + $1FE] <> MBR_SIGNATURE
-    serial.fstr0(@"  ERROR: Invalid VBR signature\n")
+    serial.fstr0(@"  ERROR: Invalid VBR signature\r\n")
     return false
 
   ' Extract geometry fields
@@ -1853,11 +1853,11 @@ PRI readGeometry() : ok | numFats
 
   ' Validate critical fields
   if geoSecPerClus == 0 OR geoSecPerFat == 0 OR geoTotalSec == 0
-    serial.fstr0(@"  ERROR: Zero in critical VBR field\n")
+    serial.fstr0(@"  ERROR: Zero in critical VBR field\r\n")
     return false
 
   if numFats < 1 OR numFats > 2
-    serial.fstr1(@"  ERROR: Invalid number of FATs: %d\n", numFats)
+    serial.fstr1(@"  ERROR: Invalid number of FATs: %d\r\n", numFats)
     return false
 
   ' Compute derived values
