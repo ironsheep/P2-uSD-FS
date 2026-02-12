@@ -31,7 +31,7 @@ CON { timing }
 CON { terminal }
 
 '  BR_TERM  = 230_400                                            ' terminal baud rate
-  BR_TERM  = 1_000_000                                            ' terminal baud rate
+  BR_TERM  = 2_000_000                                            ' terminal baud rate
 
 
 CON { SD card pins - P2 Edge Module }
@@ -205,10 +205,6 @@ PUB get_command() : len | c
   repeat
     c := serial.rx()                                            ' get char from serial
     c := (c == 9) ? " " : c                                    ' convert tab to space
-    if (c == 8)                                                 ' fix backspace
-      serial.str(string(8, " ", 8))                             '  for terminal
-    else
-      serial.tx(c)                                              ' echo to terminal
     if enqueue(c)                                               ' add to input buffer
       quit                                                      '  if terminated, we're done
 
