@@ -141,7 +141,7 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 - Originally factory formatted with exFAT, now reformatted with P2FMTER
 - Largest card in catalog (128GB / ~119GB usable)
 - DATA_STAT_AFTER_ERASE=1 (erased data reads as 1s, not 0s)
-- **Benchmark data available** — see BENCHMARK-RESULTS.md for file-level throughput measurements (raw sector results pending re-test)
+- **Benchmark data available** — see Benchmark Results section below for file-level throughput measurements (raw sector results pending re-test)
 
 ### SPI Speed Characterization
 
@@ -181,3 +181,69 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 | Latency per sector | 0.65 ms |
 
 **Performance Class:** HIGH - Very similar to SanDisk Nintendo Switch (within 0.4%).
+
+### Benchmark Results (Smart Pin SPI + Multi-Sector)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+
+**Raw Sector Results Incomplete**: The initial benchmark run returned 0 for all raw sector tests due to a test seeding issue (not a card compatibility problem -- file-level operations, which use the same underlying sector I/O, work correctly). Raw sector results need to be re-collected; file-level results below are valid.
+
+#### 320 MHz Run
+
+**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.3 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | — | — | — | **ERROR** |
+| Write 1x512B | — | — | — | **ERROR** |
+| **Raw Multi-Sector** | | | | |
+| Read 8/32/64 sectors | — | — | — | **ERROR** |
+| Write 8/32/64 sectors | — | — | — | **ERROR** |
+| **File-Level** | | | | |
+| File Write 512B | 7,821 | 8,027 | 8,537 | **63** |
+| File Write 4 KB | 16,686 | 17,253 | 18,142 | **237** |
+| File Write 32 KB | 84,730 | 102,330 | 121,699 | **320** |
+| File Read 4 KB | 6,209 | 6,286 | 6,933 | **651** |
+| File Read 32 KB | 35,227 | 35,296 | 35,769 | **928** |
+| File Read 128 KB | 158,710 | 158,857 | 159,994 | **825** |
+| File Read 256 KB | 340,113 | 340,286 | 341,577 | **770** |
+| **Overhead** | | | | |
+| File Open | 101 | 153 | 628 | — |
+| File Close | 22 | 22 | 22 | — |
+| Mount | — | 202,300 | — | — |
+
+#### 270 MHz Run
+
+**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 214.4 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | — | — | — | **ERROR** |
+| Write 1x512B | — | — | — | **ERROR** |
+| **Raw Multi-Sector** | | | | |
+| Read 8/32/64 sectors | — | — | — | **ERROR** |
+| Write 8/32/64 sectors | — | — | — | **ERROR** |
+| **File-Level** | | | | |
+| File Write 512B | 8,083 | 8,278 | 8,773 | **61** |
+| File Write 4 KB | 17,630 | 18,128 | 18,611 | **225** |
+| File Write 32 KB | 87,594 | 100,385 | 122,577 | **326** |
+| File Read 4 KB | 6,563 | 6,638 | 7,318 | **617** |
+| File Read 32 KB | 37,533 | 37,594 | 38,110 | **871** |
+| File Read 128 KB | 154,502 | 154,634 | 155,691 | **847** |
+| File Read 256 KB | 342,910 | 343,077 | 344,231 | **764** |
+| **Overhead** | | | | |
+| File Open | 120 | 189 | 816 | — |
+| File Close | 26 | 26 | 27 | — |
+| Mount | — | 214,400 | — | — |
+
+#### Sysclk Effect (320 vs 270 MHz)
+
+| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| File Read 4 KB | 651 | 617 | -5.2% |
+| File Read 256 KB | 770 | 764 | -0.8% |
+| File Write 32 KB | 320 | 326 | +1.9% |
+
+File reads at small sizes show the typical ~5% sysclk effect. At large sizes, the card controller's internal read latency dominates, making the sysclk difference negligible. File write results are within noise. This Samsung card has notably slower file reads (770 KB/s at 256 KB) compared to other cards (1,029-1,274 KB/s), likely due to higher internal controller latency.

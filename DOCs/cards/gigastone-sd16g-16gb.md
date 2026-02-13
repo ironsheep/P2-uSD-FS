@@ -173,4 +173,82 @@ SCR: $02 $B5 $80 $43 $00 $00 $00 $00
 - DATA_STAT_AFTER_ERASE=1 (erased data reads as 1s)
 - **MEDIUM throughput (368 KB/s)** - slower than premium cards but reliable
 - MLC flash may prioritize endurance over raw speed
-- **Benchmark data available** — see BENCHMARK-RESULTS.md; slowest card tested (file write 32 KB at 105 KB/s, raw single-sector write latency 3.6 ms)
+- **Benchmark data available** — see Benchmark Results section below; slowest card tested (file write 32 KB at 105 KB/s, raw single-sector write latency 3.6 ms)
+
+### Benchmark Results (Smart Pin SPI + Multi-Sector)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+
+#### 320 MHz Run
+
+**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 203.0 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 887 | 906 | 1,072 | **565** |
+| Write 1x512B | 3,456 | 3,601 | 4,171 | **142** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,687 | 2,708 | 2,872 | **1,512** |
+| Read 32 sectors (16 KB) | 8,859 | 8,878 | 9,044 | **1,845** |
+| Read 64 sectors (32 KB) | 17,088 | 17,110 | 17,273 | **1,915** |
+| Write 8 sectors (4 KB) | 5,173 | 5,390 | 6,028 | **759** |
+| Write 32 sectors (16 KB) | 11,211 | 11,294 | 11,930 | **1,450** |
+| Write 64 sectors (32 KB) | 18,924 | 19,621 | 25,085 | **1,670** |
+| **File-Level** | | | | |
+| File Write 512B | 20,607 | 22,072 | 28,404 | **23** |
+| File Write 4 KB | 46,168 | 46,545 | 47,058 | **88** |
+| File Write 32 KB | 296,680 | 310,332 | 380,277 | **105** |
+| File Read 4 KB | 6,129 | 6,221 | 7,047 | **658** |
+| File Read 32 KB | 54,665 | 54,835 | 56,337 | **597** |
+| File Read 128 KB | 208,092 | 208,292 | 209,816 | **629** |
+| File Read 256 KB | 414,901 | 415,200 | 417,118 | **631** |
+| **Overhead** | | | | |
+| File Open | 95 | 186 | 1,013 | — |
+| File Close | 22 | 22 | 22 | — |
+| Mount | — | 203,000 | — | — |
+
+Multi-sector improvement: 64x single reads = 57,030 us vs 1x CMD18 = 17,088 us (**70% faster**)
+
+#### 270 MHz Run
+
+**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 204.3 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 923 | 941 | 1,104 | **544** |
+| Write 1x512B | 3,488 | 3,634 | 4,205 | **140** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,839 | 2,857 | 3,020 | **1,433** |
+| Read 32 sectors (16 KB) | 9,407 | 9,425 | 9,589 | **1,738** |
+| Read 64 sectors (32 KB) | 18,165 | 18,183 | 18,347 | **1,802** |
+| Write 8 sectors (4 KB) | 5,311 | 5,459 | 6,049 | **750** |
+| Write 32 sectors (16 KB) | 11,561 | 11,705 | 12,277 | **1,399** |
+| Write 64 sectors (32 KB) | 19,731 | 19,917 | 20,452 | **1,645** |
+| **File-Level** | | | | |
+| File Write 512B | 20,644 | 21,574 | 22,150 | **23** |
+| File Write 4 KB | 46,641 | 56,020 | 128,008 | **73** |
+| File Write 32 KB | 299,025 | 312,727 | 384,028 | **104** |
+| File Read 4 KB | 6,374 | 6,468 | 7,318 | **633** |
+| File Read 32 KB | 55,549 | 55,718 | 57,240 | **588** |
+| File Read 128 KB | 213,018 | 213,187 | 214,709 | **614** |
+| File Read 256 KB | 425,880 | 426,049 | 427,570 | **615** |
+| **Overhead** | | | | |
+| File Open | 113 | 206 | 1,051 | — |
+| File Close | 26 | 26 | 27 | — |
+| Mount | — | 204,300 | — | — |
+
+Multi-sector improvement: 64x single reads = 59,351 us vs 1x CMD18 = 18,165 us (**69% faster**)
+
+#### Sysclk Effect (320 vs 270 MHz)
+
+| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| Raw Read 1x512B | 565 | 544 | -3.7% |
+| Raw Read 64x (32 KB) | 1,915 | 1,802 | -5.9% |
+| Raw Write 64x (32 KB) | 1,670 | 1,645 | -1.5% |
+| File Read 256 KB | 631 | 615 | -2.5% |
+| File Write 32 KB | 105 | 104 | -1.0% |
+
+Slowest card tested. File write 32 KB at 105 KB/s is 3.5x slower than the Gigastone Camera Plus (367 KB/s) and 4.8x slower than the Lexar (501 KB/s). Raw single-sector write latency (3,601 us) is 2.8x higher than the Gigastone Camera Plus (1,274 us), indicating a very slow internal flash controller. The 70% multi-sector improvement is the highest observed, because single-sector command overhead is proportionally larger on this slow card. Sysclk effect is muted (1-6%) since the card controller latency dominates.

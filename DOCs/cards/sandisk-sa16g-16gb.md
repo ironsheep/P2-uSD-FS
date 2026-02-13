@@ -143,7 +143,7 @@ SCR: $02 $35 $84 $43 $00 $00 $00 $00
 - Card arrived pre-formatted as FAT32 with 64 sectors/cluster (32 KB clusters)
 - OEM name blank, volume label "NO NAME" - factory default format
 - Industrial cards are recommended for embedded SPI use due to wider temperature range and longer endurance
-- **Benchmark data available** -- see BENCHMARK-RESULTS.md for detailed throughput measurements at both 320 and 270 MHz sysclk
+- **Benchmark data available** -- see Benchmark Results section below for detailed throughput measurements at both 320 and 270 MHz sysclk
 
 ### SPI Speed Characterization
 
@@ -183,3 +183,81 @@ SCR: $02 $35 $84 $43 $00 $00 $00 $00
 | Latency per sector | 0.62 ms |
 
 **Performance Class:** HIGH - Strong performance from the industrial product line, comparable to SanDisk consumer cards.
+
+### Benchmark Results (Smart Pin SPI + Multi-Sector)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+
+#### 320 MHz Run
+
+**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 234.9 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 529 | 733 | 1,157 | **698** |
+| Write 1x512B | 1,323 | 1,433 | 2,142 | **357** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,130 | 2,228 | 2,753 | **1,838** |
+| Read 32 sectors (16 KB) | 7,613 | 7,807 | 8,237 | **2,098** |
+| Read 64 sectors (32 KB) | 14,865 | 14,964 | 15,478 | **2,189** |
+| Write 8 sectors (4 KB) | 2,702 | 3,023 | 3,631 | **1,354** |
+| Write 32 sectors (16 KB) | 8,585 | 9,469 | 14,459 | **1,730** |
+| Write 64 sectors (32 KB) | 16,112 | 16,414 | 17,277 | **1,996** |
+| **File-Level** | | | | |
+| File Write 512B | 8,213 | 8,473 | 9,569 | **60** |
+| File Write 4 KB | 17,943 | 18,778 | 25,497 | **218** |
+| File Write 32 KB | 100,761 | 101,954 | 102,412 | **321** |
+| File Read 4 KB | 4,907 | 5,027 | 5,519 | **814** |
+| File Read 32 KB | 38,157 | 38,279 | 38,785 | **856** |
+| File Read 128 KB | 152,885 | 153,361 | 155,033 | **854** |
+| File Read 256 KB | 312,611 | 313,629 | 315,305 | **835** |
+| **Overhead** | | | | |
+| File Open | 95 | 144 | 588 | — |
+| File Close | 22 | 22 | 22 | — |
+| Mount | — | 234,900 | — | — |
+
+Multi-sector improvement: 64x single reads = 43,549 us vs 1x CMD18 = 14,870 us (**65% faster**)
+
+#### 270 MHz Run
+
+**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 235.7 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 563 | 667 | 1,176 | **767** |
+| Write 1x512B | 1,347 | 1,459 | 2,168 | **350** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,245 | 2,436 | 2,858 | **1,681** |
+| Read 32 sectors (16 KB) | 7,984 | 8,085 | 8,598 | **2,026** |
+| Read 64 sectors (32 KB) | 15,616 | 15,716 | 16,247 | **2,085** |
+| Write 8 sectors (4 KB) | 2,929 | 3,228 | 3,966 | **1,268** |
+| Write 32 sectors (16 KB) | 9,002 | 9,841 | 14,692 | **1,664** |
+| Write 64 sectors (32 KB) | 16,994 | 17,209 | 17,937 | **1,904** |
+| **File-Level** | | | | |
+| File Write 512B | 7,688 | 9,356 | 16,512 | **54** |
+| File Write 4 KB | 18,446 | 20,072 | 25,931 | **204** |
+| File Write 32 KB | 102,787 | 106,053 | 114,192 | **308** |
+| File Read 4 KB | 5,180 | 5,262 | 5,901 | **778** |
+| File Read 32 KB | 40,224 | 40,353 | 40,868 | **812** |
+| File Read 128 KB | 160,846 | 161,244 | 162,150 | **812** |
+| File Read 256 KB | 328,164 | 329,147 | 330,276 | **796** |
+| **Overhead** | | | | |
+| File Open | 113 | 163 | 614 | — |
+| File Close | 26 | 26 | 27 | — |
+| Mount | — | 235,700 | — | — |
+
+Multi-sector improvement: 64x single reads = 45,737 us vs 1x CMD18 = 15,622 us (**65% faster**)
+
+#### Sysclk Effect (320 vs 270 MHz)
+
+| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| Raw Read 1x512B | 698 | 767 | +9.9% |
+| Raw Read 64x (32 KB) | 2,189 | 2,085 | -4.7% |
+| Raw Write 64x (32 KB) | 1,996 | 1,904 | -4.6% |
+| File Read 256 KB | 835 | 796 | -4.7% |
+| File Write 32 KB | 321 | 308 | -4.0% |
+
+SPI frequency changes slightly (22,857 vs 22,500 kHz = -1.6%) but the Spin2 overhead between SPI transfers runs slower at 270 MHz, accounting for the ~4-5% throughput reduction on multi-sector and file-level operations. The single-sector raw read anomaly (+9.9%) is within card latency variance.

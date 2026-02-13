@@ -134,7 +134,7 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 - Very recent manufacture (November 2024)
 - Needs FAT32 reformat before use with P2 SD driver
 - DATA_STAT_AFTER_ERASE=0 (erased data reads as 0s)
-- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements (raw, multi-sector, and file-level)
+- **Benchmark data available** — see Benchmark Results section below for detailed throughput measurements (raw, multi-sector, and file-level)
 
 ### SPI Speed Characterization
 
@@ -174,3 +174,79 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 | Latency per sector | 0.48 ms |
 
 **Performance Class:** HIGH - **Fastest card tested** (12% faster than Gigastone Camera Plus, 35% faster than Samsung/SanDisk).
+
+### Benchmark Results (Smart Pin SPI + Multi-Sector)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+
+#### 320 MHz Run
+
+**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 212.3 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 438 | 448 | 538 | **1,142** |
+| Write 1x512B | 781 | 790 | 872 | **648** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,063 | 2,073 | 2,163 | **1,975** |
+| Read 32 sectors (16 KB) | 7,637 | 7,647 | 7,737 | **2,142** |
+| Read 64 sectors (32 KB) | 15,068 | 15,078 | 15,168 | **2,173** |
+| Write 8 sectors (4 KB) | 2,398 | 2,400 | 2,402 | **1,706** |
+| Write 32 sectors (16 KB) | 8,080 | 8,080 | 8,080 | **2,027** |
+| Write 64 sectors (32 KB) | 15,912 | 15,912 | 15,916 | **2,059** |
+| **File-Level** | | | | |
+| File Write 512B | 4,950 | 5,723 | 6,101 | **89** |
+| File Write 4 KB | 11,149 | 12,463 | 14,551 | **328** |
+| File Write 32 KB | 59,684 | 65,391 | 71,017 | **501** |
+| File Read 4 KB | 3,353 | 3,429 | 4,113 | **1,194** |
+| File Read 32 KB | 25,810 | 25,888 | 26,590 | **1,265** |
+| File Read 128 KB | 102,825 | 102,948 | 104,053 | **1,273** |
+| File Read 256 KB | 205,513 | 205,648 | 206,863 | **1,274** |
+| **Overhead** | | | | |
+| File Open | 101 | 198 | 1,080 | — |
+| File Close | 22 | 22 | 22 | — |
+| Mount | — | 212,300 | — | — |
+
+Multi-sector improvement: 64x single reads = 30,644 us vs 1x CMD18 = 15,068 us (**50% faster**)
+
+#### 270 MHz Run
+
+**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 213.4 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 473 | 483 | 573 | **1,060** |
+| Write 1x512B | 811 | 820 | 901 | **624** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,185 | 2,195 | 2,285 | **1,866** |
+| Read 32 sectors (16 KB) | 8,053 | 8,063 | 8,153 | **2,031** |
+| Read 64 sectors (32 KB) | 15,889 | 15,898 | 15,988 | **2,061** |
+| Write 8 sectors (4 KB) | 2,533 | 2,533 | 2,533 | **1,617** |
+| Write 32 sectors (16 KB) | 8,543 | 8,543 | 8,544 | **1,917** |
+| Write 64 sectors (32 KB) | 16,812 | 16,812 | 16,812 | **1,949** |
+| **File-Level** | | | | |
+| File Write 512B | 5,219 | 6,004 | 6,400 | **85** |
+| File Write 4 KB | 13,139 | 13,899 | 14,618 | **294** |
+| File Write 32 KB | 58,388 | 67,086 | 87,308 | **488** |
+| File Read 4 KB | 3,611 | 3,677 | 4,271 | **1,113** |
+| File Read 32 KB | 27,687 | 27,754 | 28,365 | **1,180** |
+| File Read 128 KB | 110,258 | 110,373 | 111,413 | **1,187** |
+| File Read 256 KB | 220,354 | 220,481 | 221,633 | **1,188** |
+| **Overhead** | | | | |
+| File Open | 120 | 207 | 999 | — |
+| File Close | 26 | 26 | 27 | — |
+| Mount | — | 213,400 | — | — |
+
+Multi-sector improvement: 64x single reads = 32,857 us vs 1x CMD18 = 15,889 us (**51% faster**)
+
+#### Sysclk Effect (320 vs 270 MHz)
+
+| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| Raw Read 1x512B | 1,142 | 1,060 | -7.2% |
+| Raw Read 64x (32 KB) | 2,173 | 2,061 | -5.2% |
+| Raw Write 64x (32 KB) | 2,059 | 1,949 | -5.3% |
+| File Read 256 KB | 1,274 | 1,188 | -6.7% |
+| File Write 32 KB | 501 | 488 | -2.6% |

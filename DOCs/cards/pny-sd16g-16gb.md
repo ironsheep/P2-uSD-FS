@@ -142,7 +142,7 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 - 8 KB clusters (smaller than typical 32 KB) due to P2FMTER formatting
 - driver fixes resolved previous V2 unmount hang issue
 - **File open latency: 16.9 ms** (85x slower than other cards' ~200 us) — the Phison controller's internal metadata lookup is extremely slow, dominating small-file operations
-- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements; multi-sector reads surprisingly competitive (2,110 KB/s) despite slow single-sector and write performance
+- **Benchmark data available** — see Benchmark Results section below for detailed throughput measurements; multi-sector reads surprisingly competitive (2,110 KB/s) despite slow single-sector and write performance
 
 ### SPI Speed Characterization
 
@@ -186,3 +186,86 @@ SCR: $02 $35 $80 $00 $01 $00 $00 $00
 | Latency per sector | 16.0 ms |
 
 **Performance Class:** LOW - Slow internal controller (~25x slower than high-performance cards). SPI clock speed is not the bottleneck; internal flash/controller latency dominates.
+
+### Benchmark Results (Smart Pin SPI + Multi-Sector)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+
+#### 320 MHz Run
+
+**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.7 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 812 | 812 | 812 | **630** |
+| Write 1x512B | 2,965 | 8,974 | 11,110 | **57** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 3,121 | 3,121 | 3,121 | **1,312** |
+| Read 32 sectors (16 KB) | 7,762 | 7,763 | 7,772 | **2,110** |
+| Read 64 sectors (32 KB) | 15,038 | 16,098 | 16,220 | **2,035** |
+| Write 8 sectors (4 KB) | 11,652 | 11,779 | 12,025 | **347** |
+| Write 32 sectors (16 KB) | 24,956 | 25,157 | 26,276 | **651** |
+| Write 64 sectors (32 KB) | 32,815 | 32,916 | 33,279 | **995** |
+| **File-Level** | | | | |
+| File Write 512B | 29,598 | 35,981 | 93,163 | **14** |
+| File Write 4 KB | 43,018 | 43,219 | 44,657 | **94** |
+| File Write 32 KB | 178,247 | 188,682 | 201,906 | **173** |
+| File Read 4 KB | 22,885 | 22,993 | 23,568 | **178** |
+| File Read 32 KB | 64,651 | 64,775 | 65,349 | **505** |
+| File Read 128 KB | 207,824 | 207,937 | 208,623 | **630** |
+| File Read 256 KB | 395,348 | 395,454 | 396,071 | **662** |
+| **Overhead** | | | | |
+| File Open | 16,838 | 16,945 | 17,581 | — |
+| File Close | 22 | 22 | 22 | — |
+| Mount | — | 202,700 | — | — |
+
+Multi-sector improvement: 64x single reads = 46,658 us vs 1x CMD18 = 15,033 us (**67% faster**)
+
+#### 270 MHz Run
+
+**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 203.9 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 760 | 760 | 760 | **673** |
+| Write 1x512B | 9,759 | 9,795 | 9,833 | **52** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 3,282 | 3,282 | 3,283 | **1,248** |
+| Read 32 sectors (16 KB) | 8,152 | 8,153 | 8,158 | **2,009** |
+| Read 64 sectors (32 KB) | 15,796 | 16,930 | 17,057 | **1,935** |
+| Write 8 sectors (4 KB) | 11,698 | 11,837 | 12,075 | **346** |
+| Write 32 sectors (16 KB) | 25,237 | 25,432 | 26,543 | **644** |
+| Write 64 sectors (32 KB) | 33,501 | 33,559 | 33,618 | **976** |
+| **File-Level** | | | | |
+| File Write 512B | 29,325 | 34,644 | 51,184 | **14** |
+| File Write 4 KB | 44,287 | 45,344 | 52,753 | **90** |
+| File Write 32 KB | 181,724 | 191,479 | 213,768 | **171** |
+| File Read 4 KB | 23,923 | 24,062 | 24,689 | **170** |
+| File Read 32 KB | 67,401 | 67,539 | 68,227 | **485** |
+| File Read 128 KB | 216,214 | 216,324 | 216,974 | **605** |
+| File Read 256 KB | 411,067 | 411,174 | 411,826 | **637** |
+| **Overhead** | | | | |
+| File Open | 17,624 | 17,778 | 18,456 | — |
+| File Close | 26 | 26 | 27 | — |
+| Mount | — | 203,900 | — | — |
+
+Multi-sector improvement: 64x single reads = 49,650 us vs 1x CMD18 = 15,801 us (**68% faster**)
+
+#### Sysclk Effect (320 vs 270 MHz)
+
+| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| Raw Read 1x512B | 630 | 673 | +6.8% |
+| Raw Read 64x (32 KB) | 2,035 | 1,935 | -4.9% |
+| Raw Write 64x (32 KB) | 995 | 976 | -1.9% |
+| File Read 256 KB | 662 | 637 | -3.8% |
+| File Write 32 KB | 173 | 171 | -1.2% |
+
+The PNY Phison controller has the most distinctive behavior of all cards tested:
+- **File open: 16.9 ms** (85x slower than other cards' ~200 us). This dominates small file operations -- a 4 KB file read takes 23 ms, of which 17 ms is just opening the file.
+- **Raw single-sector write: 57 KB/s** with enormous variance (Min=2,965, Max=11,110 us) -- the Phison controller has unpredictable write commit latency.
+- **Multi-sector reads surprisingly fast**: 2,110 KB/s at 32 sectors -- competitive with the best cards. The Phison sustains excellent sequential read throughput once past the open overhead.
+- **Multi-sector writes very slow**: 995 KB/s at 64 sectors -- roughly half of other cards, indicating the write bottleneck is in the flash controller, not the SPI interface.
+- **Extremely consistent reads**: Min=Max for single-sector (812 us) and 8-sector reads (3,121 us) at 320 MHz -- zero variance, suggesting the Phison controller has deterministic read paths.

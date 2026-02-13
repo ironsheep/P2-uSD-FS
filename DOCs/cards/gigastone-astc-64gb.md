@@ -145,7 +145,7 @@ SCR: $02 $C5 $84 $83 $00 $00 $00 $00
 - DATA_STAT_AFTER_ERASE=1 (erased data reads as 1s)
 - Formatted with P2FMTER (P2 Flash Filesystem Formatter)
 - Currently used as scratch/test card for development
-- **Benchmark data available** — see BENCHMARK-RESULTS.md for detailed throughput measurements (raw, multi-sector, and file-level)
+- **Benchmark data available** — see Benchmark Results section below for detailed throughput measurements (raw, multi-sector, and file-level)
 
 ### SPI Speed Characterization
 
@@ -185,3 +185,81 @@ SCR: $02 $C5 $84 $83 $00 $00 $00 $00
 | Latency per sector | 0.54 ms |
 
 **Performance Class:** HIGH - Fastest card tested so far (21% faster than SanDisk Nintendo Switch).
+
+### Benchmark Results (Smart Pin SPI + Multi-Sector)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+
+#### 320 MHz Run
+
+**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.0 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 503 | 543 | 907 | **942** |
+| Write 1x512B | 1,209 | 1,274 | 1,527 | **401** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,303 | 2,352 | 2,797 | **1,741** |
+| Read 32 sectors (16 KB) | 8,475 | 8,524 | 8,974 | **1,922** |
+| Read 64 sectors (32 KB) | 16,749 | 16,803 | 17,268 | **1,950** |
+| Write 8 sectors (4 KB) | 2,839 | 3,270 | 5,746 | **1,252** |
+| Write 32 sectors (16 KB) | 8,472 | 8,509 | 8,544 | **1,925** |
+| Write 64 sectors (32 KB) | 16,372 | 16,638 | 18,387 | **1,969** |
+| **File-Level** | | | | |
+| File Write 512B | 8,631 | 9,304 | 11,544 | **55** |
+| File Write 4 KB | 16,616 | 18,913 | 19,791 | **216** |
+| File Write 32 KB | 87,504 | 89,198 | 91,386 | **367** |
+| File Read 4 KB | 4,184 | 4,281 | 5,157 | **956** |
+| File Read 32 KB | 32,320 | 32,411 | 33,228 | **1,011** |
+| File Read 128 KB | 129,005 | 129,186 | 130,799 | **1,014** |
+| File Read 256 KB | 254,456 | 254,628 | 256,143 | **1,029** |
+| **Overhead** | | | | |
+| File Open | 101 | 199 | 1,085 | — |
+| File Close | 22 | 22 | 22 | — |
+| Mount | — | 202,000 | — | — |
+
+Multi-sector improvement: 64x single reads = 34,382 us vs 1x CMD18 = 16,754 us (**51% faster**)
+
+#### 270 MHz Run
+
+**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 204.0 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 584 | 639 | 1,128 | **801** |
+| Write 1x512B | 1,136 | 1,493 | 3,962 | **342** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,500 | 2,547 | 2,973 | **1,608** |
+| Read 32 sectors (16 KB) | 9,069 | 9,116 | 9,548 | **1,797** |
+| Read 64 sectors (32 KB) | 17,815 | 17,864 | 18,312 | **1,834** |
+| Write 8 sectors (4 KB) | 2,959 | 3,362 | 5,833 | **1,218** |
+| Write 32 sectors (16 KB) | 8,922 | 8,960 | 9,024 | **1,828** |
+| Write 64 sectors (32 KB) | 17,293 | 17,547 | 19,246 | **1,867** |
+| **File-Level** | | | | |
+| File Write 512B | 8,804 | 13,776 | 52,016 | **37** |
+| File Write 4 KB | 16,886 | 23,028 | 60,152 | **177** |
+| File Write 32 KB | 89,964 | 119,201 | 134,450 | **274** |
+| File Read 4 KB | 4,340 | 4,441 | 5,356 | **922** |
+| File Read 32 KB | 33,518 | 33,613 | 34,457 | **974** |
+| File Read 128 KB | 133,583 | 133,775 | 135,435 | **979** |
+| File Read 256 KB | 267,002 | 267,177 | 268,723 | **981** |
+| **Overhead** | | | | |
+| File Open | 120 | 219 | 1,118 | — |
+| File Close | 26 | 26 | 27 | — |
+| Mount | — | 204,000 | — | — |
+
+Multi-sector improvement: 64x single reads = 35,950 us vs 1x CMD18 = 17,815 us (**50% faster**)
+
+#### Sysclk Effect (320 vs 270 MHz)
+
+| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| Raw Read 1x512B | 942 | 801 | -15.0% |
+| Raw Read 64x (32 KB) | 1,950 | 1,834 | -5.9% |
+| Raw Write 64x (32 KB) | 1,969 | 1,867 | -5.2% |
+| File Read 256 KB | 1,029 | 981 | -4.7% |
+| File Write 32 KB | 367 | 274 | -25.3% |
+
+The raw multi-sector operations show the typical ~5% sysclk effect. However, file-level writes at 270 MHz show dramatic variance (Max=52,016 us for 512B, Max=134,450 us for 32 KB), with the card controller introducing unpredictable write stalls. This inflates the average and reduces reported throughput well beyond the expected sysclk effect. Raw multi-sector writes (which bypass FAT) are not affected, confirming the stalls occur during FAT metadata writes.
