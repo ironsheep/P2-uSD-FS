@@ -196,3 +196,7 @@ __marimo__/
 .vscode/settings.json
 src/backups/
 CLAUDE.md
+.history/
+.vscode/
+pnut-term-settings.json
+tests/
