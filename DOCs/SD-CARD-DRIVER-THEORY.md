@@ -10,6 +10,8 @@ Key architectural features:
 - **Per-cog current working directory** for safe multi-cog filesystem navigation
 - **Single-writer policy** preventing concurrent write corruption
 - **Hardware-accelerated CRC-16** using the P2's `GETCRC` instruction
+- **Exported STRUCT types** for named access to SD card registers and FAT32 on-disk structures
+- **Conditional compilation** with 5 feature flags for minimal or full builds
 
 ## Architecture
 
@@ -91,11 +93,19 @@ All cog-to-worker communication flows through shared hub RAM variables:
 |---------|-------|------------|---------|
 | `CMD_MOUNT` | 1 | (pins via DAT) | status |
 | `CMD_UNMOUNT` | 2 | -- | status |
+| `CMD_OPEN` | 3 | param0=filename | status |
+| `CMD_CLOSE` | 4 | -- | status |
+| `CMD_READ` | 5 | param0=buffer, param1=count | status |
+| `CMD_WRITE` | 6 | param0=buffer, param1=count | status |
+| `CMD_SEEK` | 7 | param0=position | status |
+| `CMD_NEWFILE` | 8 | param0=filename | status |
+| `CMD_NEWDIR` | 9 | param0=dirname | status |
 | `CMD_DELETE` | 10 | param0=filename | status |
 | `CMD_RENAME` | 11 | param0=old, param1=new | status |
 | `CMD_CHDIR` | 12 | param0=path | status |
 | `CMD_READDIR` | 13 | param0=entry index | data0=entry ptr |
 | `CMD_FREESPACE` | 15 | -- | data0=free sectors |
+| `CMD_SYNC` | 16 | -- | status |
 | `CMD_MOVEFILE` | 17 | param0=name, param1=dest | status |
 
 **Handle-Based File Commands:**
@@ -123,7 +133,13 @@ All cog-to-worker communication flows through shared hub RAM variables:
 | `CMD_READ_DIR_H` | 44 | param0=handle | data0=entry ptr |
 | `CMD_CLOSE_DIR_H` | 45 | param0=handle | status |
 
-**Raw / Diagnostic Commands (conditional):**
+**Other Core Commands:**
+
+| Command | Value | Parameters | Returns |
+|---------|-------|------------|---------|
+| `CMD_SET_VOL_LABEL` | 46 | param0=label string | status |
+
+**Conditional Commands:**
 
 | Command | Value | Guard | Purpose |
 |---------|-------|-------|---------|
@@ -134,6 +150,8 @@ All cog-to-worker communication flows through shared hub RAM variables:
 | `CMD_INIT_CARD_ONLY` | 22 | `SD_INCLUDE_RAW` | Raw mode init (no FS) |
 | `CMD_GET_CARD_SIZE` | 23 | `SD_INCLUDE_RAW` | Card capacity in sectors |
 | `CMD_READ_SCR` | 24 | `SD_INCLUDE_REGISTERS` | Read SCR register |
+| `CMD_DEBUG_SLOW_READ` | 25 | `SD_INCLUDE_DEBUG` | Byte-by-byte sector read |
+| `CMD_DEBUG_CLEAR_ROOT` | 26 | `SD_INCLUDE_DEBUG` | Clear root directory |
 | `CMD_READ_CID` | 27 | `SD_INCLUDE_REGISTERS` | Read CID register |
 | `CMD_READ_CSD` | 28 | `SD_INCLUDE_REGISTERS` | Read CSD register |
 
@@ -175,18 +193,18 @@ Each handle slot contains:
 
 ```
 allocateHandle()     Find free slot (h_flags == HF_FREE)
-       │
-       ▼
+       |
+       v
   Populate state     Caller sets h_flags, h_start_clus, h_sector, etc.
-       │
-       ▼
+       |
+       v
   Use handle          readHandle / writeHandle / readDirectoryHandle
-       │
-       ▼
+       |
+       v
   closeFileHandle()   Flush dirty buffer, update dir entry, freeHandle()
   or closeDirectoryHandle()
-       │
-       ▼
+       |
+       v
   freeHandle()        Clear all state, h_flags := HF_FREE
 ```
 
@@ -255,11 +273,49 @@ Per-handle buffers eliminate thrashing when alternating between multiple open fi
 |-----------|------|
 | Shared buffers (buf + dir_buf + fat_buf) | 1,536 bytes |
 | Entry buffer | 32 bytes |
-| Per-handle state (28 bytes x 4) | 112 bytes |
+| Per-handle state (32 bytes x 4) | 128 bytes |
 | Per-handle buffers (512 bytes x 4) | 2,048 bytes |
 | Per-cog CWD (8 LONGs) | 32 bytes |
 | Worker cog stack | ~512 bytes |
-| **Total (4 handles)** | **~4,272 bytes** |
+| **Total (4 handles)** | **~4,288 bytes** |
+
+## Exported STRUCT Types
+
+The driver defines and exports packed struct types (requires `{Spin2_v45}`) for named access to SD card registers and FAT32 on-disk structures. Consumer objects access them via the `sd.` prefix (e.g., `sd.cid_t`, `sd.dir_entry_t`).
+
+### SD Card Register Structs
+
+| Struct | Size | Purpose |
+|--------|------|---------|
+| `cid_t` | 16 bytes | CID register: manufacturer ID, product name, serial number, manufacturing date |
+| `csd_t` | 16 bytes | CSD register: card capacity, speed class, timing parameters |
+| `scr_t` | 8 bytes | SCR register: SD spec version, bus widths, security features |
+
+### FAT32 On-Disk Structure Structs
+
+| Struct | Size | Purpose |
+|--------|------|---------|
+| `dir_entry_t` | 32 bytes | Directory entry: name, ext, attributes, timestamps, cluster, file size |
+| `mbr_partition_t` | 16 bytes | MBR partition table entry: boot flag, type, LBA start/size |
+| `vbr_t` | 512 bytes | Volume Boot Record (BPB): bytes/sector, clusters, FAT layout, volume label |
+| `fsinfo_t` | 512 bytes | FSInfo sector: free cluster count, next free hint, signatures |
+
+### Usage Pattern
+
+Structs are overlaid onto buffers via typed pointers:
+
+```spin2
+OBJ
+  sd : "SD_card_driver"
+
+PRI parseCID(p_buf)
+  ' Overlay struct onto raw buffer
+  sd.cid_t pCid := @p_buf
+  debug("Manufacturer: ", uhex_byte_(pCid.mid))
+  debug("Product: ", lstr_(@pCid.pnm, 5))
+```
+
+All structs are packed (Spin2 default) with offsets matching their respective hardware or on-disk layouts exactly. SD card register structs are big-endian (as received from card); FAT32 structs are little-endian (native P2 byte order).
 
 ## SPI Implementation
 
@@ -277,13 +333,20 @@ The `P_PLUS2_B` and `P_PLUS3_B` selectors route the SCK signal to the TX and RX 
 
 ### Frequency Control
 
-`setSPISpeed(hz)` calculates the SCK half-period from the system clock:
+`setSPISpeed(freq)` calculates the SCK half-period using ceiling division to ensure the actual frequency never exceeds the target:
 
 ```
-half_period = (CLKFREQ / hz / 2) - 1
+half_period = ceil(clkfreq / (freq * 2))
+            = (clkfreq + (freq * 2) - 1) / (freq * 2)
 ```
 
-This provides sysclk-independent SPI timing. The driver starts at ~400 kHz for card initialization (SD specification requirement), then switches to the card's maximum speed (typically 25 MHz) after init.
+The half-period is clamped to a minimum of 4 system clocks (the hardware minimum for reliable smart pin transitions). This means the maximum achievable SPI frequency depends on `clkfreq`:
+
+- At 320 MHz: max SPI = 320/(4*2) = 40 MHz, but SD spec caps at 25 MHz
+- At 200 MHz: half_period=4 yields exactly 25 MHz
+- Below 200 MHz: SPI drops below 25 MHz (e.g., 160 MHz -> 20 MHz)
+
+The driver starts at 400 kHz for card initialization (SD specification requirement), then `setOptimalSpeed()` switches to the card's maximum speed (up to 25 MHz) after init.
 
 ### Streamer DMA
 
@@ -341,30 +404,53 @@ PRI calcDataCRC(pData, len) : crc | raw
 - `CRC_POLY_REFLECTED` ($8408) is the CRC-16-CCITT polynomial in LSB-first form
 - `CRC_BASE_512` ($2C68) compensates for `GETCRC` initialization differences
 - The `REV 31` + `>> 16` converts from reflected to standard bit order
-- Match/mismatch counters available via `getCRCMatchCount()` and `getCRCMismatchCount()`
-- Can be disabled for performance via `setCRCValidation(false)`
+- CRC validation is enabled by default (`diag_crc_enabled` = 1)
+- **Reads:** Card sends CRC after 512 data bytes; driver calculates CRC from received data and compares
+- **Writes:** Driver calculates CRC from data and sends it after the 512 data bytes
+
+Match/mismatch counters and the `setCRCValidation()` toggle are available via `SD_INCLUDE_DEBUG` (see Conditional Compilation).
 
 ## Conditional Compilation
 
-The driver supports conditional compilation to reduce code size for resource-constrained applications:
+The driver uses `#IFDEF` / `#ENDIF` blocks to exclude optional features from minimal builds. The core driver compiles to ~24 KB with no flags defined.
 
-| Flag | Default | Features Included |
-|------|---------|-------------------|
-| `SD_MINIMAL` | not defined | When defined, excludes all optional features |
-| `SD_INCLUDE_RAW` | off | Raw sector read/write, `initCardOnly()`, card size query |
-| `SD_INCLUDE_REGISTERS` | off | CID, CSD, SCR register read methods |
-| `SD_INCLUDE_SPEED` | off | CMD6 high-speed mode, `setOptimalSpeed()` |
-| `SD_INCLUDE_ALL` | off | Enables all of the above |
+### Feature Flags
 
-The caller defines flags in their `CON` section before the `OBJ` declaration:
+| Flag | Features Included |
+|------|-------------------|
+| `SD_INCLUDE_RAW` | Raw sector read/write, `initCardOnly()`, multi-block (CMD18/CMD25) |
+| `SD_INCLUDE_REGISTERS` | CID, CSD, SCR register access, OCR, VBR read |
+| `SD_INCLUDE_SPEED` | CMD6 high-speed mode query and switch (50 MHz) |
+| `SD_INCLUDE_DEBUG` | Debug getters, CRC diagnostic methods, display utilities |
+| `SD_INCLUDE_ALL` | Enables all four flags above |
+
+### Enabling Flags
+
+Flags are exported from the top-level file using `#PRAGMA EXPORTDEF` before the `OBJ` declaration:
 
 ```spin2
-CON
-  SD_INCLUDE_ALL = 1    ' Enable all driver features
+#PRAGMA EXPORTDEF SD_INCLUDE_RAW
+#PRAGMA EXPORTDEF SD_INCLUDE_REGISTERS
 
 OBJ
   sd : "SD_card_driver"
 ```
+
+Or enable everything:
+
+```spin2
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
+OBJ
+  sd : "SD_card_driver"
+```
+
+### Build Sizes (approximate, with DEBUG enabled)
+
+| Configuration | Size |
+|---------------|------|
+| Core only (no flags) | ~24 KB |
+| `SD_INCLUDE_ALL` | ~49 KB |
 
 ## Error Codes
 
@@ -396,19 +482,23 @@ OBJ
 
 ## Public API Summary
 
-### Mounting
+### Core API (always compiled)
+
+**Lifecycle:**
 
 | Method | Description |
 |--------|-------------|
 | `mount(cs, mosi, miso, sck)` | Initialize card and mount filesystem |
-| `unmount()` | Flush all handles, sync, release worker cog |
+| `unmount()` | Flush all handles, update FSInfo, unmount |
+| `stop()` | Stop worker cog and release hardware lock |
+| `error()` | Last error code for calling cog |
 
-### File Operations (Handle-Based)
+**Handle-Based File Operations:**
 
 | Method | Description |
 |--------|-------------|
 | `openFileRead(pPath) : handle` | Open existing file for reading |
-| `openFileWrite(pPath) : handle` | Open existing file for writing (append) |
+| `openFileWrite(pPath) : handle` | Open existing file for append writing |
 | `createFileNew(pPath) : handle` | Create new file for writing |
 | `readHandle(handle, pBuf, count) : bytes` | Read bytes from file |
 | `writeHandle(handle, pBuf, count) : bytes` | Write bytes to file |
@@ -417,9 +507,18 @@ OBJ
 | `eofHandle(handle) : bool` | Check if at end of file |
 | `fileSizeHandle(handle) : size` | Get file size in bytes |
 | `syncHandle(handle) : result` | Flush pending writes |
+| `syncAllHandles() : result` | Flush all open handles |
 | `closeFileHandle(handle) : result` | Close handle, flush writes |
 
-### Directory Operations
+**File Management:**
+
+| Method | Description |
+|--------|-------------|
+| `deleteFile(pName) : result` | Delete file or empty directory |
+| `rename(pOld, pNew) : result` | Rename file or directory |
+| `moveFile(pName, pDest) : result` | Move file to directory |
+
+**Directory Operations:**
 
 | Method | Description |
 |--------|-------------|
@@ -429,30 +528,102 @@ OBJ
 | `openDirectory(pPath) : handle` | Open directory for handle-based enumeration |
 | `readDirectoryHandle(handle) : pEntry` | Read next directory entry |
 | `closeDirectoryHandle(handle)` | Close directory handle |
-| `deleteFile(pName) : result` | Delete file or empty directory |
-| `rename(pOld, pNew) : result` | Rename file or directory |
 
-### Information
+**Information:**
 
 | Method | Description |
 |--------|-------------|
 | `freeSpace() : sectors` | Free space in 512-byte sectors |
 | `volumeLabel() : pStr` | Pointer to volume label string |
+| `setVolumeLabel(pLabel) : result` | Set volume label |
 | `fileName() : pStr` | Name from last directory read |
-| `fileSize() : size` | Size from last directory read |
 | `attributes() : attr` | Attributes from last directory read |
-| `error() : code` | Last error code |
+| `setDate(y,m,d,h,mi,s)` | Set date/time for new files |
+| `getSPIFrequency() : hz` | Current SPI clock frequency |
+| `getCardMaxSpeed() : hz` | Card's reported max speed from CSD |
+| `getManufacturerID() : mid` | Card manufacturer ID byte |
+| `getReadTimeout() : ms` | Read timeout from CSD |
+| `getWriteTimeout() : ms` | Write timeout from CSD |
+| `isHighSpeedActive() : bool` | True if running at 50 MHz |
 
-### Diagnostics
+**Utilities:**
 
 | Method | Description |
 |--------|-------------|
-| `getCRCMatchCount() : count` | Sector reads with valid CRC |
-| `getCRCMismatchCount() : count` | Sector reads with CRC failure |
+| `setSPISpeed(freq)` | Set SPI clock frequency in Hz |
+| `syncDirCache()` | Invalidate directory sector cache |
+| `sync() : result` | Flush all pending writes |
+
+**Legacy File API (single-file mode):**
+
+| Method | Description |
+|--------|-------------|
+| `newFile(name) : result` | Create new file |
+| `openFile(name) : result` | Open existing file |
+| `closeFile()` | Close current file |
+| `read(pBuf, count) : result` | Read bytes |
+| `readByte(address) : result` | Read byte at offset |
+| `write(pBuf, count) : result` | Write bytes |
+| `writeByte(char) : result` | Write single byte |
+| `writeString(pStr) : result` | Write null-terminated string |
+| `seek(pos) : result` | Set position |
+| `fileSize() : size` | Size of current file |
+
+### SD_INCLUDE_RAW
+
+| Method | Description |
+|--------|-------------|
+| `initCardOnly(cs, mosi, miso, sck)` | Initialize card without mounting filesystem |
+| `cardSizeSectors() : sectors` | Total 512-byte sectors on card |
+| `readSectorRaw(sector, pBuf) : result` | Read sector at absolute LBA |
+| `writeSectorRaw(sector, pBuf) : result` | Write sector at absolute LBA |
+| `readSectorsRaw(start, count, pBuf) : sectors` | Multi-block read (CMD18) |
+| `writeSectorsRaw(start, count, pBuf) : sectors` | Multi-block write (CMD25) |
+| `testCMD13() : r2` | Send CMD13, return raw R2 response |
+
+### SD_INCLUDE_REGISTERS
+
+| Method | Description |
+|--------|-------------|
+| `readCIDRaw(pBuf) : result` | Read 16-byte CID register |
+| `readCSDRaw(pBuf) : result` | Read 16-byte CSD register |
+| `readSCRRaw(pBuf) : result` | Read 8-byte SCR register |
+| `getOCR() : ocr` | Get cached OCR value |
+| `readVBRRaw(pBuf) : result` | Read 512-byte Volume Boot Record |
+
+### SD_INCLUDE_SPEED
+
+| Method | Description |
+|--------|-------------|
+| `attemptHighSpeed() : bool` | Switch to 50 MHz with verification |
+| `checkCMD6Support() : bool` | Check if card supports CMD6 |
+| `checkHighSpeedCapability() : bool` | Query high-speed capability |
+
+### SD_INCLUDE_DEBUG
+
+| Method | Description |
+|--------|-------------|
+| `getLastCMD13() : r2` | Last CMD13 R2 response word |
+| `getLastCMD13Error() : r2` | Last non-zero CMD13 result |
+| `getLastReceivedCRC() : crc` | CRC-16 received from card |
+| `getLastCalculatedCRC() : crc` | CRC-16 calculated from data |
+| `getLastSentCRC() : crc` | CRC-16 sent with last write |
+| `getCRCMatchCount() : count` | CRC match count |
+| `getCRCMismatchCount() : count` | CRC mismatch count |
 | `setCRCValidation(enabled)` | Enable/disable CRC checking |
-| `getSPIFrequency() : hz` | Current SPI clock frequency |
-| `getReadTimeout() : ms` | Card read timeout from CSD |
-| `getWriteTimeout() : ms` | Card write timeout from CSD |
+| `debugGetRootSec() : sector` | Root directory sector |
+| `debugGetDirSec() : sector` | Calling cog's directory sector |
+| `debugGetVbrSec() : sector` | VBR sector |
+| `debugGetFatSec() : sector` | FAT start sector |
+| `debugGetSecPerFat() : count` | Sectors per FAT |
+| `debugDumpRootDir()` | Print root entries to debug |
+| `debugClearRootDir() : result` | Zero root directory (destructive) |
+| `debugReadSectorSlow(sector, pBuf) : result` | Byte-by-byte read (no streamer) |
+| `debugGetReadSectorDiag(...)` | Last readSector diagnostic data |
+| `debugGetReadSectorDiagExt(...)` | Extended diagnostic data |
+| `displaySector()` | Hex dump of sector buffer |
+| `displayEntry()` | Hex dump of directory entry |
+| `displayFAT(cluster)` | Hex dump of FAT sector |
 
 ---
 

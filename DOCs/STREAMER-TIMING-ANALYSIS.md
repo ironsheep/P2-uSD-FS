@@ -1,6 +1,6 @@
 # Streamer/FIFO Timing Analysis
 
-**Date:** 2026-01-30 (updated 2026-02-07)
+**Date:** 2026-01-30 (updated 2026-02-13)
 **Driver:** SD_card_driver.spin2
 **Purpose:** Technical analysis of streamer-based sector transfers and sysclk dependencies
 
@@ -42,7 +42,7 @@ stream_mode := STREAM_TX_BASE | (mosi << 17) | (512 * 8)   ' 4096 bits for TX
 1. Send CMD17 (READ_SINGLE_BLOCK) with sector address
 2. Poll for start token ($FE) using smart pin transfers
 3. **Streamer captures 512 bytes** (4096 bits) from MISO to hub
-4. Read 2 CRC bytes (discarded)
+4. Read 2 CRC bytes and validate against hardware CRC-16 (see Section 1.6)
 5. Deselect card
 
 #### Critical Sequence (inline PASM):
@@ -93,7 +93,7 @@ pinh(_miso)                 ' Re-enable smart pin
 1. Send CMD24 (WRITE_SINGLE_BLOCK) with sector address
 2. Send data start token ($FE)
 3. **Streamer transmits 512 bytes** (4096 bits) from hub to MOSI
-4. Send 2 CRC bytes (dummy $FF)
+4. Calculate and send real CRC-16 (2 bytes, see Section 1.6)
 5. Wait for data-response token ($x5 = accepted)
 6. Wait for card programming complete (MISO goes HIGH)
 
@@ -175,14 +175,68 @@ init_phase := #0    ' Start immediately - data leads clock
 
 ---
 
+### 1.6 CRC-16 Data Integrity
+
+The driver calculates and validates CRC-16-CCITT for all sector transfers using the P2's hardware-accelerated `GETCRC` instruction.
+
+**CRC calculation (`calcDataCRC()`):**
+```spin2
+CON
+  CRC_POLY_REFLECTED = $8408    ' CRC-CCITT reflected polynomial
+  CRC_BASE_512       = $2C68    ' Pre-computed XOR base for 512-byte blocks
+
+PRI calcDataCRC(pData, len) : crc | raw
+  raw := GETCRC(pData, CRC_POLY_REFLECTED, len)
+  crc := ((raw ^ CRC_BASE_512) REV 31) >> 16
+```
+
+**Read path:** After the streamer captures 512 bytes, two CRC bytes are received via smart pin transfers and compared against the hardware-computed CRC of the received data. Mismatches are counted for diagnostics.
+
+**Write path:** Before sending CRC bytes after the streamer transmits 512 bytes, `calcDataCRC()` computes the real CRC-16 which is sent as two bytes (high byte first). This allows the card to reject corrupted data.
+
+CRC validation is controlled by the `diag_crc_enabled` flag and applies to all transfer paths: `readSector()`, `readSectors()`, `readSectorSlow()`, `writeSector()`, and `writeSectors()`.
+
+---
+
+### 1.7 Multi-Block Streamer Transfers (CMD18/CMD25)
+
+The driver supports multi-block reads (CMD18) and writes (CMD25) using the same streamer mechanism as single-block operations, looping per-sector within a single card transaction.
+
+#### Multi-Block Read (`readSectors()` / CMD18):
+
+1. Send CMD18 (READ_MULTIPLE_BLOCK) with starting sector
+2. **Per sector:** Poll for $FE start token, streamer captures 512 bytes, validate CRC
+3. After all sectors: Send CMD12 (STOP_TRANSMISSION), verify with CMD13
+
+The per-sector streamer sequence is identical to single-block reads (Section 1.2). Smart pins are disabled/re-enabled around each streamer transfer.
+
+#### Multi-Block Write (`writeSectors()` / CMD25):
+
+1. Send CMD25 (WRITE_MULTIPLE_BLOCK) with starting sector
+2. **Per sector:** Send $FC start token, streamer transmits 512 bytes, send real CRC, wait for data-response and busy
+3. After all sectors: Send $FD stop token (NOT CMD12), wait for busy, verify with CMD13
+
+The per-sector TX streamer sequence adds a `waitx settle_delay` before `xinit` to allow the MOSI pin to stabilize after smart pin reconfiguration:
+
+```spin2
+org
+      setxfrq xfrq
+      rdfast  #0, p_buf
+      waitx   settle_delay     ' Stabilize MOSI after pinclear/pinl
+      xinit   stream_mode, #0
+      wypin   clk_count, _sck
+      waitxfi
+end
+```
+
+---
+
 ## Part 2: Sysclk-Dependent Code Regions
 
 ### 2.1 SPI Timing Calculation (setSPISpeed)
 
-**Location:** Lines 3332-3366
-
 ```spin2
-PRI setSPISpeed(freq) | half_period, actual_freq
+PUB setSPISpeed(freq) | half_period, actual_freq
   ' Calculate half-period in system clocks
   half_period := (clkfreq + (freq * 2) - 1) / (freq * 2)  ' Ceiling division
 
@@ -192,32 +246,62 @@ PRI setSPISpeed(freq) | half_period, actual_freq
 
   actual_freq := clkfreq / (half_period * 2)
   spi_period := half_period
+  wxpin(sck, half_period)    ' Apply to SCK smart pin
 ```
 
 **Sysclk dependency:** Uses `clkfreq` to calculate timing. This is CORRECT behavior - it adapts to the actual clock frequency.
 
-**Risk area:** At lower sysclk, the minimum period of 4 clocks may limit achievable SPI frequency:
-- At 320 MHz: max SPI = 320M / 8 = 40 MHz
-- At 270 MHz: max SPI = 270M / 8 = 33.75 MHz
-- At 160 MHz: max SPI = 160M / 8 = 20 MHz (below target 25 MHz!)
+#### Sysclk vs Actual SPI Speed (targeting 25 MHz)
+
+The ceiling division and integer half-periods create quantization steps. The driver always achieves the highest SPI speed that does not exceed the target.
+
+**Threshold: 200 MHz sysclk.** At or above 200 MHz, the driver achieves 20-25 MHz SPI (full speed). Below 200 MHz, the half-period clamp (minimum 4) kicks in and actual SPI = clkfreq / 8, declining linearly.
+
+| Sysclk | Half-Period | Actual SPI | % of 25 MHz |
+|--------|-------------|------------|-------------|
+| **350 MHz** | **7** | **25.00 MHz** | **100%** |
+| 340 MHz | 7 | 24.29 MHz | 97% |
+| 330 MHz | 7 | 23.57 MHz | 94% |
+| 320 MHz | 7 | 22.86 MHz | 91% |
+| 310 MHz | 7 | 22.14 MHz | 89% |
+| **300 MHz** | **6** | **25.00 MHz** | **100%** |
+| 290 MHz | 6 | 24.17 MHz | 97% |
+| 280 MHz | 6 | 23.33 MHz | 93% |
+| 270 MHz | 6 | 22.50 MHz | 90% |
+| 260 MHz | 6 | 21.67 MHz | 87% |
+| **250 MHz** | **5** | **25.00 MHz** | **100%** |
+| 240 MHz | 5 | 24.00 MHz | 96% |
+| 230 MHz | 5 | 23.00 MHz | 92% |
+| 220 MHz | 5 | 22.00 MHz | 88% |
+| 210 MHz | 5 | 21.00 MHz | 84% |
+| **200 MHz** | **4** | **25.00 MHz** | **100%** |
+| 190 MHz | 4 (clamped) | 23.75 MHz | 95% |
+| 180 MHz | 4 (clamped) | 22.50 MHz | 90% |
+| 170 MHz | 4 (clamped) | 21.25 MHz | 85% |
+| 160 MHz | 4 (clamped) | 20.00 MHz | 80% |
+
+**Notes:**
+- Exact 25 MHz at every 50 MHz boundary: 200, 250, 300, 350 MHz (where clkfreq / (half_period * 2) divides evenly)
+- Between boundaries, the actual SPI drops due to half-period rounding up. For example, 320 MHz (22.86 MHz) is slower than 300 MHz (25.00 MHz) because half-period rounds from 6.4 to 7
+- Below 200 MHz, half-period is clamped to 4 and the SPI speed is simply clkfreq / 8
+- All speeds in this table are within the SD card specification (max 25 MHz for default speed mode)
+- No manual speed adjustment is needed at any sysclk above 160 MHz; the driver adapts automatically
 
 ---
 
-### 2.2 Bit-Bang Delay (initCard)
-
-**Location:** Line 3469
+### 2.2 Card Initialization SPI Clock (initCard)
 
 ```spin2
-bit_delay := clkfreq / 100_000    ' ~50kHz for init (conservative)
+setSPISpeed(400_000)    ' 400 kHz for card init (SD spec: 100-400 kHz)
 ```
 
-**Sysclk dependency:** Calculates bit delay for 400 kHz initialization mode (SD spec requirement). Uses `clkfreq` correctly.
+**Sysclk dependency:** Uses `setSPISpeed()` which calculates timing from `clkfreq`. The SD specification requires 100-400 kHz during card initialization.
 
 ---
 
 ### 2.3 Timeout Calculations
 
-**Multiple locations using this pattern:**
+**Pattern used throughout the driver:**
 
 ```spin2
 t := getct() + clkfreq                              ' 1 second timeout
@@ -232,8 +316,6 @@ t := getct() + (clkfreq / 1000) * card_write_timeout_ms       ' Write timeout
 
 ### 2.4 Streamer NCO Frequency
 
-**Location:** Lines 3730-3732 (readSector), 3948-3950 (writeSector)
-
 ```spin2
 xfrq := $4000_0000 / spi_period   ' One sample per full clock period
 ```
@@ -242,9 +324,7 @@ xfrq := $4000_0000 / spi_period   ' One sample per full clock period
 
 ---
 
-### 2.5 Fixed Delays (POTENTIAL ISSUES)
-
-**Location:** Lines 3463, 3489, 3491, 3501, 3520, 3571, 3586
+### 2.5 Fixed Delays
 
 ```spin2
 waitms(100)    ' After power-up stabilization
@@ -324,7 +404,7 @@ However, the SD card is an external device with its own timing requirements. The
 | 320 MHz | 25 MHz | Baseline (known working) |
 | 300 MHz | 25 MHz | Should work |
 | 280 MHz | 25 MHz | Marginal zone |
-| 270 MHz | 25 MHz | Previously failed |
+| 270 MHz | 25 MHz | Validated (was previously failing due to test bugs) |
 | 320 MHz | 20 MHz | Reduced speed reference |
 | 270 MHz | 20 MHz | Should work at lower SPI |
 
@@ -404,13 +484,20 @@ Early development saw multi-block failures at 270 MHz:
 | Timeouts | LOW | Correctly use clkfreq, auto-adapt |
 | Fixed waitus/waitms | NONE | Runtime handles sysclk internally |
 
+### Key Features:
+
+- **CRC-16 integrity** on all transfers (hardware GETCRC, see Section 1.6)
+- **Multi-block operations** CMD18/CMD25 with per-sector streamer (see Section 1.7)
+- **Single-block operations** CMD17/CMD24 with streamer (see Sections 1.2, 1.3)
+- **Slow-path fallback** `readSectorSlow()` for diagnostics (byte-by-byte with CRC)
+
 ### Recommendations:
 
-1. Both 320 MHz and 270 MHz are validated and working (151+ tests each)
+1. Both 320 MHz and 270 MHz are validated and working
 2. If targeting lower sysclk frequencies, reduce SPI speed to 20 MHz first
 3. If issues arise at new frequencies, add extra phase margin in align_delay
-4. The driver's `setSPISpeed()` adapts automatically to any sysclk via `clkfreq`
+4. The driver's `setSPISpeed()` (public) adapts automatically to any sysclk via `clkfreq`
 
 ---
 
-*Document created: 2026-01-30*
+*Document created: 2026-01-30, updated 2026-02-13*

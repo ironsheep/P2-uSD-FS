@@ -23,6 +23,7 @@ This tutorial shows how to perform common filesystem operations using the SD car
 11. [Complete Examples](#complete-examples)
 12. [Architecture Notes](#architecture-notes)
 13. [API Quick Reference](#api-quick-reference)
+14. [Conditional API Modules](#conditional-api-modules)
 
 ---
 
@@ -942,12 +943,38 @@ All SPI operations are performed by a dedicated worker cog. This:
 
 ## API Quick Reference
 
+These methods are always available in the core driver (no feature flags required).
+
 ### Lifecycle
 | Method | Description |
 |--------|-------------|
 | `mount(cs, mosi, miso, sck)` | Mount card, returns true/false |
 | `unmount()` | Unmount card cleanly |
 | `stop()` | Stop worker cog |
+| `error()` | Last error code for calling cog |
+
+### Handle-Based File Operations
+| Method | Description |
+|--------|-------------|
+| `openFileRead(path)` | Open for reading, returns handle |
+| `openFileWrite(path)` | Open for append writing, returns handle |
+| `createFileNew(path)` | Create new file for writing, returns handle |
+| `closeFileHandle(handle)` | Close file handle, flush writes |
+| `readHandle(handle, buffer, count)` | Read bytes, returns count read |
+| `writeHandle(handle, buffer, count)` | Write bytes, returns count written |
+| `seekHandle(handle, pos)` | Set file position |
+| `tellHandle(handle)` | Get current position |
+| `eofHandle(handle)` | Check if at end of file |
+| `fileSizeHandle(handle)` | Get file size by handle |
+| `syncHandle(handle)` | Flush writes on handle |
+| `syncAllHandles()` | Flush all open handles |
+
+### File Management
+| Method | Description |
+|--------|-------------|
+| `deleteFile(name)` | Delete file |
+| `rename(old, new)` | Rename file or directory |
+| `moveFile(name, dest)` | Move file to directory |
 
 ### Directories
 | Method | Description |
@@ -959,38 +986,134 @@ All SPI operations are performed by a dedicated worker cog. This:
 | `readDirectoryHandle(handle)` | Read next entry from directory handle |
 | `closeDirectoryHandle(handle)` | Close directory handle |
 
-### File Operations
-| Method | Description |
-|--------|-------------|
-| `openFileRead(name)` | Open for reading, returns handle |
-| `openFileWrite(name)` | Open for writing (truncates), returns handle |
-| `createFileNew(name)` | Create new file, returns handle |
-| `closeFileHandle(handle)` | Close specific handle |
-| `deleteFile(name)` | Delete file |
-| `rename(old, new)` | Rename file/directory |
-| `moveFile(name, dest)` | Move file to directory |
-
-### Read/Write
-| Method | Description |
-|--------|-------------|
-| `readHandle(handle, buffer, count)` | Read from handle, returns bytes read |
-| `writeHandle(handle, buffer, count)` | Write to handle, returns bytes written |
-| `seekHandle(handle, pos)` | Set file position |
-| `tellHandle(handle)` | Get current position |
-| `eofHandle(handle)` | Check if at end of file |
-| `syncHandle(handle)` | Flush writes on handle |
-| `syncAllHandles()` | Flush all handles |
-
 ### Information
 | Method | Description |
 |--------|-------------|
-| `fileSizeHandle(handle)` | Size of file by handle |
 | `fileName()` | Name of last directory entry |
 | `attributes()` | Attributes of last directory entry |
 | `volumeLabel()` | Card volume label |
+| `setVolumeLabel(label)` | Set volume label |
 | `freeSpace()` | Free sectors on card |
-| `error()` | Last error code |
-| `setDate(y,m,d,h,mi,s)` | Set date for new files |
+| `setDate(y,m,d,h,mi,s)` | Set date/time for new files |
+| `getSPIFrequency()` | Current SPI clock in Hz |
+| `getCardMaxSpeed()` | Card's reported max speed in Hz |
+| `getManufacturerID()` | Card manufacturer ID byte |
+| `getReadTimeout()` | Read timeout in ms |
+| `getWriteTimeout()` | Write timeout in ms |
+| `isHighSpeedActive()` | True if running at 50 MHz |
+
+### Utilities
+| Method | Description |
+|--------|-------------|
+| `setSPISpeed(freq)` | Set SPI clock frequency in Hz |
+| `syncDirCache()` | Force directory cache re-read |
+| `sync()` | Flush all pending writes |
+
+### Legacy File API
+
+These methods operate on the "current file" (single-file mode). The handle-based API above is preferred for new code.
+
+| Method | Description |
+|--------|-------------|
+| `newFile(name)` | Create new file |
+| `openFile(name)` | Open existing file |
+| `closeFile()` | Close current file |
+| `read(buffer, count)` | Read bytes |
+| `readByte(address)` | Read single byte at offset |
+| `write(buffer, count)` | Write bytes |
+| `writeByte(char)` | Write single byte |
+| `writeString(str)` | Write null-terminated string |
+| `seek(pos)` | Set position in current file |
+| `fileSize()` | Size of current file |
+
+---
+
+## Conditional API Modules
+
+The driver supports optional feature modules enabled via `#PRAGMA EXPORTDEF` in your top-level file. This keeps the core driver small (24 KB) for applications that only need standard file operations.
+
+To enable a module, add the pragma **before** the OBJ declaration:
+
+```spin2
+#PRAGMA EXPORTDEF SD_INCLUDE_RAW
+#PRAGMA EXPORTDEF SD_INCLUDE_REGISTERS
+
+OBJ
+  sd : "SD_card_driver"
+```
+
+To enable all modules at once:
+
+```spin2
+#PRAGMA EXPORTDEF SD_INCLUDE_ALL
+
+OBJ
+  sd : "SD_card_driver"
+```
+
+### SD_INCLUDE_RAW - Raw Sector Access
+
+For low-level operations like formatting, partitioning, or direct sector manipulation. Bypasses the filesystem layer entirely.
+
+| Method | Description |
+|--------|-------------|
+| `initCardOnly(cs, mosi, miso, sck)` | Initialize card without mounting filesystem |
+| `cardSizeSectors()` | Total 512-byte sectors on card |
+| `readSectorRaw(sector, buffer)` | Read sector at absolute LBA |
+| `writeSectorRaw(sector, buffer)` | Write sector at absolute LBA |
+| `readSectorsRaw(start, count, buffer)` | Multi-block read (CMD18) |
+| `writeSectorsRaw(start, count, buffer)` | Multi-block write (CMD25) |
+| `testCMD13()` | Send CMD13, return raw R2 response |
+
+### SD_INCLUDE_REGISTERS - Card Register Access
+
+For card characterization and identification. Provides raw access to CID, CSD, SCR, and OCR registers.
+
+| Method | Description |
+|--------|-------------|
+| `readCIDRaw(buffer)` | Read 16-byte CID register (manufacturer, serial, etc.) |
+| `readCSDRaw(buffer)` | Read 16-byte CSD register (capacity, speed, features) |
+| `readSCRRaw(buffer)` | Read 8-byte SCR register (SD spec version, bus widths) |
+| `getOCR()` | Get cached OCR value (voltage range, capacity status) |
+| `readVBRRaw(buffer)` | Read 512-byte Volume Boot Record |
+
+### SD_INCLUDE_SPEED - High-Speed Mode Control
+
+For testing and enabling 50 MHz high-speed mode via CMD6.
+
+| Method | Description |
+|--------|-------------|
+| `attemptHighSpeed()` | Switch to 50 MHz with verification, falls back on failure |
+| `checkCMD6Support()` | Check if card supports CMD6 (SD 2.0+) |
+| `checkHighSpeedCapability()` | Query if card reports high-speed capability |
+
+### SD_INCLUDE_DEBUG - Diagnostic Methods
+
+For driver development, debugging, and regression testing. Includes CRC diagnostic getters, internal state inspection, and display utilities.
+
+| Method | Description |
+|--------|-------------|
+| `getLastCMD13()` | Last CMD13 R2 response word |
+| `getLastCMD13Error()` | Last non-zero CMD13 result |
+| `getLastReceivedCRC()` | CRC-16 received from card on last read |
+| `getLastCalculatedCRC()` | CRC-16 calculated from received data |
+| `getLastSentCRC()` | CRC-16 sent with last write |
+| `getCRCMatchCount()` | Count of reads where CRC matched |
+| `getCRCMismatchCount()` | Count of reads where CRC did not match |
+| `setCRCValidation(enabled)` | Enable/disable CRC checking |
+| `debugGetRootSec()` | Root directory sector number |
+| `debugGetDirSec()` | Current directory sector for calling cog |
+| `debugGetVbrSec()` | VBR sector number |
+| `debugGetFatSec()` | FAT start sector number |
+| `debugGetSecPerFat()` | Sectors per FAT |
+| `debugDumpRootDir()` | Print root directory entries to debug |
+| `debugClearRootDir()` | Zero root directory sector (destructive!) |
+| `debugReadSectorSlow(sector, buffer)` | Byte-by-byte read without streamer |
+| `debugGetReadSectorDiag(...)` | Last readSector diagnostic data (8 params) |
+| `debugGetReadSectorDiagExt(...)` | Extended diagnostic data (5 params) |
+| `displaySector()` | Hex dump of sector buffer |
+| `displayEntry()` | Hex dump of directory entry buffer |
+| `displayFAT(cluster)` | Hex dump of FAT sector for cluster |
 
 ---
 
