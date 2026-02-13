@@ -29,6 +29,7 @@
 ''   #PRAGMA EXPORTDEF SD_INCLUDE_RAW        ' Raw sector access
 ''   #PRAGMA EXPORTDEF SD_INCLUDE_REGISTERS  ' Card register access (CID/CSD/SCR)
 ''   #PRAGMA EXPORTDEF SD_INCLUDE_SPEED      ' High-speed mode control
+''   #PRAGMA EXPORTDEF SD_INCLUDE_DEBUG      ' Debug/diagnostic methods & CRC getters
 ''
 ''   OBJ
 ''       sd : "SD_card_driver"
@@ -46,6 +47,9 @@
   #ENDIF
   #IFNDEF SD_INCLUDE_SPEED
     #DEFINE SD_INCLUDE_SPEED
+  #ENDIF
+  #IFNDEF SD_INCLUDE_DEBUG
+    #DEFINE SD_INCLUDE_DEBUG
   #ENDIF
 #ENDIF
 
@@ -84,8 +88,10 @@ CON '' command codes for worker cog
   CMD_FREESPACE = 15        ' Get free space
   CMD_SYNC      = 16        ' Flush buffers
   CMD_MOVEFILE  = 17        ' Move file: param0=name, param1=dest folder
+#IFDEF SD_INCLUDE_DEBUG
   CMD_DEBUG_SLOW_READ  = 25 ' DEBUG: Byte-by-byte sector read (no streamer)
   CMD_DEBUG_CLEAR_ROOT = 26 ' DEBUG: Clear root directory (fixes corruption)
+#ENDIF
 
 #IFDEF SD_INCLUDE_RAW
   CMD_INIT_CARD_ONLY = 22   ' Initialize card without filesystem (raw mode)
@@ -503,6 +509,7 @@ PUB error() : status
 
   return LONG[@last_error][COGID()]
 
+#IFDEF SD_INCLUDE_DEBUG
 PUB getLastCMD13() : r2
 '' Get last CMD13 result (R1 in high byte, STATUS in low byte).
 '' Value is from most recent CMD13, regardless of success/failure.
@@ -564,6 +571,7 @@ PUB setCRCValidation(enabled)
 '' @param enabled - TRUE (non-zero) enables CRC checking, FALSE (0) disables
 
   diag_crc_enabled := (enabled <> 0) ? 1 : 0
+#ENDIF
 
 PRI set_error(code) : code_out
 ' Set error code for this cog - store error code in per-cog slot and return the code.
@@ -671,6 +679,7 @@ PRI fs_worker() | cur_cmd
       CMD_READDIR:
         pb_status := do_readdir(pb_param0)
 
+#IFDEF SD_INCLUDE_DEBUG
       CMD_DEBUG_SLOW_READ:
         ' DEBUG: Read sector byte-by-byte without streamer for comparison
         pb_status := readSectorSlow(pb_param0, pb_param1)
@@ -683,6 +692,7 @@ PRI fs_worker() | cur_cmd
           pb_status := SUCCESS
         else
           pb_status := E_IO_ERROR
+#ENDIF
 
 #IFDEF SD_INCLUDE_RAW
       CMD_READ_SECTORS:
@@ -4026,6 +4036,7 @@ PUB setVolumeLabel(p_label) : result
     set_error(result)
     return false
 
+#IFDEF SD_INCLUDE_DEBUG
 PUB debugDumpRootDir() | sec, i, p_entry
 '' DEBUG: Dump root directory entries to debug output.
 '' This is a diagnostic function for debugging. It reads the root directory
@@ -4049,6 +4060,7 @@ PUB debugDumpRootDir() | sec, i, p_entry
       debug("  Entry ", udec_(i), ": [DELETED]")
     else
       debug("  Entry ", udec_(i), ": [", lstr_(p_entry, 11), "] attr=$", uhex_byte_(byte[p_entry+11]), " clus=", udec_(word[p_entry+26] | (word[p_entry+20] << 16)))
+#ENDIF
 
 PUB syncDirCache()
 '' Force directory cache invalidation - invalidates the directory sector cache.
@@ -4058,6 +4070,7 @@ PUB syncDirCache()
 
   dir_sec_in_buf := -1
 
+#IFDEF SD_INCLUDE_DEBUG
 PUB debugGetRootSec() : result
 '' DEBUG: Return root_sec for diagnostic.
 ''
@@ -4157,6 +4170,7 @@ PUB debugReadSectorSlow(sector, p_buffer) : result | data, i, timeout
 '' @local timeout - (unused in wrapper)
 
   result := send_command(CMD_DEBUG_SLOW_READ, sector, p_buffer, 0, 0)
+#ENDIF
 
 PRI firstCluster() : result
 ' Return the 1st cluster location of the currently opened file.
@@ -4950,6 +4964,7 @@ PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout
 
   result := 0
 
+#IFDEF SD_INCLUDE_DEBUG
 PRI readSectorSlow(sector, p_buffer) : result | data, i, timeout
 ' DEBUG: Read sector byte-by-byte (no streamer) - for streamer debugging.
 ' This is SLOW (~50x slower than streamer) but helps isolate timing issues.
@@ -4996,6 +5011,7 @@ PRI readSectorSlow(sector, p_buffer) : result | data, i, timeout
 
   pinh(cs)                                                                      ' Deselect card
   return 0                                                                      ' Success
+#ENDIF
 
 PRI readSectors(start_sector, count, p_buffer) : sectors_read | _sck, _miso, p_buf, stream_mode, clk_count, xfrq, init_phase, align_delay, i, resp
 ' Read multiple consecutive sectors using CMD18 (READ_MULTIPLE_BLOCK).
@@ -5554,6 +5570,7 @@ PRI transfer(data,bits) : result | _cs, _mosi, _miso, _sck, delay
   if bits < 32                                                                   '  mask to requested bit count
     result &= (1 << bits) - 1                                                   '  (skip for 32 bits - mask would wrap)
 
+#IFDEF SD_INCLUDE_DEBUG
 CON     '' debug methods
   _CLKFREQ = 80_000_000
 PUB displaySector() | address, char, ascii_ptr, i
@@ -5604,6 +5621,7 @@ PUB displayFAT(cluster)
   n_sec := fat_sec + cluster >> 7
   readSector(n_sec, BUF_DATA)                                                   ' Uses BUF_DATA since displaySector reads from buf
   displaySector()
+#ENDIF
 
 CON {{     FAT32 file system
   ┌─────────────────────────┐     The master boot record contains 446 bytes of boot code
