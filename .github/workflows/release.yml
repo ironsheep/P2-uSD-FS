@@ -56,6 +56,7 @@ jobs:
           cp CHANGELOG.md "${DEST}/"
           cp DOCs/BENCHMARK-RESULTS.md "${DEST}/"
           cp DOCs/CARD-CATALOG.md "${DEST}/"
+          cp -r DOCs/cards "${DEST}/cards"
           cp DOCs/FAT32-API-CONCEPTS-REFERENCE.md "${DEST}/"
           cp DOCs/SD-CARD-DRIVER-THEORY.md "${DEST}/"
           cp DOCs/SD-CARD-DRIVER-TUTORIAL.md "${DEST}/"
