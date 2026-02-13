@@ -62,7 +62,7 @@ PUB main() | handle, buf[128], bytes_read
 
 ## Handle-Based File API
 
-The driver uses a handle-based file API that supports **up to 4 files open simultaneously** (3 read-only + 1 read-write). This enables use cases like:
+The driver uses a handle-based file API that supports **multiple files and directories open simultaneously** (default 6 handles, user-configurable via `MAX_OPEN_FILES`). This enables use cases like:
 - Reading a configuration file while writing a log
 - Copying data between files
 - Comparing file contents
@@ -1127,7 +1127,7 @@ The driver abstracts away all FAT32 complexity:
 - **Directory parsing:** Converting 8.3 names and navigating entries
 - **Path resolution:** Walking the directory tree for absolute paths
 - **Multi-cog safety:** Serializing access through a worker cog
-- **Multiple file handles:** Track up to 4 open files simultaneously
+- **Multiple file handles:** Track up to 6 open files/directories simultaneously (configurable)
 - **Single-writer enforcement:** Prevent data corruption from concurrent writes
 - **CRC validation:** Hardware-accelerated CRC-16 on all data transfers
 

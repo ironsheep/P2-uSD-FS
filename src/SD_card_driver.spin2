@@ -168,9 +168,10 @@ CON '' V3 multi-file handle configuration
   ' ═══════════════════════════════════════════════════════════════════════════
   ' FILE HANDLE SYSTEM - V3 supports multiple simultaneously open files
   ' User can override MAX_OPEN_FILES in their top-level CON section before OBJ
-  ' Memory cost: 544 bytes per handle (28 bytes state + 512 bytes buffer + 4 bytes tracking)
+  ' Memory cost: 544 bytes per handle (32 bytes state + 512 bytes buffer)
+  ' Default 6 covers 2-3 cogs with mixed file/directory operations
   ' ═══════════════════════════════════════════════════════════════════════════
-  MAX_OPEN_FILES = 4            ' Default number of file handles (user-overridable)
+  MAX_OPEN_FILES = 6            ' Default number of handles (user-overridable)
 
   ' Handle state flags (stored in h_flags array)
   HF_FREE   = 0                 ' Handle slot is available

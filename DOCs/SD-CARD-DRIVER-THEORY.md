@@ -6,7 +6,7 @@ The SD card driver provides full FAT32 filesystem access for the Parallax Propel
 
 Key architectural features:
 - **Smart pin SPI** with streamer DMA for hardware-accelerated sector transfers
-- **Multi-file handle system** supporting up to 4 simultaneous file and directory handles
+- **Multi-file handle system** supporting simultaneous file and directory handles (default 6, user-configurable)
 - **Per-cog current working directory** for safe multi-cog filesystem navigation
 - **Single-writer policy** preventing concurrent write corruption
 - **Hardware-accelerated CRC-16** using the P2's `GETCRC` instruction
@@ -273,11 +273,61 @@ Per-handle buffers eliminate thrashing when alternating between multiple open fi
 |-----------|------|
 | Shared buffers (buf + dir_buf + fat_buf) | 1,536 bytes |
 | Entry buffer | 32 bytes |
-| Per-handle state (32 bytes x 4) | 128 bytes |
-| Per-handle buffers (512 bytes x 4) | 2,048 bytes |
+| Per-handle state (32 bytes x 6) | 192 bytes |
+| Per-handle buffers (512 bytes x 6) | 3,072 bytes |
 | Per-cog CWD (8 LONGs) | 32 bytes |
 | Worker cog stack | ~512 bytes |
-| **Total (4 handles)** | **~4,288 bytes** |
+| **Total (6 handles, default)** | **~5,376 bytes** |
+
+### Choosing the Handle Count
+
+The default `MAX_OPEN_FILES = 4` was established before directory handles shared the file handle pool. With the unified pool now serving both file and directory operations, the right count depends on how many cogs will perform file I/O concurrently and what each cog does.
+
+**Per-cog handle demand.** A cog consumes one handle for each file or directory it has open at the same time. Handles represent reserved state (position, buffer, cluster chain) — the worker cog still serializes actual I/O, so handles don't create parallelism, they create *concurrency of open resources*.
+
+| Usage Pattern | Handles Needed |
+|---------------|----------------|
+| Read or write a single file | 1 |
+| Copy operation (read source + write destination) | 2 |
+| Single file + directory enumeration | 2 |
+| File copy + directory browsing | 3 |
+
+**Sizing formula.** Count the cogs that will have files or directories open simultaneously (*N*), estimate each cog's peak handle demand, and add headroom for transient opens (e.g., a cog briefly opening a config file):
+
+```
+MAX_OPEN_FILES = (N × peak_handles_per_cog) + headroom
+```
+
+**Example scenarios** for 2–3 active cogs in an 8-cog system (1 cog reserved for the SD worker):
+
+| Scenario | Cogs | Per-Cog | Headroom | Total |
+|----------|------|---------|----------|-------|
+| 2 cogs, each reads one file | 2 | 1 | +1 | 3 |
+| 2 cogs, each does file copy | 2 | 2 | +1 | 5 |
+| 2 cogs copying + dir scan | 2 | 3 | +1 | 7 |
+| 3 cogs, single file + dir each | 3 | 2 | +1 | 7 |
+| 3 cogs, each does file copy | 3 | 2 | +2 | 8 |
+
+**Incremental memory cost** for additional handles (544 bytes each: 32 bytes state + 512 bytes buffer):
+
+| MAX_OPEN_FILES | Handle Memory | Delta from 4 |
+|----------------|---------------|--------------|
+| 4 (old default) | 2,176 bytes | — |
+| 6 (recommended) | 3,264 bytes | +1,088 |
+| 8 | 4,352 bytes | +2,176 |
+| 10 | 5,440 bytes | +3,264 |
+
+**Recommended default: 6.** This covers the common case of 2–3 cogs with mixed file and directory operations, providing 2 handles per active cog plus room for a directory enumeration or transient open. The cost is 1,088 bytes above the previous default — a modest investment from the P2's 512KB hub RAM that avoids `E_TOO_MANY_FILES` errors during normal multi-cog operation. Applications with a single file-using cog can reduce to 2 or 3; applications where every cog does file I/O should size to their actual peak demand.
+
+To override, define `MAX_OPEN_FILES` in the top-level object's CON block before the OBJ declaration:
+
+```spin2
+CON
+  MAX_OPEN_FILES = 8          ' 3 cogs doing file copy + headroom
+
+OBJ
+  sd : "SD_card_driver"
+```
 
 ## Exported STRUCT Types
 
