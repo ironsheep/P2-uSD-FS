@@ -1,4 +1,5 @@
-﻿{{┌──────────────────────────────────────────┐
+{Spin2_v45}
+{{┌──────────────────────────────────────────┐
   │ SD card driver V3 (Multi-File Handles)   │  Verified with Panasonic 512MB SD
   │ Original: Chris Gadd, V3: S.M. Moraco    │                PNY 8GB SDHC
   │ Copyright (c) 2023 Chris Gadd            │                SanDisk Extreme 32GB SDHC                                       3V3
@@ -99,6 +100,7 @@ CON '' command codes for worker cog
   CMD_READ_SCR       = 24   ' Read SCR register: param0=buffer ptr
   CMD_READ_CID         = 27 ' Read CID register: param0=buffer ptr
   CMD_READ_CSD         = 28 ' Read CSD register: param0=buffer ptr
+' CMD_READ_SD_STATUS   = 29 ' Read SD Status (ACMD13): TEMPORARILY DISABLED
 #ENDIF
 
   ' ═══════════════════════════════════════════════════════════════════════════
@@ -172,7 +174,7 @@ CON '' V3 multi-file handle configuration
   HF_DIRTY  = $80               ' Handle's buffer has pending writes (OR'd with mode)
 
 CON '' worker cog stack size
-  STACK_SIZE = 128              ' 128 longs = 512 bytes
+  STACK_SIZE = 128              ' 128 longs = 512 bytes (original)
 
 CON '' streamer configuration (compile-time constants for bulk sector transfers)
   ' Reference: flash_loader.spin2 pattern, P2 Silicon Doc streamer section
@@ -225,6 +227,52 @@ CON '' SD card command codes and tokens for multi-block operations
   DATA_ACCEPTED          = $05 ' Lower 5 bits = xxx00101 = data accepted
   DATA_CRC_ERROR         = $0B ' Lower 5 bits = xxx01011 = CRC error
   DATA_WRITE_ERROR       = $0D ' Lower 5 bits = xxx01101 = write error
+
+CON '' struct types - SD card register and FAT32 on-disk data structures
+  '' ═══════════════════════════════════════════════════════════════════════════
+  '' Struct type definitions for card registers, filesystem structures, and
+  '' directory entries. Exported automatically to consumer objects via OBJ.
+  '' All structs are packed (Spin2 default) - offsets match hardware/on-disk layouts.
+  '' ═══════════════════════════════════════════════════════════════════════════
+
+  ' --- SD Card Registers ---
+
+  STRUCT cid_t(BYTE mid, BYTE oid[2], BYTE pnm[5], BYTE prv, BYTE psn[4], BYTE mdt[2], BYTE crc)
+  '  CID register: 1+2+5+1+4+2+1 = 16 bytes (big-endian from card)
+
+  STRUCT csd_t(BYTE csdStruct, BYTE taac, BYTE nsac, BYTE tranSpeed, {
+  } BYTE ccc_hi, BYTE ccc_lo_bllen, BYTE csize_hi, BYTE csize_mid, {
+  } BYTE csize_lo_vdd, BYTE currMinMax, BYTE eraseBlk, BYTE eraseSecSize, {
+  } BYTE wpGrpSize, BYTE wpFlags, BYTE wrSpeed, BYTE crc)
+  '  CSD register: 16 bytes (big-endian from card, bit fields within bytes)
+
+  STRUCT scr_t(BYTE sdSpec, BYTE sdSecurity, BYTE sdSpec3Ext, BYTE sdSpecXLo, BYTE reserved[4])
+  '  SCR register: 4+4 = 8 bytes (big-endian from card)
+
+  ' --- FAT32 On-Disk Structures ---
+
+  STRUCT dir_entry_t(BYTE name[8], BYTE ext[3], BYTE attr, BYTE ntRes, BYTE crtTenth, {
+  } WORD crtTime, WORD crtDate, WORD accDate, WORD clusHI, {
+  } WORD wrtTime, WORD wrtDate, WORD clusLO, LONG fileSize)
+  '  FAT32 directory entry: 8+3+1+1+1+2+2+2+2+2+2+2+4 = 32 bytes (little-endian)
+
+  STRUCT mbr_partition_t(BYTE bootFlag, BYTE chsStart[3], BYTE partType, {
+  } BYTE chsEnd[3], LONG lbaStart, LONG lbaSize)
+  '  MBR partition entry: 1+3+1+3+4+4 = 16 bytes (little-endian)
+
+  STRUCT vbr_t(BYTE jumpBoot[3], BYTE oemName[8], WORD bytesPerSec, BYTE secPerClus, {
+  } WORD reservedSec, BYTE numFats, WORD rootEntCnt, WORD totalSec16, {
+  } BYTE mediaType, WORD secPerFat16, WORD secPerTrack, WORD numHeads, {
+  } LONG hiddenSec, LONG totalSec32, LONG secPerFat32, WORD extFlags, {
+  } WORD fsVersion, LONG rootCluster, WORD fsInfoSec, WORD backBootSec, {
+  } BYTE reserved2[12], BYTE driveNum, BYTE reserved3, BYTE bootSig, {
+  } LONG volSerialNum, BYTE volLabel[11], BYTE fsTypeLabel[8], {
+  } BYTE bootCode[420], WORD bootSignature)
+  '  VBR (FAT32 BPB): 3+8+2+1+2+1+2+2+1+2+2+2+4+4+4+2+2+4+2+2+12+1+1+1+4+11+8+420+2 = 512 bytes
+
+  STRUCT fsinfo_t(LONG leadSig, BYTE reserved1[480], LONG structSig, {
+  } LONG freeClusters, LONG nextFreeHint, BYTE reserved2[12], LONG trailSig)
+  '  FSInfo sector: 4+480+4+4+4+12+4 = 512 bytes
 
 DAT '' singleton control - SHARED across all object instances
   ' ═══════════════════════════════════════════════════════════════════════
@@ -677,6 +725,9 @@ PRI fs_worker() | cur_cmd
 
       CMD_READ_CSD:
         pb_status := do_read_csd(pb_param0)
+
+'      CMD_READ_SD_STATUS:
+'        pb_status := do_read_sd_status(pb_param0)
 #ENDIF
 
       ' ═══════════════════════════════════════════════════════════════════════
@@ -890,10 +941,89 @@ PRI initHandleTable() | i
     freeHandle(i)
 
 CON '' ═══════════════════════════════════════════════════════════════════════════
+    '' STRUCT ACCESSOR HELPERS (workaround: pnut-ts v51a ^structName not in locals)
+    '' ═══════════════════════════════════════════════════════════════════════════
+
+PRI partType(^mbr_partition_t pPart) : value
+  return pPart.partType
+
+PRI partLbaStart(^mbr_partition_t pPart) : value
+  return pPart.lbaStart
+
+PRI vbrBytesPerSec(^vbr_t pVBR) : value
+  return pVBR.bytesPerSec
+
+PRI vbrSecPerClus(^vbr_t pVBR) : value
+  return pVBR.secPerClus
+
+PRI vbrReservedSec(^vbr_t pVBR) : value
+  return pVBR.reservedSec
+
+PRI vbrNumFats(^vbr_t pVBR) : value
+  return pVBR.numFats
+
+PRI vbrSecPerFat32(^vbr_t pVBR) : value
+  return pVBR.secPerFat32
+
+PRI vbrFsInfoSec(^vbr_t pVBR) : value
+  return pVBR.fsInfoSec
+
+PRI vbrVolLabelAddr(^vbr_t pVBR) : addr
+  return @pVBR.volLabel
+
+PRI fsiLeadSig(^fsinfo_t pFSI) : value
+  return pFSI.leadSig
+
+PRI fsiStructSig(^fsinfo_t pFSI) : value
+  return pFSI.structSig
+
+PRI fsiFreeClusters(^fsinfo_t pFSI) : value
+  return pFSI.freeClusters
+
+PRI fsiNextFreeHint(^fsinfo_t pFSI) : value
+  return pFSI.nextFreeHint
+
+PRI fsiSetFreeClusters(^fsinfo_t pFSI, value)
+  pFSI.freeClusters := value
+
+PRI fsiSetNextFreeHint(^fsinfo_t pFSI, value)
+  pFSI.nextFreeHint := value
+
+PRI dirEntAttr(^dir_entry_t p) : value
+  return p.attr
+
+PRI dirEntStartClus(^dir_entry_t p) : value
+  return p.clusHI << 16 | p.clusLO
+
+PRI dirEntFileSize(^dir_entry_t p) : value
+  return p.fileSize
+
+PRI dirEntSetAttr(^dir_entry_t p, value)
+  p.attr := value
+
+PRI dirEntSetStartClus(^dir_entry_t p, value)
+  p.clusHI := value >> 16
+  p.clusLO := value & $FFFF
+
+PRI dirEntSetFileSize(^dir_entry_t p, value)
+  p.fileSize := value
+
+PRI dirEntAddFileSize(^dir_entry_t p, delta)
+  p.fileSize += delta
+
+PRI dirEntSetCreateStamp(^dir_entry_t p, stamp)
+  p.crtTime := stamp & $FFFF
+  p.crtDate := stamp >> 16
+
+PRI dirEntSetModifyStamp(^dir_entry_t p, stamp)
+  p.wrtTime := stamp & $FFFF
+  p.wrtDate := stamp >> 16
+
+CON '' ═══════════════════════════════════════════════════════════════════════════
     '' INTERNAL WORKER OPERATIONS (called by fs_worker, not directly by API)
     '' ═══════════════════════════════════════════════════════════════════════════
 
-PRI do_mount() : result | reserved
+PRI do_mount() : result | reserved, pPart, pVBR, pFSI
 ' Internal mount operation - initializes card and reads filesystem structures.
 '
 ' @returns result - SUCCESS on success, error code on failure
@@ -919,46 +1049,49 @@ PRI do_mount() : result | reserved
   ' Card is initialized (either fresh or from RAW mode)
   debug("  [do_mount] Reading MBR sector 0...")
   readSector(0, BUF_DATA)                                                       '  read master boot record
-  debug("  [do_mount] MBR type code at $1C2: ", uhex_(buf[$1C2]))
-  if buf[$1C2] == $0B or buf[$1C2] == $0C                                       '  offset $1C2 contains type code, $0B and $0C specify FAT32
-    vbr_sec := long[@buf + $1C6]                                                '  offset $1C6 contains volume boot record sector number
+  pPart := @buf + $1BE                                                          '  overlay partition entry 1
+  debug("  [do_mount] MBR type code: ", uhex_(partType(pPart)))
+  if partType(pPart) == $0B or partType(pPart) == $0C                           '  $0B and $0C specify FAT32
+    vbr_sec := partLbaStart(pPart)                                              '  volume boot record sector number
     debug("  [do_mount] FAT32 detected, VBR at sector ", udec(vbr_sec))
     readSector(vbr_sec, BUF_DATA)                                               '  read volume boot record
   else
-    debug("  [do_mount] FAIL: Not FAT32 (type=", uhex_(buf[$1C2]), ")")
+    debug("  [do_mount] FAIL: Not FAT32 (type=", uhex_(partType(pPart)), ")")
     return E_NOT_FAT32
-  debug("  [do_mount] Bytes/sector: ", udec(word[@buf + $0B]))
-  if word[@buf + $0B] <> 512
+  pVBR := @buf                                                                  '  overlay VBR
+  debug("  [do_mount] Bytes/sector: ", udec(vbrBytesPerSec(pVBR)))
+  if vbrBytesPerSec(pVBR) <> 512
     debug("  [do_mount] FAIL: Bytes/sector not 512")
     return E_BAD_SECTOR_SIZE
-  sec_per_clus := buf[$0D]
+  sec_per_clus := vbrSecPerClus(pVBR)
   debug("  [do_mount] Sectors/cluster: ", udec(sec_per_clus))
   if (sec_per_clus & (sec_per_clus - 1))
     debug("  [do_mount] FAIL: sec_per_clus not power of 2")
     return E_NOT_FAT32
-  reserved := word[@buf + $0E]
+  reserved := vbrReservedSec(pVBR)
   debug("  [do_mount] Reserved sectors: ", udec(reserved))
-  debug("  [do_mount] Number of FATs: ", udec(buf[$10]))
-  if buf[$10] <> 2
+  debug("  [do_mount] Number of FATs: ", udec(vbrNumFats(pVBR)))
+  if vbrNumFats(pVBR) <> 2
     debug("  [do_mount] FAIL: FAT count not 2")
     return E_NOT_FAT32
-  sec_per_fat := long[@buf + $24]
-  fsinfo_sec := word[@buf + $30]
+  sec_per_fat := vbrSecPerFat32(pVBR)
+  fsinfo_sec := vbrFsInfoSec(pVBR)
   fat_sec := vbr_sec + reserved
   fat2_sec := fat_sec + sec_per_fat
   root_sec := (fat_sec + 2 * sec_per_fat)
   longfill(@cog_dir_sec, root_sec, 8)                                             ' All cogs start at root
   cluster_offset := root_sec // sec_per_clus
-  bytemove(@vol_label, @buf + $47, 11)
+  bytemove(@vol_label, vbrVolLabelAddr(pVBR), 11)
   vol_label[11] := 0
   debug("  [do_mount] Volume label: ", zstr(@vol_label))
 
   ' Read FSInfo sector for free cluster count and next-free hint
   if fsinfo_sec > 0 and fsinfo_sec < reserved
     readSector(vbr_sec + fsinfo_sec, BUF_DATA)
-    if long[@buf + 0] == $4161_5252 and long[@buf + 484] == $6141_7272
-      fsi_free_count := long[@buf + 488]
-      fsi_nxt_free := long[@buf + 492]
+    pFSI := @buf                                                                 '  overlay FSInfo
+    if fsiLeadSig(pFSI) == $4161_5252 and fsiStructSig(pFSI) == $6141_7272
+      fsi_free_count := fsiFreeClusters(pFSI)
+      fsi_nxt_free := fsiNextFreeHint(pFSI)
       debug("  [do_mount] FSInfo: free_count=", udec(fsi_free_count), " nxt_free=", udec(fsi_nxt_free))
     else
       fsi_free_count := $FFFF_FFFF
@@ -1102,6 +1235,12 @@ PRI do_read_csd(p_buf) : result
   else
     debug("  [do_read_csd] CSD read failed")
     return E_IO_ERROR
+
+'PRI do_read_sd_status(p_buf) : result  ' TEMPORARILY DISABLED
+'  if readSDStatus(p_buf)
+'    return SUCCESS
+'  else
+'    return E_IO_ERROR
 #ENDIF
 
 PRI do_open(name_ptr) : result | search_result
@@ -1303,12 +1442,11 @@ PRI do_create(p_path) : handle | temp, first_cluster
     return E_DISK_FULL
 
   ' Set up directory entry in entry_buffer
-  byte[@entry_buffer + 11] := $20                                               ' Archive attribute
-  long[@entry_buffer + 14] := date_stamp                                        ' Create time
-  word[@entry_buffer + 20] := first_cluster >> 16                               ' First cluster high
-  long[@entry_buffer + 22] := date_stamp                                        ' Modify time
-  word[@entry_buffer + 26] := first_cluster & $FFFF                             ' First cluster low
-  long[@entry_buffer + 28] := 0                                                 ' File size = 0
+  dirEntSetAttr(@entry_buffer, $20)                                              ' Archive attribute
+  dirEntSetCreateStamp(@entry_buffer, date_stamp)
+  dirEntSetStartClus(@entry_buffer, first_cluster)
+  dirEntSetModifyStamp(@entry_buffer, date_stamp)
+  dirEntSetFileSize(@entry_buffer, 0)
 
   ' Write directory entry to disk
   readSector(entry_address >> 9, BUF_DIR)
@@ -1886,8 +2024,7 @@ PRI do_write(p_buffer, count) | delta, temp, sectors_to_boundary, full_sectors, 
         temp := long[readFat(temp)]
       temp := allocateCluster(temp)
       if fileSize() == 0
-        word[@entry_buffer + $14] := temp >> 16
-        word[@entry_buffer + $1A] := temp & $FFFF
+        dirEntSetStartClus(@entry_buffer, temp)
       n_sec := clus2sec(temp)
       bytefill(@buf,0,512)
     else
@@ -1900,7 +2037,7 @@ PRI do_write(p_buffer, count) | delta, temp, sectors_to_boundary, full_sectors, 
       sec_in_buf := n_sec
       file_idx += delta
       p_buffer += delta
-      long[@entry_buffer + $1C] += delta
+      dirEntAddFileSize(@entry_buffer, delta)
       count -= delta
       if file_idx & 511 == 0
         writeSector(n_sec++, BUF_DATA)
@@ -1921,7 +2058,7 @@ PRI do_write(p_buffer, count) | delta, temp, sectors_to_boundary, full_sectors, 
         multi_written := writeSectors(n_sec, multi_count, p_buffer)
         if multi_written > 0
           file_idx += multi_written << 9
-          long[@entry_buffer + $1C] += multi_written << 9
+          dirEntAddFileSize(@entry_buffer, multi_written << 9)
           p_buffer += multi_written << 9
           count -= multi_written << 9
           n_sec += multi_written
@@ -1937,7 +2074,7 @@ PRI do_write(p_buffer, count) | delta, temp, sectors_to_boundary, full_sectors, 
         bytemove(@buf, p_buffer, 512)
         writeSector(n_sec++, BUF_DATA)
         file_idx += 512
-        long[@entry_buffer + $1C] += 512
+        dirEntAddFileSize(@entry_buffer, 512)
         p_buffer += 512
         count -= 512
         bytefill(@buf,0,512)
@@ -1950,7 +2087,7 @@ PRI do_write(p_buffer, count) | delta, temp, sectors_to_boundary, full_sectors, 
       bytemove(@buf + (file_idx & 511), p_buffer, count)
       sec_in_buf := n_sec
       file_idx += count
-      long[@entry_buffer + $1C] += count
+      dirEntAddFileSize(@entry_buffer, count)
 
     flags |= F_NEWDATA
 
@@ -1989,12 +2126,11 @@ PRI do_newfile(name_ptr) : result | temp
       temp := allocateCluster(byte2clus(entry_address))
       clearCluster(temp)
 
-  byte[@entry_buffer + 11] := $20
-  long[@entry_buffer + 14] := date_stamp
-  word[@entry_buffer + 20] := $0000
-  long[@entry_buffer + 22] := date_stamp
-  word[@entry_buffer + 26] := $0000
-  long[@entry_buffer + 28] := 0
+  dirEntSetAttr(@entry_buffer, $20)
+  dirEntSetCreateStamp(@entry_buffer, date_stamp)
+  dirEntSetStartClus(@entry_buffer, 0)
+  dirEntSetModifyStamp(@entry_buffer, date_stamp)
+  dirEntSetFileSize(@entry_buffer, 0)
   flags |= F_OPEN | F_NEWDIR
   return SUCCESS
 
@@ -2016,12 +2152,11 @@ PRI do_newdir(name_ptr) : result | temp
       clearCluster(temp)
 
   temp := allocateCluster(0)
-  byte[@entry_buffer + 11] := $10
-  long[@entry_buffer + 14] := date_stamp
-  word[@entry_buffer + 20] := temp >> 16
-  long[@entry_buffer + 22] := date_stamp
-  word[@entry_buffer + 26] := temp & $FFFF
-  long[@entry_buffer + 28] := 0
+  dirEntSetAttr(@entry_buffer, $10)                                              ' Directory attribute
+  dirEntSetCreateStamp(@entry_buffer, date_stamp)
+  dirEntSetStartClus(@entry_buffer, temp)
+  dirEntSetModifyStamp(@entry_buffer, date_stamp)
+  dirEntSetFileSize(@entry_buffer, 0)
 
   readSector(entry_address >> 9, BUF_DIR)
   debug("  [do_newdir] Before write: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
@@ -2203,7 +2338,7 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
     debug("  [do_rename] Old file NOT FOUND")
   return E_FILE_NOT_FOUND
 
-PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3]
+PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3], pVBR
 ' Internal set volume label - updates BPB and root directory volume label entry.
 '
 ' @param p_label - Pointer to new volume label string (max 11 chars)
@@ -2221,9 +2356,10 @@ PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3]
 
   debug("  [do_set_vol_label] new label=[", lstr_(@label_83, 11), "]")
 
-  ' Step 1: Update BPB volume label (VBR sector, offset $47)
+  ' Step 1: Update BPB volume label (VBR sector)
   readSector(vbr_sec, BUF_DATA)
-  bytemove(@buf + $47, @label_83, 11)
+  pVBR := @buf
+  bytemove(vbrVolLabelAddr(pVBR), @label_83, 11)
   if writeSector(vbr_sec, BUF_DATA) == 0
     debug("  [do_set_vol_label] FAIL: write VBR")
     return E_IO_ERROR
@@ -2236,7 +2372,7 @@ PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3]
     p_entry := @dir_buf + (i & 511)
     if byte[p_entry] == $00                                                            ' End of directory
       quit
-    if byte[p_entry] <> $E5 and byte[p_entry + $0B] == $08                             ' Volume label entry found
+    if byte[p_entry] <> $E5 and dirEntAttr(p_entry) == $08                              ' Volume label entry found
       bytemove(p_entry, @label_83, 11)
       writeSector(n_sec, BUF_DIR)
       debug("  [do_set_vol_label] Updated root dir entry")
@@ -2563,6 +2699,17 @@ CON '' ════════════════════════�
     '' CARD IDENTIFICATION METHODS (for diagnostic tools)
     '' These methods provide raw register access for card characterization.
     '' Call initCardOnly() or mount() before using these methods.
+    ''
+    '' SD card registers are big-endian (MSB-first). Single-byte fields can be
+    '' read directly, but multi-byte fields need endian conversion on the P2
+    '' (little-endian). Currently done with manual shift/OR patterns.
+    ''
+    '' TODO: With {Spin2_v52} compiler, use ENDIANL() and ENDIANW() for
+    ''   multi-byte big-endian fields:
+    ''     psn := ENDIANL(LONG[@cid_buf + 9])   ' CID serial number
+    ''     mdt := ENDIANW(WORD[@cid_buf + 13])   ' CID manufacturing date
+    ''   Also consider STRUCT (available at v45+) to define cid_t, csd_t, scr_t
+    ''   types here and export them for consumer objects.
     '' ═══════════════════════════════════════════════════════════════════════════
 
 PUB readCIDRaw(p_buf) : result | status
@@ -2570,7 +2717,7 @@ PUB readCIDRaw(p_buf) : result | status
 '' Contains manufacturer ID, product name, serial number, and manufacturing date.
 '' Routes through worker cog which owns the SPI pins.
 ''
-'' @param p_buf - Pointer to 16-byte buffer to receive CID data
+'' @param p_buf - Pointer to cid_t buffer to receive CID data
 '' @returns result - TRUE on success, FALSE on failure
 '' @local status - Command status
 
@@ -2587,7 +2734,7 @@ PUB readCSDRaw(p_buf) : result | status
 '' Contains card capacity, speed, and features.
 '' Routes through worker cog which owns the SPI pins.
 ''
-'' @param p_buf - Pointer to 16-byte buffer to receive CSD data
+'' @param p_buf - Pointer to csd_t buffer to receive CSD data
 '' @returns result - TRUE on success, FALSE on failure
 '' @local status - Command status
 
@@ -2604,7 +2751,7 @@ PUB readSCRRaw(p_buf) : result | status
 '' Contains SD spec version and bus widths.
 '' Routes through worker cog which owns the SPI pins.
 ''
-'' @param p_buf - Pointer to 8-byte buffer to receive SCR data
+'' @param p_buf - Pointer to scr_t buffer to receive SCR data
 '' @returns result - TRUE on success, FALSE on failure
 '' @local status - Command status
 
@@ -2615,6 +2762,9 @@ PUB readSCRRaw(p_buf) : result | status
   else
     debug("  [readSCRRaw] SCR read FAILED")
     result := false
+
+'PUB readSDStatusRaw  ' TEMPORARILY DISABLED - stub only
+'  return false
 
 PUB getOCR() : ocr
 '' Get cached OCR register value - Operating Conditions Register from card init.
@@ -2733,7 +2883,10 @@ PRI readCID(p_cid) : result | t, i
       pinh(cs)
       return false
 
-  ' Read 16 bytes of CID data
+  ' Read 16 bytes of CID data (arrives big-endian / MSB-first from card)
+  ' Layout: MID[1] OID[2] PNM[5] PRV[1] PSN[4] MDT[2] CRC[1]
+  ' TODO: With {Spin2_v52}+STRUCT, callers can use ENDIANL/ENDIANW on
+  '   multi-byte fields (PSN, MDT) instead of manual shift/OR patterns
   repeat i from 0 to 15
     byte[p_cid + i] := sp_transfer_8($FF)
 
@@ -3262,6 +3415,8 @@ PRI readSCR(p_scr) : result | t, i
   debug("  [readSCR] Success")
   return true
 
+' PRI readSDStatus - TEMPORARILY DISABLED (entire function)
+
 PUB newFile(name_ptr) : result
 '' Create and open a new file (multi-cog safe) in current directory.
 ''
@@ -3526,12 +3681,13 @@ PUB syncAllHandles() : result
     set_error(result)
   return result
 
-PRI updateFSInfo() : result
+PRI updateFSInfo() : result | pFSI
 ' Update FSInfo sector with current free cluster count.
 ' Uses cached fsi_free_count (tracked incrementally during alloc/delete).
 ' Called by unmount() to ensure other OSes see correct free space.
 '
 ' @returns result - TRUE on success, FALSE if no valid FSInfo
+' @local pFSI - Pointer overlaid on buf for fsinfo_t struct access
 
   if fsinfo_sec == 0 or fsi_free_count == $FFFF_FFFF
     debug("  [updateFSInfo] No valid FSInfo to update")
@@ -3541,15 +3697,16 @@ PRI updateFSInfo() : result
 
   ' Read FSInfo sector
   readSector(vbr_sec + fsinfo_sec, BUF_DATA)
+  pFSI := @buf                                                                  '  overlay FSInfo
 
   ' Verify signatures before writing
-  if long[@buf + 0] <> $4161_5252 or long[@buf + 484] <> $6141_7272
+  if fsiLeadSig(pFSI) <> $4161_5252 or fsiStructSig(pFSI) <> $6141_7272
     debug("  [updateFSInfo] Invalid FSInfo signatures")
     return false
 
   ' Update free count and next-free hint
-  long[@buf + 488] := fsi_free_count                                            '  FSI_Free_Count (cached value)
-  long[@buf + 492] := fsi_nxt_free                                              '  FSI_Nxt_Free (keep cached value)
+  fsiSetFreeClusters(pFSI, fsi_free_count)                                      '  FSI_Free_Count (cached value)
+  fsiSetNextFreeHint(pFSI, fsi_nxt_free)                                        '  FSI_Nxt_Free (keep cached value)
 
   ' Write updated FSInfo sector (primary at sector 1, backup at sector 7)
   writeSector(vbr_sec + fsinfo_sec, BUF_DATA)
@@ -3846,7 +4003,7 @@ PUB attributes() : result
 ''
 '' @returns result - FAT attribute byte
 
-  return entry_buffer[$0B]
+  return dirEntAttr(@entry_buffer)
 
 PUB volumeLabel() : result
 '' Return pointer to volume label string.
@@ -4006,14 +4163,14 @@ PRI firstCluster() : result
 '
 ' @returns result - First cluster number (combined from entry bytes $14-$15 and $1A-$1B)
 
-  return word[@entry_buffer + $14] << 16 | word[@entry_buffer + $1A]
+  return dirEntStartClus(@entry_buffer)
 
 PUB fileSize() : result
 '' Return the size of the currently opened file in bytes.
 ''
 '' @returns result - File size from directory entry
 
-  return long[@entry_buffer + $1C]
+  return dirEntFileSize(@entry_buffer)
 
 CON     '' FAT and sector methods
 PRI readFat(cluster) : result | contents, p_contents
