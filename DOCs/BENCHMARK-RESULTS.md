@@ -174,27 +174,34 @@ The PNY card (MID $27 Phison) has distinctive behavior:
 
 ## Theoretical Limits
 
-At 320 MHz sysclk with current bit-banged SPI:
-- **SPI clock**: ~20 MHz (bit_delay = 8)
-- **Theoretical max**: ~2.5 MB/s
-- **Achieved**: ~1.5 MB/s (60% efficiency)
+At 320 MHz sysclk with Smart Pin SPI:
+- **SPI clock**: ~22.9 MHz
+- **Theoretical byte rate**: ~2,790 KB/s
+- **Best raw achieved**: 2,189 KB/s read, 2,059 KB/s write (78% / 74% efficiency)
+- **Best file-level achieved**: 1,274 KB/s read, 501 KB/s write
 
-The gap is due to:
-- Command overhead per sector
-- FAT table reads during write operations
-- Card busy time after writes
+The raw-to-theoretical gap is due to:
+- Command/response framing per transfer
+- CRC computation and checking
+- Token wait time (especially on writes)
+
+The file-to-raw gap is due to:
+- FAT chain traversal during reads
+- FAT + directory updates during writes
+- Cluster boundary management
+- Handle API overhead
 
 ---
 
-## Optimization Targets
+## Efficiency Summary
 
-Based on these baseline measurements, the Smart Pin SPI implementation targets:
+| Level | Read (KB/s) | Write (KB/s) | Read % | Write % |
+|-------|-------------|--------------|--------|---------|
+| Theoretical (22.9 MHz SPI) | 2,790 | 2,790 | 100% | 100% |
+| Raw multi-sector (best) | 2,189 | 2,059 | 78% | 74% |
+| File-level (best) | 1,274 | 501 | 46% | 18% |
 
-| Metric | Current Best | Target | Expected Gain |
-|--------|--------------|--------|---------------|
-| Read 256KB | 1,467 KB/s | 4,000+ KB/s | 2.7× |
-| Write 32KB | 425 KB/s | 1,200+ KB/s | 2.8× |
-| Mount | 152 ms | 100 ms | 1.5× |
+The raw SPI layer is reasonably efficient. The largest remaining headroom is in file-level write throughput, where FAT metadata updates consume over 80% of available bandwidth.
 
 ---
 
