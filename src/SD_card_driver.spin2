@@ -240,10 +240,10 @@ CON '' struct types - SD card register and FAT32 on-disk data structures
   STRUCT cid_t(BYTE mid, BYTE oid[2], BYTE pnm[5], BYTE prv, BYTE psn[4], BYTE mdt[2], BYTE crc)
   '  CID register: 1+2+5+1+4+2+1 = 16 bytes (big-endian from card)
 
-  STRUCT csd_t(BYTE csdStruct, BYTE taac, BYTE nsac, BYTE tranSpeed, {
-  } BYTE ccc_hi, BYTE ccc_lo_bllen, BYTE csize_hi, BYTE csize_mid, {
-  } BYTE csize_lo_vdd, BYTE currMinMax, BYTE eraseBlk, BYTE eraseSecSize, {
-  } BYTE wpGrpSize, BYTE wpFlags, BYTE wrSpeed, BYTE crc)
+  STRUCT csd_t(BYTE csdStruct, BYTE taac, BYTE nsac, BYTE tranSpeed, ...
+    BYTE ccc_hi, BYTE ccc_lo_bllen, BYTE csize_hi, BYTE csize_mid, ...
+    BYTE csize_lo_vdd, BYTE currMinMax, BYTE eraseBlk, BYTE eraseSecSize, ...
+    BYTE wpGrpSize, BYTE wpFlags, BYTE wrSpeed, BYTE crc)
   '  CSD register: 16 bytes (big-endian from card, bit fields within bytes)
 
   STRUCT scr_t(BYTE sdSpec, BYTE sdSecurity, BYTE sdSpec3Ext, BYTE sdSpecXLo, BYTE reserved[4])
@@ -251,27 +251,27 @@ CON '' struct types - SD card register and FAT32 on-disk data structures
 
   ' --- FAT32 On-Disk Structures ---
 
-  STRUCT dir_entry_t(BYTE name[8], BYTE ext[3], BYTE attr, BYTE ntRes, BYTE crtTenth, {
-  } WORD crtTime, WORD crtDate, WORD accDate, WORD clusHI, {
-  } WORD wrtTime, WORD wrtDate, WORD clusLO, LONG fileSize)
+  STRUCT dir_entry_t(BYTE name[8], BYTE ext[3], BYTE attr, BYTE ntRes, BYTE crtTenth, ...
+    WORD crtTime, WORD crtDate, WORD accDate, WORD clusHI, ...
+    WORD wrtTime, WORD wrtDate, WORD clusLO, LONG fileSize)
   '  FAT32 directory entry: 8+3+1+1+1+2+2+2+2+2+2+2+4 = 32 bytes (little-endian)
 
-  STRUCT mbr_partition_t(BYTE bootFlag, BYTE chsStart[3], BYTE partType, {
-  } BYTE chsEnd[3], LONG lbaStart, LONG lbaSize)
+  STRUCT mbr_partition_t(BYTE bootFlag, BYTE chsStart[3], BYTE partType, ...
+    BYTE chsEnd[3], LONG lbaStart, LONG lbaSize)
   '  MBR partition entry: 1+3+1+3+4+4 = 16 bytes (little-endian)
 
-  STRUCT vbr_t(BYTE jumpBoot[3], BYTE oemName[8], WORD bytesPerSec, BYTE secPerClus, {
-  } WORD reservedSec, BYTE numFats, WORD rootEntCnt, WORD totalSec16, {
-  } BYTE mediaType, WORD secPerFat16, WORD secPerTrack, WORD numHeads, {
-  } LONG hiddenSec, LONG totalSec32, LONG secPerFat32, WORD extFlags, {
-  } WORD fsVersion, LONG rootCluster, WORD fsInfoSec, WORD backBootSec, {
-  } BYTE reserved2[12], BYTE driveNum, BYTE reserved3, BYTE bootSig, {
-  } LONG volSerialNum, BYTE volLabel[11], BYTE fsTypeLabel[8], {
-  } BYTE bootCode[420], WORD bootSignature)
+  STRUCT vbr_t(BYTE jumpBoot[3], BYTE oemName[8], WORD bytesPerSec, BYTE secPerClus, ...
+    WORD reservedSec, BYTE numFats, WORD rootEntCnt, WORD totalSec16, ...
+    BYTE mediaType, WORD secPerFat16, WORD secPerTrack, WORD numHeads, ...
+    LONG hiddenSec, LONG totalSec32, LONG secPerFat32, WORD extFlags, ...
+    WORD fsVersion, LONG rootCluster, WORD fsInfoSec, WORD backBootSec, ...
+    BYTE reserved2[12], BYTE driveNum, BYTE reserved3, BYTE bootSig, ...
+    LONG volSerialNum, BYTE volLabel[11], BYTE fsTypeLabel[8], ...
+    BYTE bootCode[420], WORD bootSignature)
   '  VBR (FAT32 BPB): 3+8+2+1+2+1+2+2+1+2+2+2+4+4+4+2+2+4+2+2+12+1+1+1+4+11+8+420+2 = 512 bytes
 
-  STRUCT fsinfo_t(LONG leadSig, BYTE reserved1[480], LONG structSig, {
-  } LONG freeClusters, LONG nextFreeHint, BYTE reserved2[12], LONG trailSig)
+  STRUCT fsinfo_t(LONG leadSig, BYTE reserved1[480], LONG structSig, ...
+    LONG freeClusters, LONG nextFreeHint, BYTE reserved2[12], LONG trailSig)
   '  FSInfo sector: 4+480+4+4+4+12+4 = 512 bytes
 
 DAT '' singleton control - SHARED across all object instances
