@@ -106,7 +106,7 @@ CON '' command codes for worker cog
   CMD_READ_SCR       = 24   ' Read SCR register: param0=buffer ptr
   CMD_READ_CID         = 27 ' Read CID register: param0=buffer ptr
   CMD_READ_CSD         = 28 ' Read CSD register: param0=buffer ptr
-' CMD_READ_SD_STATUS   = 29 ' Read SD Status (ACMD13): TEMPORARILY DISABLED
+  CMD_READ_SD_STATUS   = 29 ' Read SD Status (ACMD13): 64-byte register via CMD55+CMD13
 #ENDIF
 
   ' ═══════════════════════════════════════════════════════════════════════════
@@ -736,8 +736,8 @@ PRI fs_worker() | cur_cmd
       CMD_READ_CSD:
         pb_status := do_read_csd(pb_param0)
 
-'      CMD_READ_SD_STATUS:
-'        pb_status := do_read_sd_status(pb_param0)
+      CMD_READ_SD_STATUS:
+        pb_status := do_read_sd_status(pb_param0)
 #ENDIF
 
       ' ═══════════════════════════════════════════════════════════════════════
@@ -1246,11 +1246,18 @@ PRI do_read_csd(p_buf) : result
     debug("  [do_read_csd] CSD read failed")
     return E_IO_ERROR
 
-'PRI do_read_sd_status(p_buf) : result  ' TEMPORARILY DISABLED
-'  if readSDStatus(p_buf)
-'    return SUCCESS
-'  else
-'    return E_IO_ERROR
+PRI do_read_sd_status(p_buf) : result
+' Read SD Status register (ACMD13) - 64 bytes.
+'
+' @param p_buf - Pointer to 64-byte buffer to receive SD Status data
+' @returns result - SUCCESS on success, E_IO_ERROR on failure
+
+  if readSDStatus(p_buf)
+    debug("  [do_read_sd_status] SD Status read successfully")
+    return SUCCESS
+  else
+    debug("  [do_read_sd_status] SD Status read failed")
+    return E_IO_ERROR
 #ENDIF
 
 PRI do_open(name_ptr) : result | search_result
@@ -2777,8 +2784,21 @@ PUB readSCRRaw(p_buf) : result | status
     debug("  [readSCRRaw] SCR read FAILED")
     result := false
 
-'PUB readSDStatusRaw  ' TEMPORARILY DISABLED - stub only
-'  return false
+PUB readSDStatusRaw(p_buf) : result | status
+'' Read SD Status register (ACMD13) - returns 64 bytes of card status.
+'' Contains Speed Class, UHS Speed Grade, Video Speed Class, and more.
+''
+'' @param p_buf - Pointer to 64-byte buffer to receive SD Status data
+'' @returns result - TRUE on success, FALSE on failure
+'' @local status - Command status
+
+  status := send_command(CMD_READ_SD_STATUS, p_buf, 0, 0, 0)
+  if status == SUCCESS
+    debug("  [readSDStatusRaw] SD Status read successfully")
+    result := true
+  else
+    debug("  [readSDStatusRaw] SD Status read FAILED")
+    result := false
 
 PUB getOCR() : ocr
 '' Get cached OCR register value - Operating Conditions Register from card init.
@@ -3429,7 +3449,94 @@ PRI readSCR(p_scr) : result | t, i
   debug("  [readSCR] Success")
   return true
 
-' PRI readSDStatus - TEMPORARILY DISABLED (entire function)
+PRI readSDStatus(p_buf) : result | t, i
+' Read SD Status register using ACMD13 - reads 64-byte SD Status.
+' Requires CMD55 prefix before ACMD13.
+' Uses byte-by-byte read (same pattern as readSCR).
+'
+' @param p_buf - Pointer to 64-byte buffer to receive SD Status data
+' @returns result - TRUE on success, FALSE on failure
+' @local t - Timeout counter
+' @local i - Loop counter
+
+  debug("  [readSDStatus] Starting SD Status read sequence")
+
+  ' Send CMD55 (APP_CMD) first
+  sp_transfer_8($FF)
+  pinl(cs)
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 55)                                                       '  CMD55 = APP_CMD
+  sp_transfer(0, 32)                                                            '  argument = 0
+  sp_transfer_8($65)                                                            '  CRC for CMD55
+
+  ' Wait for R1 response
+  t := getct() + clkfreq
+  repeat
+    result := sp_transfer_8($FF)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      debug("  [readSDStatus] CMD55 timeout - no response")
+      pinh(cs)
+      return false
+
+  debug("  [readSDStatus] CMD55 response: $", uhex_byte_(result))
+  if result > $01                                                               '  Accept $00 or $01 (idle)
+    debug("  [readSDStatus] CMD55 error response")
+    pinh(cs)
+    return false
+
+  pinh(cs)                                                                      '  Deselect before ACMD13
+
+  ' Send ACMD13 (SD_STATUS)
+  sp_transfer_8($FF)
+  pinl(cs)
+  sp_transfer_8($FF)
+  sp_transfer_8($40 | 13)                                                       '  ACMD13 = SD_STATUS
+  sp_transfer(0, 32)                                                            '  argument = 0
+  sp_transfer_8($FF)                                                            '  CRC (don't care in SPI mode)
+
+  ' Wait for R1 response
+  t := getct() + clkfreq
+  repeat
+    result := sp_transfer_8($FF)
+    if result <> $FF
+      quit
+    if getct() - t > 0
+      debug("  [readSDStatus] ACMD13 timeout - no response")
+      pinh(cs)
+      return false
+
+  debug("  [readSDStatus] ACMD13 response: $", uhex_byte_(result))
+  if result <> $00
+    debug("  [readSDStatus] ACMD13 error - expected $00")
+    pinh(cs)
+    return false
+
+  ' Wait for data token ($FE)
+  t := getct() + clkfreq
+  repeat
+    result := sp_transfer_8($FF)
+    if result == $FE
+      quit
+    if getct() - t > 0
+      debug("  [readSDStatus] Timeout waiting for data token $FE")
+      pinh(cs)
+      return false
+
+  debug("  [readSDStatus] Got data token, reading 64 bytes")
+
+  ' Read 64 bytes of SD Status data
+  repeat i from 0 to 63
+    byte[p_buf + i] := sp_transfer_8($FF)
+
+  ' Read and discard 2-byte CRC
+  sp_transfer_8($FF)
+  sp_transfer_8($FF)
+
+  pinh(cs)
+  debug("  [readSDStatus] Success")
+  return true
 
 PUB newFile(name_ptr) : result
 '' Create and open a new file (multi-cog safe) in current directory.

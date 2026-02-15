@@ -4,6 +4,13 @@
 **Unique ID:** `SanDisk_SS08G_3.0_DAAEE8AD_201509`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+SanDisk SS08G SDHC 7GB [FAT32] SD 3.x rev3.0 SN:DAAEE8AD 2015/09
+Class 4, SPI 25 MHz
+```
+
 ### Raw Registers
 
 ```

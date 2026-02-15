@@ -4,6 +4,13 @@
 **Unique ID:** `Samsung_00000_1.0_D9FB539C_201408`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+Samsung 00000 SDHC 7GB [FAT16] SD 3.x rev1.0 SN:D9FB539C 2014/08
+SPI 25 MHz
+```
+
 ### Raw Registers
 
 ```

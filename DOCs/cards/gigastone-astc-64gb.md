@@ -4,6 +4,13 @@
 **Unique ID:** `GigastoneOEM_ASTC_2.0_00000F14_202306`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+Gigastone ASTC SDXC 58GB [FAT32] SD 6.x rev2.0 SN:00000F14 2023/06
+U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
 ### Raw Registers
 
 ```

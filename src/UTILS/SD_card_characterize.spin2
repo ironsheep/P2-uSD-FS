@@ -144,6 +144,19 @@ DAT
   vbr_fs_type         BYTE    0[9]
   vbr_oem_name        BYTE    0[9]
 
+  ' ===== MBR PARTITION TYPE =====
+  mbr_part_type       BYTE    0           ' Partition type from MBR offset $1C2
+
+  ' ===== SD STATUS FIELDS (64 bytes, ACMD13) =====
+  sdst_buf            BYTE    0[64]       ' Raw SD Status register
+  sdst_speed_class    BYTE    0           ' Decoded from sdst_buf[8]
+  sdst_uhs_grade      BYTE    0           ' Decoded from sdst_buf[14] upper nibble
+  sdst_video_class    BYTE    0           ' Decoded from sdst_buf[15]
+  sdst_valid          BYTE    0           ' TRUE if ACMD13 read succeeded
+
+  ' SD spec version string buffer
+  sd_spec_str         BYTE    0[8]        ' e.g., "3.x", "4.x", "5.x"
+
   ' Manufacturer lookup table (ID, Name)
   mfr_table     BYTE    $00, "Budget OEM", 0
                 BYTE    $01, "Panasonic", 0
@@ -267,9 +280,15 @@ PUB main() | result
   parseVBR()
   displayVBR()
 
+  ' Parse SD Status fields (if available)
+  parseSDStatus()
+
   ' Generate unique card ID
   generateCardID()
   displayCardID()
+
+  ' Display canonical 2-line card designator
+  displayCardDesignator()
 
   ' Display driver usage summary
   displayDriverUsage()
@@ -310,6 +329,15 @@ PRI readAllRegisters() | result
   ' Get cached OCR
   ocr_val := sd.getOCR()
   debug("  OCR: OK (4 bytes)")
+
+  ' Read SD Status (ACMD13) - 64 bytes
+  result := sd.readSDStatusRaw(@sdst_buf)
+  if result
+    debug("  SD Status: OK (64 bytes)")
+    sdst_valid := 1
+  else
+    debug("  SD Status: FAILED (ACMD13 not available)")
+    sdst_valid := 0
 
   debug(" ")
 
@@ -800,6 +828,7 @@ PRI findAndReadVBR() | mbr_buf[128], vbr_sector, type_code
 
   ' Get partition type code from MBR at offset 0x1C2
   type_code := BYTE[@mbr_buf + $1C2]
+  mbr_part_type := type_code
   debug("MBR Partition Type:          $", uhex_byte_(type_code))
 
   if type_code == $0B or type_code == $0C
@@ -999,6 +1028,129 @@ PRI displayCardID()
   debug("##############################################")
   debug("  UNIQUE CARD ID: ", zstr_(@card_id_str))
   debug("##############################################")
+
+' ============================================================
+' SD STATUS PARSING
+' ============================================================
+
+PRI parseSDStatus()
+' Parse key fields from SD Status register (ACMD13).
+
+  if sdst_valid
+    sdst_speed_class := sdst_buf[8]
+    sdst_uhs_grade := sdst_buf[14] >> 4
+    sdst_video_class := sdst_buf[15]
+  else
+    sdst_speed_class := 0
+    sdst_uhs_grade := 0
+    sdst_video_class := 0
+
+' ============================================================
+' CARD DESIGNATOR (2-LINE FORMAT)
+' ============================================================
+
+PRI displayCardDesignator() | cap_gb, spi_mhz, p_mfr, p_type, p_fs, speedVal
+' Display canonical 2-line card designator.
+' Line 1: <Manufacturer> <ProductName> <CardType> <CapacityGB>GB [<Filesystem>] SD <SpecVersion> rev<Major>.<Minor> SN:<Serial> <Year>/<Month>
+' Line 2: Class <N>, U<N>, V<N>, SPI <Freq> MHz  [<optional notes>]
+
+  debug(" ")
+  debug("##############################################")
+  debug("  CARD DESIGNATOR")
+  debug("##############################################")
+
+  p_mfr := lookupManufacturer(cid_mid)
+  p_type := getCardTypeStr()
+  p_fs := getFilesystemStr()
+  buildSDSpecStr()
+
+  cap_gb := csd_capacity_mb / 1024
+  spi_mhz := csd_max_speed_hz / 1_000_000
+
+  ' Line 1
+  if cid_mdt_month < 10
+    debug(zstr_(p_mfr), " ", zstr_(@cid_pnm), " ", zstr_(p_type), " ", udec_(cap_gb), "GB [", zstr_(p_fs), "] SD ", zstr_(@sd_spec_str), " rev", udec_(cid_prv_major), ".", udec_(cid_prv_minor), " SN:", uhex_long_(cid_psn), " ", udec_(cid_mdt_year), "/0", udec_(cid_mdt_month))
+  else
+    debug(zstr_(p_mfr), " ", zstr_(@cid_pnm), " ", zstr_(p_type), " ", udec_(cap_gb), "GB [", zstr_(p_fs), "] SD ", zstr_(@sd_spec_str), " rev", udec_(cid_prv_major), ".", udec_(cid_prv_minor), " SN:", uhex_long_(cid_psn), " ", udec_(cid_mdt_year), "/", udec_(cid_mdt_month))
+
+  ' Line 2
+  if sdst_valid
+    speedVal := decodeSpeedClass(sdst_speed_class)
+    if vbr_oem_name[0] <> 0 and vbr_oem_name[0] <> " "
+      debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz  [", zstr_(@vbr_oem_name), "]")
+    else
+      debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz")
+  else
+    if vbr_oem_name[0] <> 0 and vbr_oem_name[0] <> " "
+      debug("SPI ", udec_(spi_mhz), " MHz  [", zstr_(@vbr_oem_name), "]  (ACMD13 unavailable)")
+    else
+      debug("SPI ", udec_(spi_mhz), " MHz  (ACMD13 unavailable)")
+
+  debug("##############################################")
+
+PRI getCardTypeStr() : p_str
+' Determine card type string from OCR CCS bit and capacity.
+'
+' @returns p_str - Pointer to "SDSC", "SDHC", or "SDXC" string
+
+  if ocr_ccs == 0
+    return @"SDSC"
+  if csd_capacity_mb > 32768
+    return @"SDXC"
+  return @"SDHC"
+
+PRI buildSDSpecStr() | p_dst
+' Build SD spec version string into sd_spec_str buffer.
+' Uses SCR register fields to determine version.
+
+  p_dst := @sd_spec_str
+  if scr_sd_spec < 2
+    bytemove(p_dst, @"1.x", 4)
+    return
+  if scr_sd_spec3 == 0
+    bytemove(p_dst, @"2.0", 4)
+    return
+  if scr_sd_spec4 == 0
+    bytemove(p_dst, @"3.x", 4)
+    return
+  ' SD_SPEC4 == 1, use SPECX
+  case scr_sd_specx
+    0 : bytemove(p_dst, @"4.x", 4)
+    1 : bytemove(p_dst, @"5.x", 4)
+    2 : bytemove(p_dst, @"6.x", 4)
+    3 : bytemove(p_dst, @"7.x", 4)
+    4 : bytemove(p_dst, @"8.x", 4)
+    5 : bytemove(p_dst, @"9.x", 4)
+    other : bytemove(p_dst, @">9.x", 5)
+
+PRI getFilesystemStr() : p_str
+' Determine filesystem type string from MBR partition type byte.
+'
+' @returns p_str - Pointer to filesystem name string
+
+  case mbr_part_type
+    $00 : return @"Empty"
+    $01 : return @"FAT12"
+    $04, $06, $0E : return @"FAT16"
+    $0B, $0C : return @"FAT32"
+    $07 : return @"exFAT"
+    $83 : return @"Linux"
+    $EE : return @"GPT"
+    other : return @"Unknown"
+
+PRI decodeSpeedClass(classByte) : speedClass
+' Decode SD Status SPEED_CLASS byte to integer speed class.
+'
+' @param classByte - Raw byte from SD Status byte[8]
+' @returns speedClass - Speed class value (0, 2, 4, 6, or 10)
+
+  case classByte
+    $00 : return 0
+    $01 : return 2
+    $02 : return 4
+    $03 : return 6
+    $04 : return 10
+    other : return 0
 
 ' ============================================================
 ' DRIVER USAGE SUMMARY

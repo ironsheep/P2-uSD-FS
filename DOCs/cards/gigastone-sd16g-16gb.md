@@ -4,6 +4,13 @@
 **Unique ID:** `BudgetOEM_SD16G_2.0_000003FB_202502`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+Gigastone SD16G SDHC 14GB [FAT32] SD 3.x rev2.0 SN:000003FB 2025/02
+U3, V30, SPI 25 MHz
+```
+
 ### Raw Registers
 
 ```

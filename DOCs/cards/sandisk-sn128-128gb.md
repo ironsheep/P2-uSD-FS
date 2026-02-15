@@ -4,6 +4,13 @@
 **Unique ID:** `SanDisk_SN128_8.0_F79E34F6_201912`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+SanDisk SN128 SDXC 119GB [exFAT] SD 6.x rev8.0 SN:F79E34F6 2019/12
+SPI 25 MHz
+```
+
 ### Raw Registers
 
 ```

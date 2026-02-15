@@ -4,6 +4,13 @@
 **Unique ID:** `Samsung_GD4QT_3.0_C0305565_201805`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+Samsung GD4QT SDXC 119GB [FAT32] SD 3.x rev3.0 SN:C0305565 2018/05
+U3, SPI 25 MHz  [formatted by P2FMTER]
+```
+
 ### Raw Registers
 
 ```

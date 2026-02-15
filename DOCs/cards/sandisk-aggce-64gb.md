@@ -4,6 +4,13 @@
 **Unique ID:** `SanDisk_AGGCE_8.0_DD1C1144_201703`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+SanDisk AGGCE SDXC 59GB [FAT32] SD 5.x rev8.0 SN:DD1C1144 2017/03
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
 ### Raw Registers
 
 ```

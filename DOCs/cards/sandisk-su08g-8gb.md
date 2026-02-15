@@ -4,6 +4,13 @@
 **Unique ID:** `SanDisk_SU08G_8.0_0AA81F11_201010`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+SanDisk SU08G SDHC 7GB [FAT32] SD 3.x rev8.0 SN:0AA81F11 2010/10
+Class 4, SPI 25 MHz
+```
+
 ### Raw Registers
 
 ```

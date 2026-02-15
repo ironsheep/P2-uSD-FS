@@ -130,6 +130,7 @@ This section documents ALL fields available from SD card registers and indicates
 | SanDisk_SN64G_8.6_7E650771_202211 | SanDisk ($03) | SN64G | ~59 GB | **A** | PASS |
 | SanDisk_SN128_8.0_F79E34F6_201912 | SanDisk ($03) | SN128 | ~119 GB | **A** | PASS |
 | Longsys/Lexar_MSSD0_6.1_31899471_202411 | Lexar (Longsys $AD) | MSSD0 | ~58 GB | **A** | PASS |
+| Longsys/Lexar_MSSD0_6.1_34490F1E_202504 | Lexar (Longsys $AD) | MSSD0 | ~117 GB | **A** | PASS |
 | Samsung_GD4QT_3.0_C0305565_201805 | Samsung ($1B) | GD4QT | ~119 GB | **B** | PASS |
 | SanDisk_AGGCF_8.0_E05C352B_201707 | SanDisk ($03) | AGGCF | ~119 GB | **B** | PASS |
 | SanDisk_AGGCE_8.0_DD1C1144_201703 | SanDisk ($03) | AGGCE | ~59 GB | **B** | PASS |
@@ -196,39 +197,117 @@ Cards tested with `SD_speed_characterize.spin2` have measured internal throughpu
 
 ## Card Details
 
-Each card has a dedicated page with full register dumps, field-by-field decode, filesystem info, test results, notes, and (where tested) SPI speed characterization and internal throughput data.
+Each card has a dedicated page with full register dumps, field-by-field decode, filesystem info, test results, notes, and (where tested) SPI speed characterization and internal throughput data. The 2-line designator for each card is from [CARD-REFERENCE.md](CARD-REFERENCE.md).
 
 **Rating A** - Video-optimized:
-| Card | File |
-|------|------|
-| SanDisk Extreme 64GB SDXC | [sandisk-sn64g-64gb.md](cards/sandisk-sn64g-64gb.md) |
-| SanDisk Nintendo Switch 128GB SDXC | [sandisk-sn128-128gb.md](cards/sandisk-sn128-128gb.md) |
-| Lexar MicroSD XC V30 U3 64GB | [lexar-mssd0-64gb.md](cards/lexar-mssd0-64gb.md) |
+
+**SanDisk Extreme 64GB SDXC** — [sandisk-sn64g-64gb.md](cards/sandisk-sn64g-64gb.md)
+```
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**SanDisk Nintendo Switch 128GB SDXC** — [sandisk-sn128-128gb.md](cards/sandisk-sn128-128gb.md)
+```
+SanDisk SN128 SDXC 119GB [exFAT] SD 6.x rev8.0 SN:F79E34F6 2019/12
+SPI 25 MHz
+```
+
+**Lexar MicroSD XC V30 U3 64GB** — [lexar-mssd0-64gb.md](cards/lexar-mssd0-64gb.md)
+```
+Lexar MSSD0 SDXC 58GB [exFAT] SD 6.x rev6.1 SN:31899471 2024/11
+Class 10, U3, V30, SPI 25 MHz
+```
+
+**Lexar PLAY 128GB SDXC** — [lexar-mssd0-128gb.md](cards/lexar-mssd0-128gb.md)
+```
+Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
+SPI 25 MHz  [formatted by P2FMTER]
+```
 
 **Rating B** - Fast:
-| Card | File |
-|------|------|
-| Samsung EVO Select 128GB SDXC | [samsung-gd4qt-128gb.md](cards/samsung-gd4qt-128gb.md) |
-| SanDisk Extreme PRO 128GB SDXC | [sandisk-aggcf-128gb.md](cards/sandisk-aggcf-128gb.md) |
-| SanDisk Extreme PRO 64GB SDXC | [sandisk-aggce-64gb.md](cards/sandisk-aggce-64gb.md) |
-| Gigastone "Camera Plus" 64GB SDXC | [gigastone-astc-64gb.md](cards/gigastone-astc-64gb.md) |
-| SanDisk Industrial 16GB SDHC | [sandisk-sa16g-16gb.md](cards/sandisk-sa16g-16gb.md) |
+
+**Samsung EVO Select 128GB SDXC** — [samsung-gd4qt-128gb.md](cards/samsung-gd4qt-128gb.md)
+```
+Samsung GD4QT SDXC 119GB [FAT32] SD 3.x rev3.0 SN:C0305565 2018/05
+U3, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**SanDisk Extreme PRO 128GB SDXC** — [sandisk-aggcf-128gb.md](cards/sandisk-aggcf-128gb.md)
+```
+SanDisk AGGCF SDXC 119GB [exFAT] SD 5.x rev8.0 SN:E05C352B 2017/07
+U3, V30, SPI 25 MHz
+```
+
+**SanDisk Extreme PRO 64GB SDXC** — [sandisk-aggce-64gb.md](cards/sandisk-aggce-64gb.md)
+```
+SanDisk AGGCE SDXC 59GB [FAT32] SD 5.x rev8.0 SN:DD1C1144 2017/03
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**Gigastone "Camera Plus" 64GB SDXC** — [gigastone-astc-64gb.md](cards/gigastone-astc-64gb.md)
+```
+Gigastone ASTC SDXC 58GB [FAT32] SD 6.x rev2.0 SN:00000F14 2023/06
+U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**SanDisk Industrial 16GB SDHC** — [sandisk-sa16g-16gb.md](cards/sandisk-sa16g-16gb.md)
+```
+SanDisk SA16G SDHC 14GB [FAT32] SD 5.x rev8.0 SN:93E9C0A1 2025/11
+Class 10, U1, SPI 25 MHz
+```
 
 **Rating C** - Standard:
-| Card | File |
-|------|------|
-| Gigastone 32GB SDHC | [gigastone-00000-32gb.md](cards/gigastone-00000-32gb.md) |
-| Gigastone "High Endurance" 8GB SDHC MLC | [gigastone-00000-8gb.md](cards/gigastone-00000-8gb.md) |
-| Gigastone "High Endurance" 16GB SDHC MLC | [gigastone-sd16g-16gb.md](cards/gigastone-sd16g-16gb.md) |
-| Kingston 8GB SDHC | [kingston-sd8gb-8gb.md](cards/kingston-sd8gb-8gb.md) |
-| "Chinese Made" #1 8GB SDHC (claims SanDisk) | [sandisk-su08g-8gb.md](cards/sandisk-su08g-8gb.md) |
-| "Chinese Made" #2 8GB SDHC (Samsung inside) | [samsung-00000-8gb.md](cards/samsung-00000-8gb.md) |
-| SanDisk 8GB SDHC (Taiwan) | [sandisk-ss08g-8gb.md](cards/sandisk-ss08g-8gb.md) |
+
+**Gigastone 32GB SDHC** — [gigastone-00000-32gb.md](cards/gigastone-00000-32gb.md)
+```
+Gigastone 00000 SDHC 29GB [FAT32] SD 3.x rev0.0 SN:000001C9 2023/07
+Class 10, U1, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**Gigastone "High Endurance" 8GB SDHC MLC** — [gigastone-00000-8gb.md](cards/gigastone-00000-8gb.md)
+```
+Gigastone 00000 SDHC 7GB [FAT32] SD 3.x rev0.0 SN:0001B9D5 2021/09
+U1, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**Gigastone "High Endurance" 16GB SDHC MLC** — [gigastone-sd16g-16gb.md](cards/gigastone-sd16g-16gb.md)
+```
+Gigastone SD16G SDHC 14GB [FAT32] SD 3.x rev2.0 SN:000003FB 2025/02
+U3, V30, SPI 25 MHz
+```
+
+**Kingston 8GB SDHC** — [kingston-sd8gb-8gb.md](cards/kingston-sd8gb-8gb.md)
+```
+Kingston SD8GB SDHC 7GB [FAT32] SD 3.x rev3.0 SN:43F65DC9 2015/04
+Class 10, SPI 25 MHz
+```
+
+**"Chinese Made" #1 8GB SDHC (claims SanDisk)** — [sandisk-su08g-8gb.md](cards/sandisk-su08g-8gb.md)
+```
+SanDisk SU08G SDHC 7GB [FAT32] SD 3.x rev8.0 SN:0AA81F11 2010/10
+Class 4, SPI 25 MHz
+```
+
+**"Chinese Made" #2 8GB SDHC (Samsung inside)** — [samsung-00000-8gb.md](cards/samsung-00000-8gb.md)
+```
+Samsung 00000 SDHC 7GB [FAT16] SD 3.x rev1.0 SN:D9FB539C 2014/08
+SPI 25 MHz
+```
+
+**SanDisk 8GB SDHC (Taiwan)** — [sandisk-ss08g-8gb.md](cards/sandisk-ss08g-8gb.md)
+```
+SanDisk SS08G SDHC 7GB [FAT32] SD 3.x rev3.0 SN:DAAEE8AD 2015/09
+Class 4, SPI 25 MHz
+```
 
 **Rating D** - Limited:
-| Card | File |
-|------|------|
-| PNY 16GB SDHC | [pny-sd16g-16gb.md](cards/pny-sd16g-16gb.md) |
+
+**PNY 16GB SDHC** — [pny-sd16g-16gb.md](cards/pny-sd16g-16gb.md)
+```
+PNY SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:01CD5CF5 2018/08
+SPI 25 MHz  [formatted by P2FMTER]
+```
 
 ---
 
@@ -323,5 +402,5 @@ SCR: [8 bytes hex]
 ---
 
 *Catalog created: 2026-01-20*
-*Last updated: 2026-02-13*
-*Cards cataloged: 16 (individual card pages in [DOCs/cards/](cards/))*
+*Last updated: 2026-02-15*
+*Cards cataloged: 17 (individual card pages in [DOCs/cards/](cards/))*

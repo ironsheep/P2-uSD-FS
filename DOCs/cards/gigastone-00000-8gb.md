@@ -4,6 +4,13 @@
 **Unique ID:** `SharedOEM_00000_0.0_0001B9D5_202109`
 **Test Date:** 2026-02-01 (characterization)
 
+### Card Designator
+
+```
+Gigastone 00000 SDHC 7GB [FAT32] SD 3.x rev0.0 SN:0001B9D5 2021/09
+U1, SPI 25 MHz  [formatted by P2FMTER]
+```
+
 ### Raw Registers
 
 ```

@@ -1,8 +1,15 @@
-# Card: Lexar MicroSD XC V30 U3 64GB
+# Card: Lexar Red MicroSD XC V30 U3 64GB
 
-**Label:** Lexar MicroSD XC V30 U3 64GB (10) 100 MB/s*
+**Label:** Lexar V30 U3 64GB microSD XC (Red card)
 **Unique ID:** `Longsys/Lexar_MSSD0_6.1_31899471_202411`
 **Test Date:** 2026-02-02 (characterization)
+
+### Card Designator
+
+```
+Lexar MSSD0 SDXC 58GB [exFAT] SD 6.x rev6.1 SN:31899471 2024/11
+Class 10, U3, V30, SPI 25 MHz
+```
 
 ### Raw Registers
 
@@ -177,7 +184,38 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 
 ### Benchmark Results (Smart Pin SPI + Multi-Sector)
 
-**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+**Test Program**: SD_performance_benchmark.spin2 v2.0
+
+#### 350 MHz Run
+
+**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 358.0 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 402 | 413 | 505 | **1,239** |
+| Write 1x512B | 746 | 756 | 841 | **677** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 1,886 | 1,896 | 1,985 | **2,160** |
+| Read 32 sectors (16 KB) | 6,974 | 6,985 | 7,073 | **2,345** |
+| Read 64 sectors (32 KB) | 13,758 | 13,769 | 13,861 | **2,379** |
+| Write 8 sectors (4 KB) | 2,221 | 2,221 | 2,221 | **1,844** |
+| Write 32 sectors (16 KB) | 7,405 | 7,405 | 7,405 | **2,212** |
+| Write 64 sectors (32 KB) | 14,576 | 14,576 | 14,577 | **2,248** |
+| **File-Level** | | | | |
+| File Write 512B | 4,794 | 5,534 | 5,905 | **92** |
+| File Write 4 KB | 12,213 | 12,985 | 13,702 | **315** |
+| File Write 32 KB | 53,626 | 69,860 | 87,850 | **469** |
+| File Read 4 KB | 3,094 | 3,147 | 3,625 | **1,301** |
+| File Read 32 KB | 23,788 | 23,842 | 24,337 | **1,374** |
+| File Read 128 KB | 95,725 | 95,821 | 96,690 | **1,367** |
+| File Read 256 KB | 171,060 | 171,152 | 171,988 | **1,531** |
+| **Overhead** | | | | |
+| File Open | 103 | 149 | 570 | — |
+| File Close | 20 | 20 | 20 | — |
+| Mount | — | 358,000 | — | — |
+
+Multi-sector improvement: 64x single reads = 28,498 us vs 1x CMD18 = 13,758 us (**51% faster**)
 
 #### 320 MHz Run
 
@@ -241,12 +279,14 @@ Multi-sector improvement: 64x single reads = 30,644 us vs 1x CMD18 = 15,068 us (
 
 Multi-sector improvement: 64x single reads = 32,857 us vs 1x CMD18 = 15,889 us (**51% faster**)
 
-#### Sysclk Effect (320 vs 270 MHz)
+#### Sysclk Effect (350 vs 320 vs 270 MHz)
 
-| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
-|------|----------------|----------------|-------|
-| Raw Read 1x512B | 1,142 | 1,060 | -7.2% |
-| Raw Read 64x (32 KB) | 2,173 | 2,061 | -5.2% |
-| Raw Write 64x (32 KB) | 2,059 | 1,949 | -5.3% |
-| File Read 256 KB | 1,274 | 1,188 | -6.7% |
-| File Write 32 KB | 501 | 488 | -2.6% |
+| Test | 350 MHz (KB/s) | 320 MHz (KB/s) | 270 MHz (KB/s) | 350→270 Delta |
+|------|----------------|----------------|----------------|---------------|
+| Raw Read 1x512B | 1,239 | 1,142 | 1,060 | +17% |
+| Raw Read 64x (32 KB) | 2,379 | 2,173 | 2,061 | +15% |
+| Raw Write 64x (32 KB) | 2,248 | 2,059 | 1,949 | +15% |
+| File Read 256 KB | 1,531 | 1,274 | 1,188 | +29% |
+| File Write 32 KB | 469 | 501 | 488 | -4% |
+
+**Note:** The jump from 320→350 MHz crosses an SPI divider boundary (22.9→25.0 MHz), giving a disproportionate throughput gain. File write 32 KB variance is dominated by card-internal flash programming time.

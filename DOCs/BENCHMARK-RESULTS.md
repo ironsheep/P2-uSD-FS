@@ -84,6 +84,11 @@ These measurements represent the driver performance **before** Smart Pin optimiz
 
 #### SanDisk Extreme 64GB (SN64G, MID $03)
 
+```
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
 **Card Identification**:
 - MID: $03 (SanDisk / Western Digital)
 - Product Name: "SN64G"
@@ -220,4 +225,4 @@ The raw SPI layer is reasonably efficient. The largest remaining headroom is in 
 ---
 
 *Document maintained as part of P2-uSD-Study project*
-*Last updated: 2026-02-13*
+*Last updated: 2026-02-15*

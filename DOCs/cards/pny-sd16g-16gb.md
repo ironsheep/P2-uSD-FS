@@ -4,6 +4,13 @@
 **Unique ID:** `Phison_SD16G_3.0_01CD5CF5_201808`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+PNY SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:01CD5CF5 2018/08
+SPI 25 MHz  [formatted by P2FMTER]
+```
+
 ### Raw Registers
 
 ```

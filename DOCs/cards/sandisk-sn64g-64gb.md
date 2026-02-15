@@ -4,6 +4,13 @@
 **Unique ID:** `SanDisk_SN64G_8.6_7E650771_202211`
 **Test Date:** 2026-02-02 (characterization)
 
+### Card Designator
+
+```
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
 ### Raw Registers
 
 ```

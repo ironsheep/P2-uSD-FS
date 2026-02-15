@@ -4,6 +4,13 @@
 **Unique ID:** `SanDisk_SA16G_8.0_93E9C0A1_202511`
 **Test Date:** 2026-02-07 (characterization + speed characterization)
 
+### Card Designator
+
+```
+SanDisk SA16G SDHC 14GB [FAT32] SD 5.x rev8.0 SN:93E9C0A1 2025/11
+Class 10, U1, SPI 25 MHz
+```
+
 ### Raw Registers
 
 ```
@@ -143,7 +150,7 @@ SCR: $02 $35 $84 $43 $00 $00 $00 $00
 - Card arrived pre-formatted as FAT32 with 64 sectors/cluster (32 KB clusters)
 - OEM name blank, volume label "NO NAME" - factory default format
 - Industrial cards are recommended for embedded SPI use due to wider temperature range and longer endurance
-- **Benchmark data available** -- see Benchmark Results section below for detailed throughput measurements at both 320 and 270 MHz sysclk
+- **Benchmark data available** -- see Benchmark Results section below for detailed throughput measurements at 350 and 250 MHz sysclk (both at 25 MHz SPI)
 
 ### SPI Speed Characterization
 
@@ -186,78 +193,83 @@ SCR: $02 $35 $84 $43 $00 $00 $00 $00
 
 ### Benchmark Results (Smart Pin SPI + Multi-Sector)
 
-**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+**Test Program**: SD_performance_benchmark.spin2 v2.0
+**Benchmark Protocol**: Both runs use 25 MHz SPI clock — isolates Spin2 overhead effect from SPI bus speed.
 
-#### 320 MHz Run
+#### 350 MHz Run
 
-**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 234.9 ms
-
-| Test | Min (us) | Avg (us) | Max (us) | KB/s |
-|------|----------|----------|----------|------|
-| **Raw Single-Sector** | | | | |
-| Read 1x512B | 529 | 733 | 1,157 | **698** |
-| Write 1x512B | 1,323 | 1,433 | 2,142 | **357** |
-| **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | 2,130 | 2,228 | 2,753 | **1,838** |
-| Read 32 sectors (16 KB) | 7,613 | 7,807 | 8,237 | **2,098** |
-| Read 64 sectors (32 KB) | 14,865 | 14,964 | 15,478 | **2,189** |
-| Write 8 sectors (4 KB) | 2,702 | 3,023 | 3,631 | **1,354** |
-| Write 32 sectors (16 KB) | 8,585 | 9,469 | 14,459 | **1,730** |
-| Write 64 sectors (32 KB) | 16,112 | 16,414 | 17,277 | **1,996** |
-| **File-Level** | | | | |
-| File Write 512B | 8,213 | 8,473 | 9,569 | **60** |
-| File Write 4 KB | 17,943 | 18,778 | 25,497 | **218** |
-| File Write 32 KB | 100,761 | 101,954 | 102,412 | **321** |
-| File Read 4 KB | 4,907 | 5,027 | 5,519 | **814** |
-| File Read 32 KB | 38,157 | 38,279 | 38,785 | **856** |
-| File Read 128 KB | 152,885 | 153,361 | 155,033 | **854** |
-| File Read 256 KB | 312,611 | 313,629 | 315,305 | **835** |
-| **Overhead** | | | | |
-| File Open | 95 | 144 | 588 | — |
-| File Close | 22 | 22 | 22 | — |
-| Mount | — | 234,900 | — | — |
-
-Multi-sector improvement: 64x single reads = 43,549 us vs 1x CMD18 = 14,870 us (**65% faster**)
-
-#### 270 MHz Run
-
-**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 235.7 ms
+**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 485.9 ms
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
 | **Raw Single-Sector** | | | | |
-| Read 1x512B | 563 | 667 | 1,176 | **767** |
-| Write 1x512B | 1,347 | 1,459 | 2,168 | **350** |
+| Read 1x512B | 502 | 646 | 1,116 | **792** |
+| Write 1x512B | 1,287 | 1,417 | 2,125 | **361** |
 | **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | 2,245 | 2,436 | 2,858 | **1,681** |
-| Read 32 sectors (16 KB) | 7,984 | 8,085 | 8,598 | **2,026** |
-| Read 64 sectors (32 KB) | 15,616 | 15,716 | 16,247 | **2,085** |
-| Write 8 sectors (4 KB) | 2,929 | 3,228 | 3,966 | **1,268** |
-| Write 32 sectors (16 KB) | 9,002 | 9,841 | 14,692 | **1,664** |
-| Write 64 sectors (32 KB) | 16,994 | 17,209 | 17,937 | **1,904** |
+| Read 8 sectors (4 KB) | 1,955 | 2,155 | 2,582 | **1,900** |
+| Read 32 sectors (16 KB) | 6,953 | 7,105 | 7,567 | **2,305** |
+| Read 64 sectors (32 KB) | 13,594 | 13,693 | 14,204 | **2,393** |
+| Write 8 sectors (4 KB) | 2,659 | 2,938 | 3,860 | **1,394** |
+| Write 32 sectors (16 KB) | 7,848 | 8,104 | 8,724 | **2,021** |
+| Write 64 sectors (32 KB) | 14,782 | 15,094 | 16,016 | **2,170** |
 | **File-Level** | | | | |
-| File Write 512B | 7,688 | 9,356 | 16,512 | **54** |
-| File Write 4 KB | 18,446 | 20,072 | 25,931 | **204** |
-| File Write 32 KB | 102,787 | 106,053 | 114,192 | **308** |
-| File Read 4 KB | 5,180 | 5,262 | 5,901 | **778** |
-| File Read 32 KB | 40,224 | 40,353 | 40,868 | **812** |
-| File Read 128 KB | 160,846 | 161,244 | 162,150 | **812** |
-| File Read 256 KB | 328,164 | 329,147 | 330,276 | **796** |
+| File Write 512B | 6,967 | 8,200 | 9,242 | **62** |
+| File Write 4 KB | 17,534 | 19,420 | 25,775 | **210** |
+| File Write 32 KB | 98,852 | 101,798 | 108,734 | **321** |
+| File Read 4 KB | 4,627 | 4,709 | 5,311 | **869** |
+| File Read 32 KB | 36,418 | 36,598 | 37,484 | **895** |
+| File Read 128 KB | 36,545 | 36,674 | 37,569 | **3,573*** |
+| File Read 256 KB | 298,029 | 351,634 | 655,458 | **745** |
 | **Overhead** | | | | |
-| File Open | 113 | 163 | 614 | — |
-| File Close | 26 | 26 | 27 | — |
-| Mount | — | 235,700 | — | — |
+| File Open | 114 | 159 | 564 | — |
+| File Close | 20 | 20 | 20 | — |
+| Mount | — | 485,900 | — | — |
 
-Multi-sector improvement: 64x single reads = 45,737 us vs 1x CMD18 = 15,622 us (**65% faster**)
+Multi-sector improvement: 64x single reads = 41,240 us vs 1x CMD18 = 13,594 us (**67% faster**)
 
-#### Sysclk Effect (320 vs 270 MHz)
+*\*File Read 128KB value is anomalous (faster than raw SPI throughput) — likely a cache hit or measurement artifact. The 250 MHz run at 793 KB/s is representative.*
 
-| Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
+#### 250 MHz Run
+
+**SysClk**: 250 MHz | **SPI**: 25,000 kHz | **Mount**: 236.8 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 567 | 838 | 1,708 | **610** |
+| Write 1x512B | 1,340 | 2,201 | 8,263 | **232** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,139 | 2,252 | 2,753 | **1,818** |
+| Read 32 sectors (16 KB) | 7,547 | 7,737 | 8,172 | **2,117** |
+| Read 64 sectors (32 KB) | 14,745 | 14,840 | 15,371 | **2,208** |
+| Write 8 sectors (4 KB) | 2,659 | 2,995 | 3,706 | **1,367** |
+| Write 32 sectors (16 KB) | 8,565 | 8,913 | 9,498 | **1,838** |
+| Write 64 sectors (32 KB) | 16,180 | 16,413 | 17,011 | **1,996** |
+| **File-Level** | | | | |
+| File Write 512B | 8,293 | 9,685 | 16,550 | **52** |
+| File Write 4 KB | 17,874 | 20,053 | 26,371 | **204** |
+| File Write 32 KB | 103,923 | 105,790 | 112,340 | **309** |
+| File Read 4 KB | 5,151 | 5,275 | 6,270 | **776** |
+| File Read 32 KB | 39,990 | 40,172 | 40,630 | **815** |
+| File Read 128 KB | 164,526 | 165,107 | 166,574 | **793** |
+| File Read 256 KB | 330,480 | 331,430 | 332,758 | **790** |
+| **Overhead** | | | | |
+| File Open | 168 | 217 | 667 | — |
+| File Close | 28 | 28 | 29 | — |
+| Mount | — | 236,800 | — | — |
+
+Multi-sector improvement: 64x single reads = 45,108 us vs 1x CMD18 = 14,733 us (**67% faster**)
+
+#### Sysclk Effect (350 vs 250 MHz at same 25 MHz SPI)
+
+Both runs use identical 25 MHz SPI clock — differences are purely Spin2 inter-transfer overhead.
+
+| Test | 350 MHz (KB/s) | 250 MHz (KB/s) | Delta |
 |------|----------------|----------------|-------|
-| Raw Read 1x512B | 698 | 767 | +9.9% |
-| Raw Read 64x (32 KB) | 2,189 | 2,085 | -4.7% |
-| Raw Write 64x (32 KB) | 1,996 | 1,904 | -4.6% |
-| File Read 256 KB | 835 | 796 | -4.7% |
-| File Write 32 KB | 321 | 308 | -4.0% |
+| Raw Read 1x512B | 792 | 610 | +30% |
+| Raw Read 64x (32 KB) | 2,393 | 2,208 | +8% |
+| Raw Write 64x (32 KB) | 2,170 | 1,996 | +9% |
+| File Read 256 KB | 745 | 790 | -6% |
+| File Write 32 KB | 321 | 309 | +4% |
 
-SPI frequency changes slightly (22,857 vs 22,500 kHz = -1.6%) but the Spin2 overhead between SPI transfers runs slower at 270 MHz, accounting for the ~4-5% throughput reduction on multi-sector and file-level operations. The single-sector raw read anomaly (+9.9%) is within card latency variance.
+**Note:** With SPI speed held constant at 25 MHz, the 350→250 MHz delta isolates Spin2 overhead between SPI transfers. Raw multi-sector operations show 8-9% improvement from faster Spin2 processing. Single-sector reads show 30% improvement because the inter-sector gap (Spin2 overhead) is proportionally larger. File Read 256KB at 350 MHz showed high variance (Max=655 ms), pulling its average below the 250 MHz result.
