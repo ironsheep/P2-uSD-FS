@@ -633,8 +633,7 @@ PRI fs_worker() | cur_cmd
         pb_status := do_open(pb_param0)
 
       CMD_CLOSE:
-        do_close()
-        pb_status := SUCCESS
+        pb_status := do_close()
 
       CMD_READ:
         pb_data0 := do_read(pb_param0, pb_param1)
@@ -1269,26 +1268,31 @@ PRI do_open(name_ptr) : result | search_result
       return SUCCESS
   return E_FILE_NOT_FOUND
 
-PRI do_close()
+PRI do_close() : result
 ' Internal close file operation - close the file and write changed data to the card.
+' Flushes pending data buffer (if dirty) and updates directory entry on disk.
+'
+' @returns result - SUCCESS (0) on success, E_IO_ERROR on write failure
 
+  result := SUCCESS
+
+  ' Flush pending data buffer only if it holds valid cached data.
+  ' After multi-sector writes (CMD25), buf is empty and sec_in_buf is -1.
+  ' Writing zeros to n_sec in that case is a spurious write to a wrong sector.
   if flags & F_NEWDATA
-    debug("  [do_close] Writing data to sector ", udec_(n_sec))
-    writeSector(n_sec, BUF_DATA)
-  '
+    if sec_in_buf >= 0
+      if not writeSector(n_sec, BUF_DATA)
+        debug("  [do_close] Data write FAILED for sector ", udec_(n_sec))
+        result := E_IO_ERROR
+
+  ' Update directory entry on disk
   if flags & (F_NEWDIR | F_NEWDATA)
-    debug("  [do_close] Syncing dir entry at sector ", udec_(entry_address >> 9), " offset ", udec_(entry_address & 511))
-    debug("  [do_close] entry_buffer: [", lstr_(@entry_buffer, 11), "]")
     readSector(entry_address >> 9, BUF_DIR)
-    debug("  [do_close] Before copy, dir_buf at offset: [", lstr_(@dir_buf + (entry_address & 511), 11), "]")
     bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
-    debug("  [do_close] After copy, dir_buf at offset: [", lstr_(@dir_buf + (entry_address & 511), 11), "]")
-    debug("  [do_close] Before write: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
-    debug("  [do_close] Writing to sector ", udec_(entry_address >> 9), " @dir_buf=", uhex_(@dir_buf))
-    if writeSector(entry_address >> 9, BUF_DIR)
-      debug("  [do_close] Write succeeded")
-    else
-      debug("  [do_close] Write FAILED!")
+    if not writeSector(entry_address >> 9, BUF_DIR)
+      debug("  [do_close] Directory write FAILED for sector ", udec_(entry_address >> 9))
+      result := E_IO_ERROR
+
   bytefill(@entry_buffer, 0, 32)
   flags := flags & !F_NEWDATA & !F_NEWDIR & !F_OPEN
   file_idx := 0
@@ -1494,27 +1498,26 @@ PRI do_close_h(handle) : result | p_buf
   if h_flags[handle] & HF_DIR
     return E_NOT_A_DIR_HANDLE
 
-  debug("  [do_close_h] Closing handle=", udec_(handle), " flags=$", uhex_byte_(h_flags[handle]))
+  result := SUCCESS
 
   ' If buffer is dirty, flush it to disk
   if h_flags[handle] & HF_DIRTY
-    debug("  [do_close_h] Flushing dirty buffer for sector ", udec_(h_buf_sector[handle]))
     p_buf := getHandleBuffer(handle)
     bytemove(@buf, p_buf, 512)                                                    ' Copy to shared buffer
-    writeSector(h_buf_sector[handle], BUF_DATA)                                   ' Write to disk
+    if not writeSector(h_buf_sector[handle], BUF_DATA)
+      debug("  [do_close_h] Data write FAILED for sector ", udec_(h_buf_sector[handle]))
+      result := E_IO_ERROR
 
   ' If opened for write, update directory entry with final size
   if h_flags[handle] & HF_WRITE
-    debug("  [do_close_h] Updating directory: size=", udec_(h_size[handle]))
     readSector(h_dir_sector[handle], BUF_DIR)
     long[@dir_buf + h_dir_offset[handle] + 28] := h_size[handle]                  ' Update size field
-    writeSector(h_dir_sector[handle], BUF_DIR)
+    if not writeSector(h_dir_sector[handle], BUF_DIR)
+      debug("  [do_close_h] Directory write FAILED for sector ", udec_(h_dir_sector[handle]))
+      result := E_IO_ERROR
 
   ' Free the handle
   freeHandle(handle)
-  debug("  [do_close_h] Handle closed successfully")
-
-  return SUCCESS
 
 PRI do_read_h(handle, p_buffer, count) : bytes_read | p_hbuf, available, offset, to_read, cluster, fat_addr, next_cluster
 ' Handle-based read (V3) - reads data from file handle into user buffer.
@@ -5345,6 +5348,7 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
 
   ' Send stop token ($FD) to terminate multi-block write (NOT CMD12!)
   sp_transfer_8(TOKEN_STOP_TRAN)                                                ' $FD
+  sp_transfer_8($FF)                                                            ' Stuff byte (NWR=1, required by spec)
 
   ' Wait for card to finish any final programming
   if waitBusyComplete() < 0

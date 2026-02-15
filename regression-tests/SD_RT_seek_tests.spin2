@@ -85,6 +85,7 @@ PUB go() | result, bytesRead, idx, fileSize, expectedByte, actualByte
     result := sd.openFile(@testSeek)
     fileSize := sd.fileSize()
     utils.evaluateSingleValue(fileSize, @"fileSize()", TEST_FILE_SIZE)
+
     sd.closeFile()
 
     ' ----------------------------------

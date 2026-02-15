@@ -37,8 +37,8 @@ CON
      E_FILE_NOT_FOUND    = -40
      E_FILE_EXISTS       = -41
 
-     ' Maximum handles to test
-     MAX_TEST_HANDLES = 4
+     ' Maximum handles to test (must match driver's MAX_OPEN_FILES)
+     MAX_TEST_HANDLES = 6
 
 OBJ
     sd    : "SD_card_driver"
@@ -62,7 +62,7 @@ content4        BYTE    "Content for file FOUR - fourth test file", 0
 ' Buffer for read operations
 readBuffer      BYTE    0[256]
 
-PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
+PUB go() | result, h1, h2, h3, h4, h5, h6, bytesRead, bytesWritten, pos, size
 '' Main entry point for multi-handle regression tests
 ''
 '' Tests V3 handle-based file API with multiple simultaneous file handles
@@ -128,6 +128,7 @@ PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
     bytefill(@readBuffer, 0, 256)
     bytesRead := sd.readHandle(h4, @readBuffer, strsize(@content4))
     utils.evaluateSubBool(strcomp(@readBuffer, @content4), @"Handle 4 content", true)
+    utils.setCheckCountPerTest(1)
 
     ' Close all handles
     sd.closeFileHandle(h1)
@@ -175,7 +176,7 @@ PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
     utils.evaluateSubBool(h1 >= 0, @"First write-open succeeds", true)
 
     h2 := sd.openFileWrite(@testfile1)
-    utils.evaluateSingleValue(h2, @"Second write-open error", E_FILE_ALREADY_OPEN)
+    utils.evaluateSubValue(h2, @"Second write-open error", E_FILE_ALREADY_OPEN)
 
     sd.closeFileHandle(h1)
 
@@ -195,31 +196,38 @@ PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
     ' ======================================================================
     utils.startTestGroup(@"Handle Limit Enforcement")
 
-    ' Test: Opening 5th file returns E_TOO_MANY_FILES
-    utils.startTest(@"Opening 5th file returns E_TOO_MANY_FILES")
+    ' Test: Opening 7th file returns E_TOO_MANY_FILES (MAX_OPEN_FILES = 6)
+    utils.startTest(@"Opening 7th file returns E_TOO_MANY_FILES")
 
     ' Create the 5th test file
     h1 := sd.createFileNew(@testfile5)
     if h1 >= 0
         sd.closeFileHandle(h1)
 
+    ' Open all 6 handles (reuse testfile1 for 6th handle)
     h1 := sd.openFileRead(@testfile1)
     h2 := sd.openFileRead(@testfile2)
     h3 := sd.openFileRead(@testfile3)
     h4 := sd.openFileRead(@testfile4)
+    h5 := sd.openFileRead(@testfile5)
+    h6 := sd.openFileRead(@testfile1)
 
     utils.evaluateSubBool(h1 >= 0, @"Handle 1 allocated", true)
     utils.evaluateSubBool(h2 >= 0, @"Handle 2 allocated", true)
     utils.evaluateSubBool(h3 >= 0, @"Handle 3 allocated", true)
     utils.evaluateSubBool(h4 >= 0, @"Handle 4 allocated", true)
+    utils.evaluateSubBool(h5 >= 0, @"Handle 5 allocated", true)
+    utils.evaluateSubBool(h6 >= 0, @"Handle 6 allocated", true)
 
-    h5 := sd.openFileRead(@testfile5)
-    utils.evaluateSingleValue(h5, @"5th open error", E_TOO_MANY_FILES)
+    result := sd.openFileRead(@testfile2)
+    utils.evaluateSubValue(result, @"7th open error", E_TOO_MANY_FILES)
 
     sd.closeFileHandle(h1)
     sd.closeFileHandle(h2)
     sd.closeFileHandle(h3)
     sd.closeFileHandle(h4)
+    sd.closeFileHandle(h5)
+    sd.closeFileHandle(h6)
 
     ' ======================================================================
     ' TEST GROUP: Handle Release and Reuse
@@ -391,7 +399,7 @@ PUB go() | result, h1, h2, h3, h4, h5, bytesRead, bytesWritten, pos, size
     result := sd.closeFileHandle(h1)
     utils.evaluateSubValue(result, @"First close", 0)
     result := sd.closeFileHandle(h1)
-    utils.evaluateSingleValue(result, @"Second close", E_INVALID_HANDLE)
+    utils.evaluateSubValue(result, @"Second close", E_INVALID_HANDLE)
 
     ' Test: tellHandle with invalid handle returns E_INVALID_HANDLE
     utils.startTest(@"tellHandle(-1) returns E_INVALID_HANDLE")
