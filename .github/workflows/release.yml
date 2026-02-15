@@ -77,7 +77,7 @@ jobs:
           # src/UTILS/ - utility programs
           mkdir -p "${DEST}/src/UTILS"
           cp src/UTILS/README.md "${DEST}/src/UTILS/"
-          cp src/UTILS/SD_format_utility.spin2 "${DEST}/src/UTILS/"
+          cp src/UTILS/isp_format_utility.spin2 "${DEST}/src/UTILS/"
           cp src/UTILS/SD_format_card.spin2 "${DEST}/src/UTILS/"
           cp src/UTILS/SD_card_characterize.spin2 "${DEST}/src/UTILS/"
           cp src/UTILS/SD_speed_characterize.spin2 "${DEST}/src/UTILS/"

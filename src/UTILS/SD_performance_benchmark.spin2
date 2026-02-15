@@ -34,7 +34,7 @@
 
 CON
 
-    _CLKFREQ        = 320_000_000       ' Change to 270_000_000 for low-sysclk runs
+    _CLKFREQ        = 350_000_000       ' Change to 250_000_000 for low-sysclk runs
 
     ' Pin configuration for P2 Edge with SD card
     SD_CS   = 60

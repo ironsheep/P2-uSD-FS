@@ -57,7 +57,7 @@ P2-SD-Card-Driver/
 └── src/                            # Driver under test
     ├── SD_card_driver.spin2            # The SD card driver
     └── UTILS/                          # Utility programs
-        ├── SD_format_utility.spin2         # FAT32 formatter
+        ├── SD_format_card.spin2              # FAT32 card formatter
         ├── SD_card_characterize.spin2      # Card register reader
         ├── SD_speed_characterize.spin2     # SPI speed testing
         ├── SD_performance_benchmark.spin2  # Throughput measurement

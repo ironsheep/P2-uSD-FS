@@ -47,7 +47,7 @@ CON
 OBJ
 
     utils : "SD_RT_utilities"
-    fmt   : "SD_format_utility"
+    fmt   : "isp_format_utility"
     sd    : "SD_card_driver"
 
 VAR

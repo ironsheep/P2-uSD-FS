@@ -1,3 +1,4 @@
+{Spin2_v45}
 '' =================================================================================================
 ''
 ''   File....... SD_demo_shell.spin2
@@ -20,6 +21,8 @@
 '' =================================================================================================
 
 CON { timing }
+
+  DEBUG_DISABLE                                                  ' disable debug() - conflicts with serial on pin 62
 
   CLK_FREQ = 270_000_000                                        ' system freq as a constant
   MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
@@ -132,6 +135,11 @@ VAR { audit/fsck/bench }
   byte  buf2[SECTOR_SIZE]                                       ' comparison buffer
   byte  fatBuf[SECTOR_SIZE]                                     ' FAT sector cache
 
+  ' Struct overlay pointers (set before use, overlaid on buf2)
+  long  pVBR                                                    ' ^sd.vbr_t overlay
+  long  pPart                                                   ' ^sd.mbr_partition_t overlay
+  long  pFSInfo                                                 ' ^sd.fsinfo_t overlay
+
   ' FAT cache state
   long  fatBufSector                                            ' cached FAT1 sector (-1 = none)
   long  fatBufDirty                                             ' TRUE if fatBuf needs writing
@@ -158,6 +166,7 @@ VAR { audit/fsck/bench }
   long  fileCount                                               ' files scanned
   long  scanDepth                                               ' current recursion depth
   long  bitmapCapable                                           ' TRUE if card fits in bitmap
+  long  bitmapField                                             ' FIELD pointer for 1-bit bitmap access
 
   ' Shared pool: FSCK bitmap or bench read buffer (256KB)
   long  sharedPool[BITMAP_LONGS]
@@ -190,6 +199,7 @@ PUB main() | len, eCmd
     show_prompt()                                               ' prompt user
     len := get_command()                                        ' get input
     if (len > 0)                                                ' if command entered
+      serial.fstr1(@"%s\r\n", @cliBuf)                          ' echo command
       ntokens := parse()                                        ' parse and count tokens
       if (ntokens)                                              ' if !0 tokens
         eCmd := idCommand(lcstr(token(0)))                      ' lookup command enum
@@ -270,7 +280,7 @@ PUB show_help()
     return
 
   serial.tx(serial.CLS)
-  serial.fstr0(@"\r\n")
+  serial.fstr0(@"  SD Shell v0.9.3g\r\n\r\n")
   serial.fstr0(@"  Navigation                          File Operations\r\n")
   serial.fstr0(@"  mount       Mount SD card           type <f>    Show text (cat)\r\n")
   serial.fstr0(@"  unmount     Unmount (eject)         hexdump <f> Hex dump (hd)\r\n")
@@ -279,9 +289,10 @@ PUB show_help()
   serial.fstr0(@"  pwd         Working directory       del <f>     Delete (rm)\r\n")
   serial.fstr0(@"  mkdir <d>   Create directory        touch <f>   Create file\r\n")
   serial.fstr0(@"  rmdir <d>   Remove directory        demo        Create demo files\r\n")
+  serial.fstr0(@"\r\n")
   serial.fstr0(@"  Information                         Diagnostics & Utility\r\n")
-  serial.fstr0(@"  stats       Card stats (info)       audit       Check FS integrity\r\n")
-  serial.fstr0(@"  card        Card ID (cid)           fsck        Check & repair FS\r\n")
+  serial.fstr0(@"  stats       FS stats (info)         audit       Check FS integrity\r\n")
+  serial.fstr0(@"  card        Card summary (cid)      fsck        Check & repair FS\r\n")
   serial.fstr0(@"  version     Driver version          bench       Throughput test\r\n")
   serial.fstr0(@"  label [n]   Volume label (vol)      format      Format SD card\r\n")
   serial.fstr0(@"  cls         Clear screen            help        This help\r\n")
@@ -360,12 +371,13 @@ PUB do_format()
 
   serial.fstr0(@"WARNING: Format will erase ALL data on the SD card!\r\n")
   serial.fstr0(@"This feature is not yet implemented in this shell.\r\n")
-  serial.fstr0(@"Use SD_format_utility.spin2 instead.\r\n")
+  serial.fstr0(@"Use SD_format_card.spin2 instead.\r\n")
 
 
-PUB do_stats() | free_sectors, total_sectors, free_mb, total_mb
+PUB do_stats() | total_sectors, total_mb, free_sectors, free_mb
 
-'' Display filesystem statistics
+'' Display filesystem statistics (requires mount)
+'' For card hardware info, use 'card' command
 
   if (ntokens <> 1)
     bad_syntax()
@@ -375,16 +387,13 @@ PUB do_stats() | free_sectors, total_sectors, free_mb, total_mb
     return
 
   total_sectors := sd.cardSizeSectors()
-  free_sectors := sd.freeSpace()
-
   total_mb := total_sectors / 2048                              ' sectors to MB (512 * 2048 = 1MB)
+  free_sectors := sd.freeSpace()
   free_mb := free_sectors / 2048
 
-  serial.fstr0(@"\r\n--- SD Card Statistics ---\r\n")
-  serial.fstr2(@"Total size:    %d sectors (%d MB)\r\n", total_sectors, total_mb)
-  serial.fstr2(@"Free space:    %d sectors (%d MB)\r\n", free_sectors, free_mb)
-  serial.fstr1(@"Volume label:  %s\r\n", sd.volumeLabel())
-  serial.fstr1(@"SPI frequency: %d Hz\r\n", sd.getSPIFrequency())
+  serial.fstr2(@"Total:  %d sectors (%d MB)\r\n", total_sectors, total_mb)
+  serial.fstr2(@"Free:   %d sectors (%d MB)\r\n", free_sectors, free_mb)
+  serial.fstr1(@"Label:  %s\r\n", sd.volumeLabel())
 
 
 PUB do_dir() | dh, result, count, total_size, attrib, size, p_name
@@ -732,40 +741,119 @@ PUB do_demo() | handle, i
   serial.fstr0(@"Demo files created.\r\n")
 
 
-PUB do_card_info() | cid[4], csd[4], mid, oid[3], pnm[6], prv, psn, mdt
+PUB do_card_info() | sd.cid_t cid, sd.scr_t scr, wasMounted, ...
+                     ocr, sizeMB, spiHz, psn, mdtYear, mdtMonth, ...
+                     pnm[2], p_mfr, p_type, p_spec, p_fs, ...
+                     oemBuf[3], partStart, i
 
-'' Display card identification info
+'' Display compact two-line card identification summary
+'' Works mounted or unmounted
+''
+'' Line 1: Manufacturer Product Type SizeMB/GB [FS] SDver revN.M SN:hex Year/Mo
+'' Line 2: SPI freq MHz  [OEM name]
 
   if (ntokens <> 1)
     bad_syntax()
     return
 
-  if (check_mount() == false)
-    return
+  wasMounted := mounted
 
+  ' If not mounted, initialize card for raw access
+  if (not mounted)
+    serial.fstr0(@"Initializing card...\r\n")
+    if (not initRawAccess())
+      serial.fstr0(@"ERROR: Cannot initialize card\r\n")
+      return
+
+  ' Read card registers into struct locals
   sd.readCIDRaw(@cid)
+  sd.readSCRRaw(@scr)
+  ocr := sd.getOCR()
+  sizeMB := sd.cardSizeSectors() / 2048
+  spiHz := sd.getSPIFrequency()
 
-  ' Parse CID fields
-  mid := cid.byte[0]
-  oid[0] := cid.byte[1]
-  oid[1] := cid.byte[2]
-  oid[2] := 0
-  bytemove(@pnm, @cid.byte[3], 5)
-  pnm[5] := 0
-  prv := cid.byte[8]
-  psn := (cid.byte[9] << 24) | (cid.byte[10] << 16) | (cid.byte[11] << 8) | cid.byte[12]
-  mdt := ((cid.byte[13] & $0F) << 8) | cid.byte[14]
+  ' Parse CID: product name (5 bytes, null-terminated)
+  bytemove(@pnm, @cid.pnm, 5)
+  BYTE[@pnm + 5] := 0
 
-  serial.fstr0(@"\r\n--- SD Card Identification ---\r\n")
-  serial.fstr1(@"Manufacturer ID:  0x%.2x\r\n", mid)
-  serial.fstr1(@"OEM/Application:  %s\r\n", @oid)
-  serial.fstr1(@"Product Name:     %s\r\n", @pnm)
-  serial.fstr2(@"Product Revision: %d.%d\r\n", prv >> 4, prv & $0F)
-  serial.fstr1(@"Serial Number:    0x%.8x\r\n", psn)
-  serial.fstr2(@"Manufacture Date: %d/%d\r\n", (mdt >> 4) + 2000, mdt & $0F)
-  serial.fstr1(@"Card Size:        %d MB\r\n", sd.cardSizeSectors() / 2048)
-  serial.fstr1(@"SPI Frequency:    %d Hz\r\n", sd.getSPIFrequency())
-  serial.fstr1(@"High-Speed Mode:  %s\r\n", sd.isHighSpeedActive() ? @"Active" : @"Inactive")
+  ' Parse CID: serial number (4 bytes big-endian -> 32-bit LONG)
+  psn := (cid.psn[0] << 24) | (cid.psn[1] << 16) | (cid.psn[2] << 8) | cid.psn[3]
+
+  ' Parse CID: manufacturing date
+  mdtYear := 2000 + ((cid.mdt[0] & $0F) << 4) + ((cid.mdt[1] >> 4) & $0F)
+  mdtMonth := cid.mdt[1] & $0F
+
+  ' Look up descriptive strings
+  p_mfr := lookupMID(cid.mid)
+  p_type := getCardType(ocr, sizeMB)
+  p_spec := getSDSpecVersion(@scr)
+  p_fs := detectFilesystem()
+
+  ' Read VBR OEM name from partition boot record
+  sd.readSectorRaw(0, @buf2)
+  if WORD[@buf2 + $1FE] == MBR_SIGNATURE
+    pPart := @buf2 + $1BE
+    partStart := partLbaStart(pPart)
+    if partStart > 0
+      sd.readSectorRaw(partStart, @buf2)
+      bytemove(@oemBuf, @buf2 + 3, 8)
+      BYTE[@oemBuf + 8] := 0
+      ' Trim trailing spaces
+      i := 7
+      repeat while i >= 0 AND BYTE[@oemBuf + i] == " "
+        BYTE[@oemBuf + i] := 0
+        i--
+    else
+      bytemove(@oemBuf, @"n/a", 4)
+  else
+    bytemove(@oemBuf, @"n/a", 4)
+
+  ' Line 1 part A: Mfr Product Type Size [FS] Spec
+  serial.str(p_mfr)
+  serial.tx(" ")
+  serial.str(@pnm)
+  serial.tx(" ")
+  serial.str(p_type)
+  serial.tx(" ")
+  if sizeMB < 1024
+    serial.dec(sizeMB)
+    serial.str(@"MB")
+  else
+    serial.dec(sizeMB / 1024)
+    serial.str(@"GB")
+  serial.str(@" [")
+  serial.str(p_fs)
+  serial.str(@"] ")
+  serial.str(p_spec)
+
+  ' Line 1 part B: rev SN date
+  serial.str(@" rev")
+  serial.dec(cid.prv >> 4)
+  serial.tx(".")
+  serial.dec(cid.prv & $0F)
+  serial.str(@" SN:")
+  serial.fwhex(psn, 8)
+  serial.tx(" ")
+  serial.dec(mdtYear)
+  serial.tx("/")
+  serial.fwdec(mdtMonth, 2)
+  serial.tx(13)
+  serial.tx(10)
+
+  ' Line 2: SPI frequency and OEM name
+  serial.str(@"SPI ")
+  serial.dec(spiHz / 1_000_000)
+  serial.tx(".")
+  serial.dec((spiHz / 100_000) // 10)
+  serial.str(@" MHz  [")
+  serial.str(@oemBuf)
+  serial.tx("]")
+  serial.tx(13)
+  serial.tx(10)
+
+  ' Clean up if we initialized raw access
+  if (not wasMounted)
+    sd.stop()
 
 
 PUB do_audit() | wasMounted, result
@@ -1156,17 +1244,18 @@ PRI auditMBR() | result
 
   auditRunTest(@"MBR boot signature ($AA55)", WORD[@buffer + $1FE] == MBR_SIGNATURE)
 
-  result := buffer[$1BE]
+  pPart := @buffer + $1BE
+  result := partBootFlag(pPart)
   auditRunTest(@"Partition 1 boot flag ($00/$80)", result == $00 OR result == $80)
 
-  result := buffer[$1C2]
+  result := partType(pPart)
   auditRunTest(@"Partition type ($0C = FAT32 LBA)", result == PARTITION_TYPE_FAT32_LBA)
 
-  result := LONG[@buffer + $1C6]
+  result := partLbaStart(pPart)
   auditRunTest(@"Partition start > 0", result > 0)
   serial.fstr1(@"    Partition start: sector %d\r\n", result)
 
-  result := LONG[@buffer + $1CA]
+  result := partLbaSize(pPart)
   auditRunTest(@"Partition size > 0", result > 0)
   serial.fstr1(@"    Partition size: %d sectors\r\n\r\n", result)
 
@@ -1178,38 +1267,39 @@ PRI auditVBR() | result
   serial.fstr0(@"--- VBR ---\r\n")
 
   sd.readSectorRaw(geoPartStart, @buffer)
+  pVBR := @buffer
 
-  result := buffer[0]
+  result := vbrJumpBoot0(pVBR)
   auditRunTest(@"VBR jump ($EB or $E9)", result == $EB OR result == $E9)
 
-  auditRunTest(@"VBR boot signature ($AA55)", WORD[@buffer + $1FE] == MBR_SIGNATURE)
+  auditRunTest(@"VBR boot signature ($AA55)", vbrBootSignature(pVBR) == MBR_SIGNATURE)
 
-  result := WORD[@buffer + $0B]
+  result := vbrBytesPerSec(pVBR)
   auditRunTest(@"Bytes/sector = 512", result == 512)
 
-  result := buffer[$0D]
+  result := vbrSecPerClus(pVBR)
   auditRunTest(@"Sectors/cluster power of 2", result >= 1 AND result <= 128 AND (result & (result - 1)) == 0)
   serial.fstr1(@"    Sectors/cluster: %d\r\n", result)
 
-  result := WORD[@buffer + $0E]
+  result := vbrReservedSec(pVBR)
   auditRunTest(@"Reserved sectors = 32", result == 32)
 
-  result := buffer[$10]
+  result := vbrNumFats(pVBR)
   auditRunTest(@"Number of FATs = 2", result == 2)
 
-  result := WORD[@buffer + $11]
+  result := vbrRootEntCnt(pVBR)
   auditRunTest(@"Root entry count = 0 (FAT32)", result == 0)
 
-  result := WORD[@buffer + $13]
+  result := vbrTotalSec16(pVBR)
   auditRunTest(@"Total sectors 16-bit = 0", result == 0)
 
-  result := buffer[$15]
+  result := vbrMediaType(pVBR)
   auditRunTest(@"Media type = $F8", result == $F8)
 
-  result := WORD[@buffer + $16]
+  result := vbrSecPerFat16(pVBR)
   auditRunTest(@"FAT size 16-bit = 0", result == 0)
 
-  result := LONG[@buffer + $1C]
+  result := vbrHiddenSec(pVBR)
   auditRunTest(@"Hidden sectors = partition start", result == geoPartStart)
 
   auditRunTest(@"Total sectors 32-bit > 0", geoTotalSec > 0)
@@ -1218,20 +1308,20 @@ PRI auditVBR() | result
   auditRunTest(@"Sectors per FAT > 0", geoSecPerFat > 0)
   serial.fstr1(@"    Sectors/FAT: %d\r\n", geoSecPerFat)
 
-  result := LONG[@buffer + $2C]
+  result := vbrRootCluster(pVBR)
   auditRunTest(@"Root cluster = 2", result == 2)
 
-  result := WORD[@buffer + $30]
+  result := vbrFsInfoSec(pVBR)
   auditRunTest(@"FSInfo at sector 1", result == 1)
 
-  result := WORD[@buffer + $32]
+  result := vbrBackBootSec(pVBR)
   auditRunTest(@"Backup boot at sector 6", result == 6)
 
-  result := buffer[$42]
+  result := vbrBootSigByte(pVBR)
   auditRunTest(@"Extended boot sig = $29", result == EXT_BOOT_SIG)
 
   result := true
-  if buffer[$52] <> "F" OR buffer[$53] <> "A" OR buffer[$54] <> "T" OR buffer[$55] <> "3" OR buffer[$56] <> "2"
+  if vbrFsTypeByte(pVBR, 0) <> "F" OR vbrFsTypeByte(pVBR, 1) <> "A" OR vbrFsTypeByte(pVBR, 2) <> "T" OR vbrFsTypeByte(pVBR, 3) <> "3" OR vbrFsTypeByte(pVBR, 4) <> "2"
     result := false
   auditRunTest(@"FS type = FAT32", result)
   serial.fstr0(@"\r\n")
@@ -1263,21 +1353,22 @@ PRI auditFSInfo() | result, idx, mismatch
   serial.fstr0(@"--- FSInfo ---\r\n")
 
   sd.readSectorRaw(geoPartStart + 1, @buffer)
+  pFSInfo := @buffer
 
-  result := LONG[@buffer]
+  result := fsiLeadSig(pFSInfo)
   auditRunTest(@"Lead signature ($41615252)", result == FSINFO_SIG1)
 
-  result := LONG[@buffer + 484]
+  result := fsiStructSig(pFSInfo)
   auditRunTest(@"Struct signature ($61417272)", result == FSINFO_SIG2)
 
-  result := LONG[@buffer + $1FC]
+  result := fsiTrailSig(pFSInfo)
   auditRunTest(@"Trail signature ($AA550000)", result == FSINFO_TRAIL_SIG)
 
-  result := LONG[@buffer + 488]
+  result := fsiFreeClusters(pFSInfo)
   auditRunTest(@"Free cluster count set", result <> 0)
   serial.fstr1(@"    Free clusters: %d\r\n", result)
 
-  result := LONG[@buffer + 492]
+  result := fsiNextFreeHint(pFSInfo)
   auditRunTest(@"Next free hint valid", result == $FFFFFFFF OR result >= 2)
 
   ' Check backup FSInfo
@@ -1327,21 +1418,27 @@ PRI auditFAT() | result, idx, mismatch
   serial.fstr0(@"\r\n")
 
 
-PRI auditRootDir() | result
+PRI auditRootDir() | result, pEntry
 
 '' Verify root directory structure
+'' Note: pEntry is untyped LONG (pnut-ts v51a limitation: ^structName not supported
+''   in locals). Struct member access via dirEnt*() helper methods.
 
   serial.fstr0(@"--- Root Directory ---\r\n")
 
   sd.readSectorRaw(geoDataStart, @buffer)
 
-  result := buffer[$0B]
+  ' Check first directory entry (volume label)
+  pEntry := @buffer
+  result := dirEntAttr(pEntry)
   auditRunTest(@"Volume label entry (attr=$08)", result == $08)
 
-  result := buffer[0]
+  result := dirEntName0(pEntry)
   auditRunTest(@"Valid volume label chars", result >= $20 AND result <= $7E)
 
-  result := buffer[$20]
+  ' Check second directory entry
+  pEntry := @buffer + SIZEOF(sd.dir_entry_t)
+  result := dirEntName0(pEntry)
   auditRunTest(@"Second entry valid or end", result == $00 OR result == $E5 OR (result >= $20 AND result <= $7E))
   serial.fstr0(@"\r\n")
 
@@ -1393,23 +1490,24 @@ PRI fsckPass1() | idx, mismatch, fsinfoDirty, startRepairs
 
   ' === FSInfo signatures (sector 1) ===
   sd.readSectorRaw(geoPartStart + 1, @buffer)
+  pFSInfo := @buffer
   fsinfoDirty := false
 
-  if (LONG[@buffer] <> FSINFO_SIG1)
+  if (fsiLeadSig(pFSInfo) <> FSINFO_SIG1)
     serial.fstr0(@"  REPAIR: FSInfo lead signature\r\n")
-    LONG[@buffer] := FSINFO_SIG1
+    fsiSetLeadSig(pFSInfo, FSINFO_SIG1)
     fsinfoDirty := true
     repairCount++
 
-  if (LONG[@buffer + 484] <> FSINFO_SIG2)
+  if (fsiStructSig(pFSInfo) <> FSINFO_SIG2)
     serial.fstr0(@"  REPAIR: FSInfo struct signature\r\n")
-    LONG[@buffer + 484] := FSINFO_SIG2
+    fsiSetStructSig(pFSInfo, FSINFO_SIG2)
     fsinfoDirty := true
     repairCount++
 
-  if (LONG[@buffer + $1FC] <> FSINFO_TRAIL_SIG)
+  if (fsiTrailSig(pFSInfo) <> FSINFO_TRAIL_SIG)
     serial.fstr0(@"  REPAIR: FSInfo trail signature\r\n")
-    LONG[@buffer + $1FC] := FSINFO_TRAIL_SIG
+    fsiSetTrailSig(pFSInfo, FSINFO_TRAIL_SIG)
     fsinfoDirty := true
     repairCount++
 
@@ -1476,6 +1574,7 @@ PRI fsckPass2() | startRepairs
 
   ' Clear cluster bitmap
   longfill(@sharedPool, 0, BITMAP_LONGS)
+  bitmapField := ^@sharedPool.[0]                               ' 1-bit FIELD pointer for bitmap
 
   ' Mark clusters 0 and 1 as used
   fsckSetBit(0)
@@ -1497,6 +1596,9 @@ PRI fsckPass2() | startRepairs
 PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus, fSize, name0, nextClus
 
 '' Recursively scan directory, validating all entries and chains
+'' Note: pEntry is untyped LONG (pnut-ts v51a limitation: ^structName not supported
+''   in locals). Struct member access via dirEnt*() helper methods which accept
+''   ^sd.dir_entry_t parameter.
 
   dirCount++
   scanDepth++
@@ -1517,8 +1619,8 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
 
       ' Process 16 directory entries per sector
       repeat entIdx from 0 to 15
-        pEntry := @buffer + (entIdx * 32)
-        name0 := BYTE[pEntry]
+        pEntry := @buffer + (entIdx * SIZEOF(sd.dir_entry_t))
+        name0 := dirEntName0(pEntry)
 
         ' $00 = end of directory
         if (name0 == $00)
@@ -1529,7 +1631,7 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
         if (name0 == $E5)
           next
 
-        attr := BYTE[pEntry + $0B]
+        attr := dirEntAttr(pEntry)
 
         ' Long filename entry (attr $0F)
         if ((attr & $3F) == $0F)
@@ -1544,8 +1646,8 @@ PRI fsckScanDir(dirCluster) | sector, entSector, entIdx, pEntry, attr, startClus
           next
 
         ' Extract start cluster and file size
-        startClus := WORD[pEntry + $1A] | (WORD[pEntry + $14] << 16)
-        fSize := LONG[pEntry + $1C]
+        startClus := dirEntStartClus(pEntry)
+        fSize := dirEntFileSize(pEntry)
 
         if (attr & $10)
           ' --- Subdirectory ---
@@ -1721,10 +1823,11 @@ PRI fsckPass4() | fatSector, entIdx, clus, fatVal, freeCount, syncCount, mismatc
 
   ' Update FSInfo free cluster count
   sd.readSectorRaw(geoPartStart + 1, @buffer)
+  pFSInfo := @buffer
 
-  if (LONG[@buffer + 488] <> freeCount)
-    serial.fstr2(@"  REPAIR: FSInfo free count %d -> %d\r\n", LONG[@buffer + 488], freeCount)
-    LONG[@buffer + 488] := freeCount
+  if (fsiFreeClusters(pFSInfo) <> freeCount)
+    serial.fstr2(@"  REPAIR: FSInfo free count %d -> %d\r\n", fsiFreeClusters(pFSInfo), freeCount)
+    fsiSetFreeClusters(pFSInfo, freeCount)
     sd.writeSectorRaw(geoPartStart + 1, @buffer)
     sd.writeSectorRaw(geoPartStart + 7, @buffer)
     repairCount++
@@ -1787,24 +1890,155 @@ PRI fsckSetBit(cluster)
 
 '' Set bit in cluster bitmap
 
-  sharedPool[cluster >> 5] |= (1 << (cluster & $1F))
+  FIELD[bitmapField][cluster]~~
 
 
 PRI fsckTestBit(cluster) : result
 
 '' Test bit in cluster bitmap
 
-  result := (sharedPool[cluster >> 5] >> (cluster & $1F)) & 1
+  result := FIELD[bitmapField][cluster]
 
 
-PRI fsckIsDot(pEntry) : result
+PRI fsckIsDot(^sd.dir_entry_t pEntry) : result
 
 '' Check if directory entry is . or ..
 
   result := false
-  if (BYTE[pEntry] == ".")
-    if (BYTE[pEntry + 1] == " " OR BYTE[pEntry + 1] == ".")
+  if (pEntry.name[0] == ".")
+    if (pEntry.name[1] == " " OR pEntry.name[1] == ".")
       result := true
+
+
+PRI dirEntName0(^sd.dir_entry_t pEntry) : result
+
+'' Return first byte of directory entry filename
+
+  result := pEntry.name[0]
+
+
+PRI dirEntAttr(^sd.dir_entry_t pEntry) : result
+
+'' Return attribute byte of directory entry
+
+  result := pEntry.attr
+
+
+PRI dirEntStartClus(^sd.dir_entry_t pEntry) : result
+
+'' Return 32-bit start cluster (combined from clusHI and clusLO fields)
+
+  result := pEntry.clusLO | (pEntry.clusHI << 16)
+
+
+PRI dirEntFileSize(^sd.dir_entry_t pEntry) : result
+
+'' Return file size from directory entry
+
+  result := pEntry.fileSize
+
+
+' ── MBR partition entry accessors ──────────────────────────────────────────────
+
+PRI partBootFlag(^sd.mbr_partition_t p) : value
+  return p.bootFlag
+
+PRI partType(^sd.mbr_partition_t p) : value
+  return p.partType
+
+PRI partLbaStart(^sd.mbr_partition_t p) : value
+  return p.lbaStart
+
+PRI partLbaSize(^sd.mbr_partition_t p) : value
+  return p.lbaSize
+
+' ── VBR (Volume Boot Record) accessors ────────────────────────────────────────
+
+PRI vbrJumpBoot0(^sd.vbr_t p) : value
+  return p.jumpBoot[0]
+
+PRI vbrOemNameByte(^sd.vbr_t p, idx) : value
+  return p.oemName[idx]
+
+PRI vbrBytesPerSec(^sd.vbr_t p) : value
+  return p.bytesPerSec
+
+PRI vbrSecPerClus(^sd.vbr_t p) : value
+  return p.secPerClus
+
+PRI vbrReservedSec(^sd.vbr_t p) : value
+  return p.reservedSec
+
+PRI vbrNumFats(^sd.vbr_t p) : value
+  return p.numFats
+
+PRI vbrRootEntCnt(^sd.vbr_t p) : value
+  return p.rootEntCnt
+
+PRI vbrTotalSec16(^sd.vbr_t p) : value
+  return p.totalSec16
+
+PRI vbrMediaType(^sd.vbr_t p) : value
+  return p.mediaType
+
+PRI vbrSecPerFat16(^sd.vbr_t p) : value
+  return p.secPerFat16
+
+PRI vbrHiddenSec(^sd.vbr_t p) : value
+  return p.hiddenSec
+
+PRI vbrTotalSec32(^sd.vbr_t p) : value
+  return p.totalSec32
+
+PRI vbrSecPerFat32(^sd.vbr_t p) : value
+  return p.secPerFat32
+
+PRI vbrRootCluster(^sd.vbr_t p) : value
+  return p.rootCluster
+
+PRI vbrFsInfoSec(^sd.vbr_t p) : value
+  return p.fsInfoSec
+
+PRI vbrBackBootSec(^sd.vbr_t p) : value
+  return p.backBootSec
+
+PRI vbrBootSigByte(^sd.vbr_t p) : value
+  return p.bootSig
+
+PRI vbrBootSignature(^sd.vbr_t p) : value
+  return p.bootSignature
+
+PRI vbrFsTypeByte(^sd.vbr_t p, idx) : value
+  return p.fsTypeLabel[idx]
+
+' ── FSInfo sector accessors ───────────────────────────────────────────────────
+
+PRI fsiLeadSig(^sd.fsinfo_t p) : value
+  return p.leadSig
+
+PRI fsiStructSig(^sd.fsinfo_t p) : value
+  return p.structSig
+
+PRI fsiTrailSig(^sd.fsinfo_t p) : value
+  return p.trailSig
+
+PRI fsiFreeClusters(^sd.fsinfo_t p) : value
+  return p.freeClusters
+
+PRI fsiNextFreeHint(^sd.fsinfo_t p) : value
+  return p.nextFreeHint
+
+PRI fsiSetLeadSig(^sd.fsinfo_t p, value)
+  p.leadSig := value
+
+PRI fsiSetStructSig(^sd.fsinfo_t p, value)
+  p.structSig := value
+
+PRI fsiSetTrailSig(^sd.fsinfo_t p, value)
+  p.trailSig := value
+
+PRI fsiSetFreeClusters(^sd.fsinfo_t p, value)
+  p.freeClusters := value
 
 
 CON { shared utility methods }
@@ -1833,6 +2067,138 @@ PRI initRawAccess() : ok
   ok := sd.initCardOnly(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
 
 
+PRI lookupMID(mid) : p_name | p, entryMID
+
+'' Look up manufacturer name from MID byte.
+'' Returns pointer to name string, or "MID:$NN" for unknown.
+
+  p := @midTable
+  repeat
+    entryMID := WORD[p]
+    if entryMID == $00                                                ' end sentinel
+      ' Unknown - format hex into buffer and return
+      bytemove(@buffer, @midUnknown, 6)                               ' "MID:$"
+      buffer[5] := hexDigit(mid >> 4)
+      buffer[6] := hexDigit(mid & $0F)
+      buffer[7] := 0
+      return @buffer
+    if entryMID == mid
+      return @@WORD[p + 2]                                            ' convert DAT relative offset to absolute address
+    p += 4                                                            ' next entry: word MID + word ptr
+
+
+PRI hexDigit(nibble) : ch
+
+'' Convert 0-15 to ASCII hex digit
+
+  if nibble < 10
+    return "0" + nibble
+  return "A" + nibble - 10
+
+
+PRI getCardType(ocr, sizeMB) : p_type
+
+'' Determine card type from OCR CCS bit and capacity.
+'' CCS=0: SDSC, CCS=1 and <=32GB: SDHC, CCS=1 and >32GB: SDXC
+
+  if (ocr & (1 << 30)) == 0
+    return @ctSDSC
+  if sizeMB > 32768
+    return @ctSDXC
+  return @ctSDHC
+
+
+PRI getSDSpecVersion(^sd.scr_t p_scr) : p_version | sdSpec, spec3, spec4, specX
+
+'' Decode SD spec version from SCR register struct.
+'' Takes typed pointer to scr_t struct.
+'' Returns pointer to version string.
+
+  sdSpec := p_scr.sdSpec & $0F
+  spec3 := (p_scr.sdSpec3Ext >> 7) & 1
+  spec4 := (p_scr.sdSpec3Ext >> 2) & 1
+  specX := ((p_scr.sdSpec3Ext & $03) << 2) | ((p_scr.sdSpecXLo >> 6) & $03)
+
+  if sdSpec < 2
+    return @"SD 1.x"
+  if spec3 == 0
+    return @"SD 2.0"
+  if spec4 == 0
+    return @"SD 3.x"
+  if specX == 0
+    return @"SD 4.x"
+  if specX == 1
+    return @"SD 5.x"
+  if specX == 2
+    return @"SD 6.x"
+  if specX == 3
+    return @"SD 7.x"
+  if specX == 4
+    return @"SD 8.x"
+  if specX == 5
+    return @"SD 9.x"
+  return @"SD ??"
+
+
+PRI decodeSpeedClass(classByte) : speed
+
+'' Decode SPEED_CLASS byte from SD Status.
+'' $00=0, $01=2, $02=4, $03=6, $04=10
+
+  case classByte
+    $00 : return 0
+    $01 : return 2
+    $02 : return 4
+    $03 : return 6
+    $04 : return 10
+    other : return 0
+
+
+PRI detectFilesystem() : p_fsName | pType
+
+'' Read MBR sector 0 to determine filesystem type from partition type byte.
+'' Uses buf2 for the read. Returns pointer to filesystem name string.
+
+  sd.readSectorRaw(0, @buf2)
+
+  ' Check MBR signature
+  if WORD[@buf2 + $1FE] <> MBR_SIGNATURE
+    return @fsUnknown
+
+  pPart := @buf2 + $1BE                                           ' overlay partition entry 1
+  pType := partType(pPart)
+
+  case pType
+    $00 : return @fsEmpty
+    $01 : return @fsFAT12
+    $04, $06, $0E : return @fsFAT16
+    $0B, $0C : return @fsFAT32
+    $07 : return resolveType07()
+    $83 : return @fsLinux
+    $EE : return @fsGPT
+    other : return @fsUnknown
+
+
+PRI resolveType07() : p_fsName | partStart
+
+'' Distinguish exFAT from NTFS for partition type $07.
+'' Reads VBR OEM name via struct overlay.
+
+  partStart := partLbaStart(pPart)                                 ' pPart set by detectFilesystem
+  if partStart == 0
+    return @fsUnknown
+
+  sd.readSectorRaw(partStart, @buf2)
+  pVBR := @buf2                                                    ' overlay VBR
+
+  ' Check OEM name for "EXFAT"
+  if vbrOemNameByte(pVBR, 0) == "E" AND vbrOemNameByte(pVBR, 1) == "X" AND ...
+     vbrOemNameByte(pVBR, 2) == "F" AND vbrOemNameByte(pVBR, 3) == "A" AND vbrOemNameByte(pVBR, 4) == "T"
+    return @fsExFAT
+
+  return @fsNTFS
+
+
 PRI readGeometry() : ok | numFats
 
 '' Read MBR and VBR to extract filesystem geometry.
@@ -1844,24 +2210,26 @@ PRI readGeometry() : ok | numFats
     serial.fstr0(@"  ERROR: Invalid MBR signature\r\n")
     return false
 
-  geoPartStart := LONG[@buf2 + $1C6]
+  pPart := @buf2 + $1BE                                           ' overlay partition entry 1
+  geoPartStart := partLbaStart(pPart)
   if geoPartStart == 0
     serial.fstr0(@"  ERROR: Partition start is 0\r\n")
     return false
 
   ' Read VBR (Volume Boot Record)
   sd.readSectorRaw(geoPartStart, @buf2)
-  if WORD[@buf2 + $1FE] <> MBR_SIGNATURE
+  pVBR := @buf2                                                    ' overlay VBR
+  if vbrBootSignature(pVBR) <> MBR_SIGNATURE
     serial.fstr0(@"  ERROR: Invalid VBR signature\r\n")
     return false
 
   ' Extract geometry fields
-  geoSecPerClus := buf2[$0D]
-  geoReservedSec := WORD[@buf2 + $0E]
-  numFats := buf2[$10]
-  geoSecPerFat := LONG[@buf2 + $24]
-  geoTotalSec := LONG[@buf2 + $20]
-  geoRootClus := LONG[@buf2 + $2C]
+  geoSecPerClus := vbrSecPerClus(pVBR)
+  geoReservedSec := vbrReservedSec(pVBR)
+  numFats := vbrNumFats(pVBR)
+  geoSecPerFat := vbrSecPerFat32(pVBR)
+  geoTotalSec := vbrTotalSec32(pVBR)
+  geoRootClus := vbrRootCluster(pVBR)
 
   ' Validate critical fields
   if geoSecPerClus == 0 OR geoSecPerFat == 0 OR geoTotalSec == 0
@@ -2084,6 +2452,64 @@ DAT { demo file content }
                 byte    "10 Ten", 13, 10
                 byte    0
 
+
+DAT { manufacturer lookup table - word pairs: MID, pointer to name }
+
+  ' Manufacturer ID lookup: word MID, word @name
+  ' From SD Card Association assigned IDs and observed cards
+  ' 4 bytes per entry, word-aligned
+  midTable
+              word    $02, @midKioxia
+              word    $03, @midSanDisk
+              word    $09, @midATP
+              word    $1B, @midSamsung
+              word    $1D, @midADATA
+              word    $27, @midPhison
+              word    $28, @midLexar
+              word    $41, @midKingston
+              word    $45, @midTeam
+              word    $6F, @midHiksemi
+              word    $74, @midGigastone
+              word    $82, @midSony
+              word    $9C, @midAngelbird
+              word    $9F, @midSharedOEM
+              word    $AD, @midLongsys
+              word    $00, 0                                           ' end sentinel
+
+  midKioxia       byte    "Kioxia", 0
+  midSanDisk      byte    "SanDisk", 0
+  midATP          byte    "ATP", 0
+  midSamsung      byte    "Samsung", 0
+  midADATA        byte    "ADATA", 0
+  midPhison       byte    "Phison", 0
+  midLexar        byte    "Lexar", 0
+  midKingston     byte    "Kingston", 0
+  midTeam         byte    "TEAM", 0
+  midHiksemi      byte    "Hiksemi", 0
+  midGigastone    byte    "Gigastone", 0
+  midSony         byte    "Sony", 0
+  midAngelbird    byte    "Angelbird", 0
+  midSharedOEM    byte    "OEM", 0
+  midLongsys      byte    "Longsys", 0
+  midUnknown      byte    "MID:$", 0
+
+DAT { filesystem type strings }
+
+  fsUnknown       byte    "Unknown", 0
+  fsFAT32         byte    "FAT32", 0
+  fsFAT16         byte    "FAT16", 0
+  fsFAT12         byte    "FAT12", 0
+  fsExFAT         byte    "exFAT", 0
+  fsNTFS          byte    "NTFS", 0
+  fsLinux         byte    "Linux", 0
+  fsGPT           byte    "GPT", 0
+  fsEmpty         byte    "Empty", 0
+
+DAT { card type strings }
+
+  ctSDSC          byte    "SDSC", 0
+  ctSDHC          byte    "SDHC", 0
+  ctSDXC          byte    "SDXC", 0
 
 CON { setup }
 

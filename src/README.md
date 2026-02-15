@@ -20,8 +20,8 @@ sd-card-driver/
 │   │   └── jm_nstr.spin2                    Number-to-string conversion
 │   └── UTILS/                             Standalone utility programs
 │       ├── README.md                         Full utility documentation
-│       ├── SD_format_utility.spin2           FAT32 formatter (library)
-│       ├── SD_format_card.spin2              Format runner (standalone)
+│       ├── SD_format_card.spin2              FAT32 card formatter
+│       ├── isp_format_utility.spin2         FAT32 format library
 │       ├── SD_card_characterize.spin2        Card register reader
 │       ├── SD_speed_characterize.spin2       SPI speed tester
 │       ├── SD_frequency_characterize.spin2   Sysclk frequency tester

@@ -147,7 +147,7 @@ P2-uSD-Study/
 ├── src/                        # Driver and application source
 │   ├── SD_card_driver.spin2        # The SD card driver
 │   ├── UTILS/                      # Standalone utility programs
-│   │   ├── SD_format_utility.spin2     # FAT32 formatter
+│   │   ├── SD_format_card.spin2           # FAT32 card formatter
 │   │   ├── SD_card_characterize.spin2  # Card register reader (CID/CSD/SCR)
 │   │   ├── SD_speed_characterize.spin2 # Maximum SPI speed tester
 │   │   ├── SD_FAT32_audit.spin2        # Filesystem validator (read-only)
@@ -236,7 +236,7 @@ Performance varies significantly by card controller, not just speed class rating
 
 The `src/UTILS/` folder contains standalone utility programs:
 
-- **SD_format_utility.spin2** - Format SD cards with FAT32
+- **SD_format_card.spin2** - Format SD cards with FAT32
 - **SD_card_characterize.spin2** - Read and display card registers (CID, CSD, SCR)
 - **SD_speed_characterize.spin2** - Test maximum reliable SPI speed
 - **SD_FAT32_audit.spin2** - Validate FAT32 filesystem structure (read-only)

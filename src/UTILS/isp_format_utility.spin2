@@ -1,6 +1,6 @@
 '' =================================================================================================
 ''
-''   File....... SD_format_utility.spin2
+''   File....... isp_format_utility.spin2
 ''   Purpose.... FAT32 format utility for SD cards using the SD_card_driver
 ''   Author..... Stephen M Moraco
 ''               -- see below for terms of use
@@ -22,7 +22,7 @@
 
 CON
 
-    DEBUG_DISABLE = 1   ' Disable debug to reduce debug record count
+    DEBUG_DISABLE = 0   ' Enable debug output
 
     ' FAT32 constants
     BYTES_PER_SECTOR    = 512

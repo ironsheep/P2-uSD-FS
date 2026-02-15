@@ -1,4 +1,4 @@
-# SD_format_utility.spin2 - Theory of Operations
+# isp_format_utility.spin2 - Theory of Operations
 
 ## Overview
 
@@ -169,7 +169,7 @@ The default label is `"P2-XFER    "`.
 ## Library API
 
 ```spin2
-OBJ fmt : "SD_format_utility"
+OBJ fmt : "isp_format_utility"
 
 ' Format with default label "P2-XFER"
 result := fmt.format(cs, mosi, miso, sck)

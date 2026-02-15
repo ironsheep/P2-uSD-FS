@@ -146,8 +146,9 @@ _relpath() {
 }
 SRC_PATH="$(_relpath "$PROJECT_ROOT/src" "$TEST_DIR")/"
 UTILS_PATH="$(_relpath "$PROJECT_ROOT/src/UTILS" "$TEST_DIR")/"
+DEMO_PATH="$(_relpath "$PROJECT_ROOT/src/DEMO" "$TEST_DIR")/"
 REGTEST_PATH="$(_relpath "$PROJECT_ROOT/regression-tests" "$TEST_DIR")/"
-COMPILE_CMD="pnut-ts -d -I $SRC_PATH -I $UTILS_PATH -I $REGTEST_PATH $BASENAME.spin2"
+COMPILE_CMD="pnut-ts -d -I $SRC_PATH -I $UTILS_PATH -I $DEMO_PATH -I $REGTEST_PATH $BASENAME.spin2"
 echo "  Command: $COMPILE_CMD"
 
 if ! $COMPILE_CMD; then

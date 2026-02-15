@@ -10,8 +10,7 @@ The utilities are located in `src/UTILS/` and can be run independently using the
 
 | Utility | Purpose | Destructive? |
 |---------|---------|:------------:|
-| **SD_format_utility.spin2** | FAT32 card formatter (library) | Yes |
-| **SD_format_card.spin2** | Format runner (standalone) | Yes |
+| **SD_format_card.spin2** | FAT32 card formatter (standalone) | Yes |
 | **SD_card_characterize.spin2** | Card register reader | No |
 | **SD_speed_characterize.spin2** | SPI speed tester | No |
 | **SD_frequency_characterize.spin2** | Sysclk frequency tester | No |
@@ -36,24 +35,18 @@ cd tools/
 
 ## Utility Details
 
-### 1. SD_format_utility.spin2 (Library)
+### 1. SD_format_card.spin2
 
-**Purpose:** FAT32 format library for SD cards.
+**Purpose:** Format an SD card with a FAT32 filesystem.
 
-This is a library object that provides FAT32 formatting capability. It is not run directly but is used by other programs (like SD_format_card.spin2 or the regression tests).
+Uses `isp_format_utility.spin2` (library) which provides the formatting logic.
 
-**API:**
-```spin2
-OBJ
-    fmt : "SD_format_utility"
-
-PUB main()
-    ' Format with default label "P2-XFER"
-    result := fmt.format(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
-
-    ' Format with custom label (max 11 characters)
-    result := fmt.formatWithLabel(SD_CS, SD_MOSI, SD_MISO, SD_SCK, @"MYVOLUME")
+**Usage:**
+```bash
+./run_test.sh ../src/UTILS/SD_format_card.spin2 -t 120
 ```
+
+**WARNING:** This will **ERASE ALL DATA** on the SD card!
 
 **Creates:**
 - MBR with single FAT32 LBA partition (type $0C)
@@ -69,19 +62,6 @@ PUB main()
 - Windows, macOS, and Linux compatible
 - Follows Microsoft FAT32 specification
 - Uses standard sector sizes and alignments
-
----
-
-### 2. SD_format_card.spin2
-
-**Purpose:** Simple standalone format runner.
-
-**Usage:**
-```bash
-./run_test.sh ../src/UTILS/SD_format_card.spin2 -t 120
-```
-
-**WARNING:** This will **ERASE ALL DATA** on the SD card!
 
 **Output:**
 ```
@@ -100,7 +80,7 @@ END_SESSION
 
 ---
 
-### 3. SD_card_characterize.spin2
+### 2. SD_card_characterize.spin2
 
 **Purpose:** Extract and display all card register information.
 
@@ -156,7 +136,7 @@ END_SESSION
 
 ---
 
-### 4. SD_speed_characterize.spin2
+### 3. SD_speed_characterize.spin2
 
 **Purpose:** Find maximum reliable SPI clock speed for a specific card.
 
@@ -210,7 +190,7 @@ Recommended Maximum Speed: 30 MHz
 
 ---
 
-### 5. SD_frequency_characterize.spin2
+### 4. SD_frequency_characterize.spin2
 
 **Purpose:** Find sysclk frequency boundaries for reliable streamer timing.
 
@@ -248,7 +228,7 @@ At each frequency, the test performs:
 
 ---
 
-### 6. SD_performance_benchmark.spin2
+### 5. SD_performance_benchmark.spin2
 
 **Purpose:** Measure read/write throughput for real-world performance data.
 
@@ -311,7 +291,7 @@ Filesystem Performance:
 
 ---
 
-### 7. SD_FAT32_audit.spin2
+### 6. SD_FAT32_audit.spin2
 
 **Purpose:** Verify FAT32 filesystem integrity without modifying the card.
 
@@ -376,7 +356,7 @@ END_SESSION
 
 ---
 
-### 8. SD_FAT32_fsck.spin2
+### 7. SD_FAT32_fsck.spin2
 
 **Purpose:** Check and repair FAT32 filesystem corruption.
 
@@ -486,8 +466,8 @@ END_SESSION
 
 ```
 src/UTILS/
-├── SD_format_utility.spin2         # FAT32 formatter (library)
-├── SD_format_card.spin2            # Format runner (standalone)
+├── SD_format_card.spin2            # FAT32 card formatter
+├── isp_format_utility.spin2        # FAT32 format library (used by SD_format_card)
 ├── SD_card_characterize.spin2      # Card register reader
 ├── SD_speed_characterize.spin2     # SPI speed tester
 ├── SD_frequency_characterize.spin2 # Sysclk frequency tester
