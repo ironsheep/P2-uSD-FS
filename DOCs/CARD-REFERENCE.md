@@ -91,7 +91,7 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 Gigastone ASTC SDXC 58GB [FAT32] SD 6.x rev2.0 SN:00000F14 2023/06
-U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### sandisk-sa16g-16gb
@@ -198,7 +198,7 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 | samsung-gd4qt-128gb | pending | label |
 | sandisk-aggcf-128gb | pending | label |
 | sandisk-aggce-64gb | **verified** | ACMD13 (Class 10, U3, V30) |
-| gigastone-astc-64gb | pending | label |
+| gigastone-astc-64gb | **verified** | ACMD13 (Class 10, U3, V30) |
 | sandisk-sa16g-16gb | pending | label |
 | gigastone-00000-32gb | pending | label |
 | gigastone-00000-8gb | pending | label |

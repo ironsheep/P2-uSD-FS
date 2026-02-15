@@ -248,7 +248,7 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 **Gigastone "Camera Plus" 64GB SDXC** — [gigastone-astc-64gb.md](cards/gigastone-astc-64gb.md)
 ```
 Gigastone ASTC SDXC 58GB [FAT32] SD 6.x rev2.0 SN:00000F14 2023/06
-U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 **SanDisk Industrial 16GB SDHC** — [sandisk-sa16g-16gb.md](cards/sandisk-sa16g-16gb.md)
