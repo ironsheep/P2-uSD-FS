@@ -8,7 +8,7 @@
 
 ```
 Kingston SD8GB SDHC 7GB [FAT32] SD 3.x rev3.0 SN:43F65DC9 2015/04
-Class 10, SPI 25 MHz
+Class 10, U1, SPI 25 MHz
 ```
 
 ### Raw Registers

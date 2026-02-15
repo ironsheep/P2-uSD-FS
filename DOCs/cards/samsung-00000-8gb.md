@@ -8,7 +8,7 @@
 
 ```
 Samsung 00000 SDHC 7GB [FAT16] SD 3.x rev1.0 SN:D9FB539C 2014/08
-SPI 25 MHz
+Class 6, SPI 25 MHz
 ```
 
 ### Raw Registers

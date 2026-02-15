@@ -8,7 +8,7 @@
 
 ```
 Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
-SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers

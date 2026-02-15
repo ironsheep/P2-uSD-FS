@@ -8,7 +8,7 @@
 
 ```
 Gigastone SD16G SDHC 14GB [FAT32] SD 3.x rev2.0 SN:000003FB 2025/02
-U3, V30, SPI 25 MHz
+Class 10, U1, V10, SPI 25 MHz
 ```
 
 ### Raw Registers

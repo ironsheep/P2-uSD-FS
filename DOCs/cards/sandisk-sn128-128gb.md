@@ -7,8 +7,8 @@
 ### Card Designator
 
 ```
-SanDisk SN128 SDXC 119GB [exFAT] SD 6.x rev8.0 SN:F79E34F6 2019/12
-SPI 25 MHz
+SanDisk SN128 SDXC 119GB [FAT32] SD 6.x rev8.0 SN:F79E34F6 2019/12
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers

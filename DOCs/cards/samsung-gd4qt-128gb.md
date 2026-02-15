@@ -8,7 +8,7 @@
 
 ```
 Samsung GD4QT SDXC 119GB [FAT32] SD 3.x rev3.0 SN:C0305565 2018/05
-U3, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers
@@ -254,3 +254,86 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 | File Write 32 KB | 320 | 326 | +1.9% |
 
 File reads at small sizes show the typical ~5% sysclk effect. At large sizes, the card controller's internal read latency dominates, making the sysclk difference negligible. File write results are within noise. This Samsung card has notably slower file reads (770 KB/s at 256 KB) compared to other cards (1,029-1,274 KB/s), likely due to higher internal controller latency.
+
+### Benchmark Results — Standard Protocol (350/250 MHz, 25 MHz SPI)
+
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: 25,000 kHz @ 350 MHz, 25,000 kHz @ 250 MHz
+**Test Date**: 2026-02-15 | **Card Unit**: SN:4AC85F42 (different unit from catalog SN:C0305565, same model)
+
+#### 350 MHz Run
+
+**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 202.1 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 597 | 626 | 656 | **817** |
+| Write 1x512B | 1,285 | 1,305 | 1,367 | **392** |
+| **Raw Multi-Sector** | | | | |
+| Read 8x512B (CMD18) | 2,151 | 2,151 | 2,151 | **1,904** |
+| Read 32x512B (CMD18) | 7,246 | 7,412 | 7,439 | **2,210** |
+| Read 64x512B (CMD18) | 14,047 | 14,548 | 14,615 | **2,252** |
+| Write 8x512B (CMD25) | 2,808 | 2,825 | 2,885 | **1,449** |
+| Write 32x512B (CMD25) | 7,566 | 7,576 | 7,639 | **2,162** |
+| Write 64x512B (CMD25) | 15,026 | 15,052 | 15,108 | **2,176** |
+| **File-Level** | | | | |
+| File Write 512B | 7,337 | 7,672 | 9,208 | **66** |
+| File Write 4 KB | 16,237 | 18,175 | 24,846 | **225** |
+| File Write 32 KB | 82,882 | 89,784 | 96,128 | **364** |
+| File Read 4 KB | — | — | — | **ERROR** |
+| File Read 32 KB | — | — | — | **ERROR** |
+| File Read 128 KB | — | — | — | **ERROR** |
+| File Read 256 KB | — | — | — | **ERROR** |
+| **Overhead** | | | | |
+| File Open | 2,400 | 2,400 | 2,405 | — |
+| File Close | 16 | 16 | 16 | — |
+| Mount | — | 202,100 | — | — |
+| Unmount | — | 3,000 | — | — |
+
+*\*File Read errors: openFileRead failed (-40) on all sizes. Write files were created successfully but could not be re-opened for reading. Investigation needed.*
+
+#### 250 MHz Run
+
+**SysClk**: 250 MHz | **SPI**: 25,000 kHz | **Mount**: 205.0 ms
+
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 755 | 832 | 910 | **615** |
+| Write 1x512B | 1,737 | 1,752 | 1,816 | **292** |
+| **Raw Multi-Sector** | | | | |
+| Read 8x512B (CMD18) | 2,540 | 2,540 | 2,540 | **1,612** |
+| Read 32x512B (CMD18) | 8,086 | 8,203 | 8,216 | **1,997** |
+| Read 64x512B (CMD18) | 15,480 | 15,619 | 15,635 | **2,097** |
+| Write 8x512B (CMD25) | 2,874 | 14,888 | 121,353 | **275**\* |
+| Write 32x512B (CMD25) | 8,197 | 8,198 | 8,203 | **1,998** |
+| Write 64x512B (CMD25) | 16,310 | 16,314 | 16,322 | **2,008** |
+| **File-Level** | | | | |
+| File Write 512B | 9,425 | 10,462 | 15,795 | **48** |
+| File Write 4 KB | 18,735 | 19,253 | 19,806 | **212** |
+| File Write 32 KB | 88,891 | 102,749 | 125,586 | **318** |
+| File Read 4 KB | 9,965 | 9,966 | 9,979 | **410** |
+| File Read 32 KB | 39,911 | 39,924 | 39,943 | **820** |
+| File Read 128 KB | — | — | — | **ERROR** |
+| File Read 256 KB | 374,510 | 374,624 | 375,262 | **699** |
+| **Overhead** | | | | |
+| File Open | 3,393 | 3,393 | 3,400 | — |
+| File Close | 29 | 29 | 29 | — |
+| Mount | — | 205,000 | — | — |
+| Unmount | — | 4,000 | — | — |
+
+*\*8-sector CMD25 write had a massive outlier (Max=121,353 us vs Min=2,874 us) — likely a card-internal flash erase/programming pause. The 275 KB/s average is skewed by this single event.*
+
+*\*File Read 128KB: openFileRead failed (-40). Other file read sizes succeeded.*
+
+#### Sysclk Effect (350 vs 250 MHz at same 25 MHz SPI)
+
+| Test | 350 MHz (KB/s) | 250 MHz (KB/s) | Delta |
+|------|----------------|----------------|-------|
+| Raw Read 1x512B | 817 | 615 | -24.7% |
+| Raw Read 64x512B | 2,252 | 2,097 | -6.9% |
+| Raw Write 1x512B | 392 | 292 | -25.5% |
+| Raw Write 64x512B | 2,176 | 2,008 | -7.7% |
+| File Write 32 KB | 364 | 318 | -12.6% |
+
+**Note:** With SPI speed held constant at 25 MHz, the 350→250 MHz delta isolates Spin2 overhead between SPI transfers. Single-sector operations show ~25% improvement from faster Spin2 processing (inter-transfer gap dominates). Multi-sector 64x operations show ~7% improvement (SPI bus time dominates). File write shows ~13% improvement (mix of FAT overhead and SPI time). File read comparison unavailable due to 350 MHz read errors.

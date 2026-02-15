@@ -7,8 +7,8 @@
 ### Card Designator
 
 ```
-SanDisk AGGCF SDXC 119GB [exFAT] SD 5.x rev8.0 SN:E05C352B 2017/07
-U3, V30, SPI 25 MHz
+SanDisk AGGCF SDXC 119GB [FAT32] SD 5.x rev8.0 SN:E05C352B 2017/07
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers

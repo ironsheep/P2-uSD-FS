@@ -32,8 +32,8 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 **Label:** SanDisk 128GB Nintendo Switch microSD XC I
 
 ```
-SanDisk SN128 SDXC 119GB [exFAT] SD 6.x rev8.0 SN:F79E34F6 2019/12
-SPI 25 MHz
+SanDisk SN128 SDXC 119GB [FAT32] SD 6.x rev8.0 SN:F79E34F6 2019/12
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### lexar-mssd0-64gb
@@ -51,7 +51,7 @@ Class 10, U3, V30, SPI 25 MHz
 
 ```
 Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
-SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ---
@@ -64,7 +64,7 @@ SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 Samsung GD4QT SDXC 119GB [FAT32] SD 3.x rev3.0 SN:C0305565 2018/05
-U3, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### sandisk-aggcf-128gb
@@ -72,8 +72,8 @@ U3, SPI 25 MHz  [formatted by P2FMTER]
 **Label:** SanDisk Extreme PRO 128GB microSD XC I V30 U3 A1
 
 ```
-SanDisk AGGCF SDXC 119GB [exFAT] SD 5.x rev8.0 SN:E05C352B 2017/07
-U3, V30, SPI 25 MHz
+SanDisk AGGCF SDXC 119GB [FAT32] SD 5.x rev8.0 SN:E05C352B 2017/07
+Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### sandisk-aggce-64gb
@@ -100,7 +100,7 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 SanDisk SA16G SDHC 14GB [FAT32] SD 5.x rev8.0 SN:93E9C0A1 2025/11
-Class 10, U1, SPI 25 MHz
+Class 10, U1, V10, SPI 25 MHz
 ```
 
 ---
@@ -113,7 +113,7 @@ Class 10, U1, SPI 25 MHz
 
 ```
 Gigastone 00000 SDHC 29GB [FAT32] SD 3.x rev0.0 SN:000001C9 2023/07
-Class 10, U1, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U1, V10, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### gigastone-00000-8gb
@@ -122,7 +122,7 @@ Class 10, U1, SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 Gigastone 00000 SDHC 7GB [FAT32] SD 3.x rev0.0 SN:0001B9D5 2021/09
-U1, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U1, V10, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### gigastone-sd16g-16gb
@@ -131,7 +131,7 @@ U1, SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 Gigastone SD16G SDHC 14GB [FAT32] SD 3.x rev2.0 SN:000003FB 2025/02
-U3, V30, SPI 25 MHz
+Class 10, U1, V10, SPI 25 MHz
 ```
 
 ### kingston-sd8gb-8gb
@@ -140,7 +140,7 @@ U3, V30, SPI 25 MHz
 
 ```
 Kingston SD8GB SDHC 7GB [FAT32] SD 3.x rev3.0 SN:43F65DC9 2015/04
-Class 10, SPI 25 MHz
+Class 10, U1, SPI 25 MHz
 ```
 
 ### sandisk-su08g-8gb
@@ -158,7 +158,7 @@ Class 4, SPI 25 MHz
 
 ```
 Samsung 00000 SDHC 7GB [FAT16] SD 3.x rev1.0 SN:D9FB539C 2014/08
-SPI 25 MHz
+Class 6, SPI 25 MHz
 ```
 
 ### sandisk-ss08g-8gb
@@ -180,7 +180,7 @@ Class 4, SPI 25 MHz
 
 ```
 PNY SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:01CD5CF5 2018/08
-SPI 25 MHz  [formatted by P2FMTER]
+Class 4, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ---
@@ -189,25 +189,25 @@ SPI 25 MHz  [formatted by P2FMTER]
 
 Cards that need to be re-run through the updated `SD_card_characterize.spin2` to get verified ACMD13 data for Line 2:
 
-| Card | ACMD13 Status | Line 2 Source |
-|------|:---:|---|
-| sandisk-sn64g-64gb | pending | label |
-| sandisk-sn128-128gb | pending | label |
-| lexar-mssd0-64gb | pending | label |
-| lexar-mssd0-128gb | pending | label |
-| samsung-gd4qt-128gb | pending | label |
-| sandisk-aggcf-128gb | pending | label |
-| sandisk-aggce-64gb | **verified** | ACMD13 (Class 10, U3, V30) |
-| gigastone-astc-64gb | **verified** | ACMD13 (Class 10, U3, V30) |
-| sandisk-sa16g-16gb | pending | label |
-| gigastone-00000-32gb | pending | label |
-| gigastone-00000-8gb | pending | label |
-| gigastone-sd16g-16gb | pending | label |
-| kingston-sd8gb-8gb | pending | label |
-| sandisk-su08g-8gb | pending | label |
-| samsung-00000-8gb | pending | label |
-| sandisk-ss08g-8gb | pending | label |
-| pny-sd16g-16gb | pending | label |
+| Card | ACMD13 Status | Line 2 Source | Benchmark |
+|------|:---:|---|:---:|
+| sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| sandisk-sn128-128gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| lexar-mssd0-64gb | **verified** | ACMD13 (Class 10, U3, V30) — different unit SN:33549024 | 350 only |
+| lexar-mssd0-128gb | **verified** | ACMD13 (Class 10, U3, V30) | 350+250 |
+| samsung-gd4qt-128gb | **verified** | ACMD13 (Class 10, U3, V0) — different unit SN:4AC85F42 | 350+250 |
+| sandisk-aggcf-128gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| sandisk-aggce-64gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| gigastone-astc-64gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| sandisk-sa16g-16gb | **verified** | ACMD13 (Class 10, U1, V10) — V10 not on label | 350+250 |
+| gigastone-00000-32gb | **verified** | ACMD13 (Class 10, U1, V10) — V10 not on label | — |
+| gigastone-00000-8gb | **verified** | ACMD13 (Class 10, U1, V10) — Class 10, V10 not on label | — |
+| gigastone-sd16g-16gb | **verified** | ACMD13 (Class 10, U1, V10) — label claims U3/V30! | — |
+| kingston-sd8gb-8gb | **verified** | ACMD13 (Class 10, U1, V0) — U1 not on label | — |
+| sandisk-su08g-8gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
+| samsung-00000-8gb | **verified** | ACMD13 (Class 6, U0, V0) — FAT16, format failed | — |
+| sandisk-ss08g-8gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
+| pny-sd16g-16gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
 
 ---
 

@@ -8,7 +8,7 @@
 
 ```
 Gigastone 00000 SDHC 29GB [FAT32] SD 3.x rev0.0 SN:000001C9 2023/07
-Class 10, U1, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U1, V10, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers

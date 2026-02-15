@@ -8,7 +8,7 @@
 
 ```
 PNY SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:01CD5CF5 2018/08
-SPI 25 MHz  [formatted by P2FMTER]
+Class 4, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers

@@ -8,7 +8,7 @@
 
 ```
 SanDisk SA16G SDHC 14GB [FAT32] SD 5.x rev8.0 SN:93E9C0A1 2025/11
-Class 10, U1, SPI 25 MHz
+Class 10, U1, V10, SPI 25 MHz
 ```
 
 ### Raw Registers
