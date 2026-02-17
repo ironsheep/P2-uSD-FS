@@ -26,24 +26,25 @@ Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD
 
 ### Cross-Card Comparison (350 MHz, Best Numbers)
 
-| Metric | SanDisk Industrial 16GB | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB |
-|--------|:-:|:-:|:-:|:-:|:-:|
-| **Mount** | 486 ms | 212 ms | 400 ms | **203 ms** | 233 ms |
-| **File Open** | 159 µs | 991 µs | **128 µs** | 151 µs | 146 µs |
-| **Raw Read 1×512B** | 792 KB/s | **1,239 KB/s** | 819 KB/s | 937 KB/s | 887 KB/s |
-| **Raw Read 64× (32KB)** | 2,393 KB/s | 2,376 KB/s | **2,420 KB/s** | 2,353 KB/s | 2,406 KB/s |
-| **Raw Write 1×512B** | 361 KB/s | 674 KB/s | **680 KB/s** | — † | 332 KB/s |
-| **Raw Write 64× (32KB)** | 2,170 KB/s | 2,251 KB/s | **2,275 KB/s** | — † | 2,152 KB/s |
-| **File Read 256KB** | 745 KB/s ‡ | 1,378 KB/s | **1,444 KB/s** | 950 KB/s | 1,016 KB/s |
-| **File Write 32KB** | 321 KB/s | 433 KB/s | **616 KB/s** | 325 KB/s | 378 KB/s |
-| **Multi-sector gain** | 67% | 51% | 51% | 63% | 61% |
-| **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/lexar-mssd0-128gb.md) | [card page](cards/samsung-gd4qt-128gb.md) | [card page](cards/sandisk-sn128-128gb.md) |
+| Metric | SanDisk Industrial 16GB | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB | SanDisk Extreme 64GB |
+|--------|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Mount** | 486 ms | 212 ms | 400 ms | **203 ms** | 233 ms | 233 ms |
+| **File Open** | 159 µs | 991 µs | **128 µs** | 151 µs | 146 µs | 1,707 µs |
+| **Raw Read 1×512B** | 792 KB/s | **1,239 KB/s** | 819 KB/s | 937 KB/s | 887 KB/s | 1,001 KB/s |
+| **Raw Read 64× (32KB)** | 2,393 KB/s | 2,376 KB/s | **2,420 KB/s** | 2,353 KB/s | 2,406 KB/s | 2,410 KB/s |
+| **Raw Write 1×512B** | 361 KB/s | 674 KB/s | **680 KB/s** | — † | 332 KB/s | 277 KB/s §  |
+| **Raw Write 64× (32KB)** | 2,170 KB/s | 2,251 KB/s | **2,275 KB/s** | — † | 2,152 KB/s | 2,144 KB/s |
+| **File Read 256KB** | 745 KB/s ‡ | 1,378 KB/s | **1,444 KB/s** | 950 KB/s | 1,016 KB/s | 1,031 KB/s |
+| **File Write 32KB** | 321 KB/s | 433 KB/s | **616 KB/s** | 325 KB/s | 378 KB/s | 370 KB/s |
+| **Multi-sector gain** | 67% | 51% | 51% | 63% | 61% | 58% |
+| **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/lexar-mssd0-128gb.md) | [card page](cards/samsung-gd4qt-128gb.md) | [card page](cards/sandisk-sn128-128gb.md) | [card page](cards/sandisk-sn64g-64gb.md) |
 
 **Best Read**: Lexar V30 64GB — fastest single-sector reads; Lexar Blue 128GB — fastest file-level reads.
 **Best Write**: Lexar Blue 128GB — fastest raw and file-level writes.
 
 † Samsung 350 MHz raw write results affected by flash controller housekeeping pause (wear leveling/GC). 250 MHz run was clean: Write 1×512B = 394 KB/s, Write 64× = 2,003 KB/s. See [card page](cards/samsung-gd4qt-128gb.md).
 ‡ SanDisk Industrial 350 MHz File Read 256KB showed high variance (Max=655 ms outlier); 250 MHz result of 790 KB/s is representative.
+§ SanDisk Extreme 350 MHz single-sector write had high variance (Max=4,340 µs outlier); 250 MHz run was tighter: 316 KB/s.
 
 ---
 
@@ -51,12 +52,12 @@ Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD
 
 Both speeds produce identical 25 MHz SPI clock — differences are purely Spin2 inter-transfer overhead.
 
-| Test | SanDisk Industrial | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB |
-|------|:-:|:-:|:-:|:-:|:-:|
-| **Raw Read 64×** | +8% | +9% | +8% | +11% | +8% |
-| **Raw Write 64×** | +9% | +10% | +9% | — | +12% |
-| **File Read 256KB** | -6% ‡ | +16% | +15% | +26% | +11% |
-| **File Write 32KB** | +4% | +9% | +12% | +0.3% | +5% |
+| Test | SanDisk Industrial | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB | SanDisk Extreme 64GB |
+|------|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Raw Read 64×** | +8% | +9% | +8% | +11% | +8% | +8% |
+| **Raw Write 64×** | +9% | +10% | +9% | — | +12% | +8% |
+| **File Read 256KB** | -6% ‡ | +16% | +15% | +26% | +11% | +11% |
+| **File Write 32KB** | +4% | +9% | +12% | +0.3% | +5% | +4% |
 
 **Pattern**: Raw multi-sector operations gain ~8-11% from faster Spin2 processing between streamer transfers. File-level reads gain 15-26% from reduced FAT traversal overhead. File-level writes are card-dependent — cards with longer flash programming times (Samsung) are dominated by card latency rather than sysclk speed.
 
@@ -133,7 +134,7 @@ These measurements represent the driver performance **before** Smart Pin optimiz
 
 ```
 SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 **Card Identification**:
@@ -200,6 +201,8 @@ Write throughput increases with block size due to:
 Sequential read performance at file level (current driver, 350 MHz):
 - Lexar Blue 128GB: **1,444 KB/s** (best)
 - Lexar V30 64GB: 1,378 KB/s
+- SanDisk Extreme 64GB: 1,031 KB/s
+- SanDisk Switch 128GB: 1,016 KB/s
 - Samsung EVO 128GB: 950 KB/s
 - SanDisk Industrial 16GB: 745 KB/s (measurement artifact — 790 KB/s at 250 MHz is representative)
 
@@ -269,6 +272,7 @@ The raw SPI layer is reasonably efficient (~77% average). The largest remaining 
 | 2026-02-17 | TX streamer fix (797f913) | Standard protocol | Samsung EVO Select 128GB @ 350+250 MHz |
 | 2026-02-17 | TX streamer fix (797f913) | Standard protocol | Lexar V30 U3 64GB @ 350+250 MHz |
 | 2026-02-17 | TX streamer fix (797f913) | Standard protocol | SanDisk Nintendo Switch 128GB @ 350+250 MHz |
+| 2026-02-17 | TX streamer fix (797f913) | Standard protocol | SanDisk Extreme 64GB @ 350+250 MHz |
 
 ---
 

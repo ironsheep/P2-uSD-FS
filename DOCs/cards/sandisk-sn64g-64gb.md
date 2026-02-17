@@ -2,13 +2,13 @@
 
 **Label:** SanDisk Extreme 64GB U3 A2 microSD XC I V30
 **Unique ID:** `SanDisk_SN64G_8.6_7E650771_202211`
-**Test Date:** 2026-02-02 (characterization)
+**Test Date:** 2026-02-17 (full re-characterization)
 
 ### Card Designator
 
 ```
 SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 ### Raw Registers
@@ -102,7 +102,7 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 | SD_SPECX | [41:38] | 2 | SD 5.x/6.x/7.x indicator | [INFO] |
 | CMD_SUPPORT | [33:32] | $00 | — | [INFO] |
 
-**SD Version:** 4.xx (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=1)
+**SD Version:** 6.x (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=1, SD_SPECX=2)
 
 ### Filesystem (FAT32 - reformatted with P2FMTER)
 
@@ -133,10 +133,89 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 | CSD Read | PASS | Worker cog routing |
 | SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
+| SD Status | PASS | ACMD13 (64 bytes) — Class 10, U3, A2, V30 |
 | MBR Read | PASS | FAT32 LBA ($0C) partition |
 | VBR Read | PASS | |
-| Mount | PASS | |
-| Regression | PASS | All tests pass |
+| Format | PASS | FAT32 formatted with P2FMTER |
+| Mount | PASS | (confirmed via benchmark) |
+| FSCK | PASS | 0 errors, 0 repairs, CLEAN |
+
+### Performance Benchmarks (350 MHz sysclk)
+
+**SPI Clock:** 25,000 kHz | **Mount:** 233.3 ms | **Volume:** P2-BENCH | **Free:** 60,901 MB
+
+| Test | Size | Min | Avg | Max | Throughput |
+|------|------|-----|-----|-----|------------|
+| **Raw Single-Sector** | | | | | |
+| Read (1x512B) | 512B | 511 us | 511 us | 512 us | 1,001 KB/s |
+| Write (1x512B) | 512B | 1,532 us | 1,846 us | 4,340 us | 277 KB/s |
+| **Raw Multi-Sector Read (CMD18)** | | | | | |
+| 8 sectors | 4 KB | 1,960 us | 1,960 us | 1,961 us | 2,089 KB/s |
+| 32 sectors | 16 KB | 6,949 us | 6,949 us | 6,950 us | 2,357 KB/s |
+| 64 sectors | 32 KB | 13,595 us | 13,595 us | 13,595 us | 2,410 KB/s |
+| **Raw Multi-Sector Write (CMD25)** | | | | | |
+| 8 sectors | 4 KB | 2,434 us | 2,493 us | 2,676 us | 1,643 KB/s |
+| 32 sectors | 16 KB | 7,670 us | 7,740 us | 7,877 us | 2,116 KB/s |
+| 64 sectors | 32 KB | 15,151 us | 15,278 us | 15,404 us | 2,144 KB/s |
+| **File Write** | | | | | |
+| create+write+close | 512B | 8,932 us | 9,064 us | 9,236 us | 56 KB/s |
+| create+write+close | 4 KB | 17,805 us | 18,049 us | 20,042 us | 226 KB/s |
+| create+write+close | 32 KB | 87,817 us | 88,354 us | 89,852 us | 370 KB/s |
+| **File Read** | | | | | |
+| open+read+close | 4 KB | 5,663 us | 5,664 us | 5,668 us | 723 KB/s |
+| open+read+close | 32 KB | 33,074 us | 33,081 us | 33,087 us | 990 KB/s |
+| open+read+close | 128 KB | 128,282 us | 128,302 us | 128,433 us | 1,021 KB/s |
+| open+read+close | 256 KB | 254,005 us | 254,073 us | 254,512 us | 1,031 KB/s |
+| **Overhead** | | | | | |
+| File Open | — | 1,707 us | 1,707 us | 1,708 us | — |
+| File Close | — | 20 us | 20 us | 21 us | — |
+| Unmount | — | — | 3 ms | — | — |
+
+**Multi-sector gain:** 64x single=32,642 us vs 1x multi=13,590 us → **58% improvement**
+
+### Performance Benchmarks (250 MHz sysclk)
+
+**SPI Clock:** 25,000 kHz | **Mount:** 235.7 ms | **Volume:** P2-BENCH | **Free:** 60,901 MB
+
+| Test | Size | Min | Avg | Max | Throughput |
+|------|------|-----|-----|-----|------------|
+| **Raw Single-Sector** | | | | | |
+| Read (1x512B) | 512B | 573 us | 573 us | 574 us | 893 KB/s |
+| Write (1x512B) | 512B | 1,591 us | 1,619 us | 1,648 us | 316 KB/s |
+| **Raw Multi-Sector Read (CMD18)** | | | | | |
+| 8 sectors | 4 KB | 2,152 us | 2,152 us | 2,153 us | 1,903 KB/s |
+| 32 sectors | 16 KB | 7,546 us | 7,546 us | 7,546 us | 2,171 KB/s |
+| 64 sectors | 32 KB | 14,731 us | 14,731 us | 14,731 us | 2,224 KB/s |
+| **Raw Multi-Sector Write (CMD25)** | | | | | |
+| 8 sectors | 4 KB | 2,650 us | 2,907 us | 4,769 us | 1,409 KB/s |
+| 32 sectors | 16 KB | 8,291 us | 8,366 us | 8,546 us | 1,958 KB/s |
+| 64 sectors | 32 KB | 16,408 us | 16,510 us | 16,618 us | 1,984 KB/s |
+| **File Write** | | | | | |
+| create+write+close | 512B | 9,546 us | 9,698 us | 9,823 us | 52 KB/s |
+| create+write+close | 4 KB | 18,511 us | 18,656 us | 18,761 us | 219 KB/s |
+| create+write+close | 32 KB | 91,205 us | 91,970 us | 93,718 us | 356 KB/s |
+| **File Read** | | | | | |
+| open+read+close | 4 KB | 6,394 us | 6,394 us | 6,400 us | 640 KB/s |
+| open+read+close | 32 KB | 36,870 us | 36,873 us | 36,877 us | 888 KB/s |
+| open+read+close | 128 KB | 141,792 us | 141,861 us | 142,338 us | 923 KB/s |
+| open+read+close | 256 KB | 281,920 us | 282,015 us | 282,479 us | 929 KB/s |
+| **Overhead** | | | | | |
+| File Open | — | 1,980 us | 1,980 us | 1,981 us | — |
+| File Close | — | 29 us | 29 us | 29 us | — |
+| Unmount | — | — | 3 ms | — | — |
+
+**Multi-sector gain:** 64x single=36,997 us vs 1x multi=14,737 us → **60% improvement**
+
+### Sysclk Effect (350 vs 250 MHz, same 25 MHz SPI)
+
+| Metric | 350 MHz | 250 MHz | Delta |
+|--------|---------|---------|-------|
+| Raw read 1x (KB/s) | 1,001 | 893 | +12% |
+| Raw read 64x (KB/s) | 2,410 | 2,224 | +8% |
+| Raw write 64x (KB/s) | 2,144 | 1,984 | +8% |
+| File read 256KB (KB/s) | 1,031 | 929 | +11% |
+| File write 32KB (KB/s) | 370 | 356 | +4% |
+| Multi-sector gain | 58% | 60% | — |
 
 ### Notes
 
@@ -149,5 +228,8 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 - Product name "SN64G" = SanDisk Nomenclature 64GB
 - Originally shipped with exFAT, now reformatted with P2FMTER for FAT32
 - Volume label "P2-BENCH" indicates use as benchmark/test card
-- SD 4.xx spec compliant (SD_SPEC4=1)
-- **Baseline benchmark data available** — see BENCHMARK-RESULTS.md (best overall in baseline testing: 1,467 KB/s read, 425 KB/s write)
+- **SD 6.x** spec compliant (SD_SPEC4=1, SD_SPECX=2) — newest spec generation
+- **A2** confirmed by ACMD13 SD Status register (previously known from label only)
+- **CMD_SUPPORT $00** — no CMD20 or CMD23 support
+- **COPY flag = 1** — may indicate factory content was pre-loaded
+- **Full benchmark data** — 350+250 MHz, see tables above and BENCHMARK-RESULTS.md

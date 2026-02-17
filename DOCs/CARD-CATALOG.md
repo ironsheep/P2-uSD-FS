@@ -206,7 +206,7 @@ Each card has a dedicated page with full register dumps, field-by-field decode, 
 **SanDisk Extreme 64GB SDXC** — [sandisk-sn64g-64gb.md](cards/sandisk-sn64g-64gb.md)
 ```
 SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 **SanDisk Nintendo Switch 128GB SDXC** — [sandisk-sn128-128gb.md](cards/sandisk-sn128-128gb.md)

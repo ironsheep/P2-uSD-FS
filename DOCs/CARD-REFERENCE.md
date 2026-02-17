@@ -24,7 +24,7 @@ Class <N>, U<N>, V<N>, SPI <Freq> MHz  [<optional notes>]
 
 ```
 SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 ### sandisk-sn128-128gb
@@ -202,7 +202,7 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 
 | Card | ACMD13 Status | Line 2 Source | Benchmark |
 |------|:---:|---|:---:|
-| sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | sandisk-sn128-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | lexar-mssd0-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) — different unit SN:33549024 | 350+250 |
 | lexar-mssd0-128gb | **verified** | ACMD13 (Class 10, U3, V30) | 350+250 |
