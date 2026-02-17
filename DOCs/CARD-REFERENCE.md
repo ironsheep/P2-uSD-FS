@@ -54,6 +54,15 @@ Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
 Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
+### samsung-jd1y7-128gb
+
+**Label:** Samsung Pro Endurance microSD XC I U3 V30
+
+```
+Samsung JD1Y7 SDXC 119GB [FAT32] SD 6.x rev3.0 SN:D27654A6 2025/12
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
+```
+
 ---
 
 ## Rating B — Fast
@@ -220,8 +229,9 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 | sandisk-ss08g-8gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
 | pny-sd16g-16gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
 | siliconpower-spcc-64gb | **verified** | ACMD13 (Class 10, U3, A1, V30) — label says U1 | **BLOCKED** |
+| samsung-jd1y7-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 
 ---
 
 *Created: 2026-02-15*
-*Cards: 18*
+*Cards: 19*

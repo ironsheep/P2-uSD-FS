@@ -131,6 +131,7 @@ This section documents ALL fields available from SD card registers and indicates
 | SanDisk_SN128_8.0_F79E34F6_201912 | SanDisk ($03) | SN128 | ~119 GB | **A** | PASS |
 | Longsys/Lexar_MSSD0_6.1_33549024_202411 | Lexar (Longsys $AD) | MSSD0 | ~58 GB | **A** | PASS |
 | Longsys/Lexar_MSSD0_6.1_34490F1E_202504 | Lexar (Longsys $AD) | MSSD0 | ~117 GB | **A** | PASS |
+| Samsung_JD1Y7_3.0_D27654A6_202512 | Samsung ($1B) | JD1Y7 | ~119 GB | **A** | PASS |
 | Samsung_GD4QT_3.0_C0305565_201805 | Samsung ($1B) | GD4QT | ~119 GB | **B** | PASS |
 | SanDisk_AGGCF_8.0_E05C352B_201707 | SanDisk ($03) | AGGCF | ~119 GB | **B** | PASS |
 | SanDisk_AGGCE_8.0_DD1C1144_201703 | SanDisk ($03) | AGGCE | ~59 GB | **B** | PASS |
@@ -225,6 +226,12 @@ Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
 Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+```
+
+**Samsung PRO Endurance 128GB SDXC** — [samsung-jd1y7-128gb.md](cards/samsung-jd1y7-128gb.md)
+```
+Samsung JD1Y7 SDXC 119GB [FAT32] SD 6.x rev3.0 SN:D27654A6 2025/12
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 **Rating B** - Fast:
@@ -411,4 +418,4 @@ SCR: [8 bytes hex]
 
 *Catalog created: 2026-01-20*
 *Last updated: 2026-02-17*
-*Cards cataloged: 18 (individual card pages in [DOCs/cards/](cards/))*
+*Cards cataloged: 19 (individual card pages in [DOCs/cards/](cards/))*
