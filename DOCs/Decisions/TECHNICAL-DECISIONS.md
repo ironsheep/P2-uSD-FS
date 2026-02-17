@@ -384,10 +384,12 @@ See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` for full implementation plan.
 
 ---
 
-## TD-003: Streamer Not Applicable for SPI
+## TD-003: Streamer Not Applicable for SPI (SUPERSEDED)
 
 **Date**: 2026-01-17
-**Status**: DECIDED - Streamer not useful for SPI serialization
+**Status**: SUPERSEDED — Streamer IS used for bulk sector reads/writes (see TD-006)
+
+> **Note (2026-02-16):** This decision was made before the streamer was successfully applied to 1-pin SPI transfers using STREAM_RX_BASE ($C081_0000) and STREAM_TX_BASE ($8081_0000) modes with NCO-based bit timing. The streamer now handles all 512-byte sector data transfers, achieving 4-5x throughput vs. byte-at-a-time smart pin transfers. The original analysis below was incorrect about the streamer's capability for single-pin serial work.
 
 ### Background
 
@@ -751,9 +753,126 @@ See `DOCs/Plans/PHASE1-SMARTPIN-SPI.md` Tasks 1.8-1.10 for detailed implementati
 
 ---
 
-## TD-006: (Reserved for next decision)
+## TD-006: CRC Bytes Handled Separately from Streamer
+
+**Date**: 2026-02-16
+**Status**: DECIDED
+
+### Background
+
+The P2 streamer handles bulk sector data transfers (512 bytes = 4096 bits) for both reads and writes. Each SD sector transfer is followed by a 2-byte CRC-16. The question: should the streamer transfer 514 bytes (data + CRC) or 512 bytes (data only) with CRC handled separately?
+
+### Current Implementation
+
+The streamer transfers exactly **512 bytes** (4096 bits). After the streamer completes:
+
+1. Smart pin is re-enabled (wrpin/wxpin/pinh)
+2. CRC bytes are read/written via `sp_transfer_8()` (byte-at-a-time smart pin)
+
+**Read sequence:**
+```
+[streamer: 512 bytes via STREAM_RX_BASE] → [re-enable smart pin] → [sp_transfer_8 x 2 for CRC]
+```
+
+**Write sequence:**
+```
+[streamer: 512 bytes via STREAM_TX_BASE] → [re-enable smart pin] → [sp_transfer_8 x 2 for CRC]
+```
+
+### Performance Impact
+
+At 25 MHz SPI:
+- 512-byte streamer transfer: ~328 microseconds
+- 2-byte CRC via sp_transfer_8: ~640 nanoseconds (~0.2% overhead)
+- Pin mode switching (pinclear/wrpin/wxpin/pinh): negligible (few sysclocks)
+
+Total overhead of separate CRC handling: **< 0.5%** of sector transfer time.
+
+### Decision
+
+**Handle CRC bytes separately from the streamer.**
+
+**Rationale:**
+1. **Negligible performance cost** — 0.2% overhead is immaterial
+2. **Code clarity** — CRC bytes are logically distinct from sector data; separate handling makes the protocol visible in code
+3. **CRC validation** — Received CRC must be compared against calculated CRC; having the bytes in known variables (not buried at offset 512-513 of a buffer) simplifies validation logic
+4. **Buffer management** — Sector buffers are exactly 512 bytes; adding 2 CRC bytes would require 514-byte buffers or separate extraction
+5. **Smart pin already needed** — After streamer completes, smart pin must be re-enabled anyway for the data response token (writes) or CMD13 (reads); CRC transfer fits naturally in this transition
+
+### Alternative Considered
+
+Streamer transfers 514 bytes (512 data + 2 CRC):
+- Would save pin mode transition but adds buffer complexity
+- CRC bytes would need extraction from buffer end
+- Buffer size would need to be 514+ bytes or use separate overflow area
+- Marginal gain not worth the complexity
+
+---
+
+## TD-007: Streamer and Smart Pin Coexistence on MOSI
+
+**Date**: 2026-02-16
+**Status**: DECIDED — pinclear/rebuild cycle is REQUIRED
+
+### Background
+
+The MOSI pin serves two roles in the SD card driver:
+1. **Smart pin** (`P_SYNC_TX`, 8-bit start-stop mode) for byte-at-a-time transfers: commands, tokens, CRC bytes
+2. **Streamer target** (`STREAM_TX_BASE`, NCO-driven) for bulk 512-byte sector data
+
+Every writeSector/writeSectors call must transition between these two modes:
+```
+sp_transfer_8($FE/$FC)   ← smart pin sends data token
+pinclear(_mosi)           ← tear down smart pin (WRPIN=0, DIR=0)
+pinl(_mosi)               ← drive low (DIR=1, output mode)
+[streamer xinit/waitxfi]  ← streamer drives MOSI
+wrpin(spi_tx_mode)        ← rebuild smart pin (P_SYNC_TX | P_OE | P_PLUS2_B)
+wxpin(%1_00111)           ← 8-bit start-stop mode
+pinh(_mosi)               ← DIRH enable smart pin
+sp_transfer_8(crc_hi)    ← smart pin sends CRC
+```
+
+### Hardware Findings (from P2 Chip Designer)
+
+**1. Streamer and smart pin outputs are OR'd on the physical pin.**
+
+This means the inactive source MUST output zero, or it will corrupt the active source's data.
+
+**2. P_SYNC_TX idle output is HIGH (not zero).**
+
+Experimentally verified: removing the pinclear/rebuild cycle produced all-`$FE` readback (the data start token value OR'd with everything). The smart pin's idle state after completing its 8-bit transfer is 1 (high), consistent with start-stop protocol idle = mark state.
+
+**3. DIRL does not help — it disables pin output entirely.**
+
+Experimentally verified: using DIRL before streamer and DIRH after produced all-`$00` readback. With DIR=0, the pin pad output driver is off — the streamer cannot drive the physical pin. The card sees no data.
+
+**4. SCK (P_TRANSITION) is safe — counted transitions, idle between bursts.**
+
+The clock is driven by `wypin(count, sck)` with an exact transition count. After the requested transitions complete, the clock goes idle LOW. During the pinclear/rebuild cycle on MOSI, no clock edges are generated. Confirmed safe by chip designer.
+
+### Decision
+
+**The pinclear/rebuild cycle is REQUIRED.** There is no way to avoid it given the OR'd output architecture and P_SYNC_TX's high idle state.
+
+The correct sequence for each streamer TX burst:
+1. `pinclear(_mosi)` — clear smart pin mode (WRPIN=0), sets DIR=0, zeroes pin output
+2. `pinl(_mosi)` — DRVL sets DIR=1 and OUT=0, pin is output driven low
+3. `xinit/wypin/waitxfi` — streamer drives MOSI with no smart pin interference
+4. `wrpin/wxpin/pinh` — rebuild smart pin with identical config every time
+
+### Remaining Investigation: SanDisk Industrial 1-Bit Shift
+
+The pinclear/rebuild cycle works correctly on Gigastone cards (250/250 tests pass). On SanDisk Industrial, the 4th sequential CMD24 write shows a systematic 1-bit right-shift. This is a separate issue from the mode coexistence problem — the pinclear/rebuild is necessary and correct, but something about the timing-sensitive SanDisk Industrial's response to the pin state transition still needs investigation.
+
+Symptoms: `$A3→$D1`, `$D0→$E8`, `DEADBEEF→EF56DF77`, `$55AA→$2AD5`.
+
+**Note:** readSector uses the same `pinclear(_miso)` / `pinf(_miso)` pattern for MISO before the streamer RX. This works correctly on all cards tested.
+
+---
+
+## TD-008: (Reserved for next decision)
 
 ---
 
 *Document created: 2026-01-17*
-*Last updated: 2026-01-21*
+*Last updated: 2026-02-16*

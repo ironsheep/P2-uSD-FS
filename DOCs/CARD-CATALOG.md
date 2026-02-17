@@ -273,8 +273,8 @@ Class 10, U1, V10, SPI 25 MHz  [formatted by P2FMTER]
 
 **Gigastone "High Endurance" 16GB SDHC MLC** — [gigastone-sd16g-16gb.md](cards/gigastone-sd16g-16gb.md)
 ```
-Gigastone SD16G SDHC 14GB [FAT32] SD 3.x rev2.0 SN:000003FB 2025/02
-Class 10, U1, V10, SPI 25 MHz
+Budget OEM SD16G SDHC 14GB [FAT32] SD 3.x rev2.0 SN:000003FB 2025/02
+Class 10, U1, V10, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 **Kingston 8GB SDHC** — [kingston-sd8gb-8gb.md](cards/kingston-sd8gb-8gb.md)

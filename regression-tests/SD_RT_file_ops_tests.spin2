@@ -34,8 +34,9 @@ CON
      E_NOT_A_FILE      = -42
      E_NOT_A_DIR       = -43
 
-'' Enable raw sector access for diagnostic tests
+'' Enable raw sector access and debug methods for diagnostic tests
 #PRAGMA EXPORTDEF SD_INCLUDE_RAW
+#PRAGMA EXPORTDEF SD_INCLUDE_DEBUG
 
 OBJ
     sd    : "SD_card_driver"

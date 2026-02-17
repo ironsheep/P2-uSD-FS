@@ -198,6 +198,9 @@ CON '' CRC-16-CCITT configuration (using P2 GETCRC instruction)
   CRC_POLY_REFLECTED = $8408    ' CRC-16-CCITT in LSB-first (reflected) form
   CRC_BASE_512       = $2C68    ' GETCRC of 512 zero bytes with poly $8408
 
+CON '' CRC retry configuration
+  MAX_READ_CRC_RETRIES = 3       ' Number of read retries on CRC mismatch (industry standard)
+
 CON '' SD card command codes and tokens for multi-block operations
   ' ═══════════════════════════════════════════════════════════════════════════
   ' SD SPI Commands for multi-block operations (reference: SD Physical Layer Spec)
@@ -397,7 +400,19 @@ DAT '' singleton control - SHARED across all object instances
   diag_sent_crc      WORD    0          ' CRC-16 sent with write data
   diag_crc_matches   LONG    0          ' Count of CRC matches (reads)
   diag_crc_mismatches LONG   0          ' Count of CRC mismatches (reads)
+  diag_crc_retries   LONG    0          ' Count of CRC retry attempts
   diag_crc_enabled   BYTE    1          ' CRC validation enabled (1=on, 0=off)
+
+  ' ═══════════════════════════════════════════════════════════════════════
+  ' WRITE DIAGNOSTICS (set by writeSector, readable from any cog)
+  ' Codes: 0=not called, 1=CMD24 fatal, 2=data-response timeout,
+  '        3=data CRC reject, 4=data write-err reject, 5=data unknown reject,
+  '        6=busy timeout, 7=success
+  ' ═══════════════════════════════════════════════════════════════════════
+  diag_write_result  LONG    0          ' Outcome code of last writeSector call
+  diag_write_r1      LONG    0          ' CMD24 R1 response byte
+  diag_write_dresp   LONG    0          ' Data response token from card
+  diag_write_sector  LONG    0          ' Sector number attempted
 
   ' ═══════════════════════════════════════════════════════════════════════
   ' BUFFERS (must be in DAT for worker cog access)
@@ -565,6 +580,14 @@ PUB getCRCMismatchCount() : count
 
   return diag_crc_mismatches
 
+PUB getCRCRetryCount() : count
+'' Get count of CRC retry attempts - returns total number of read retries triggered by CRC mismatches.
+'' Non-zero indicates transient bus errors were recovered.
+''
+'' @returns count - Total CRC retry attempts across all sector reads
+
+  return diag_crc_retries
+
 PUB setCRCValidation(enabled)
 '' Enable/disable CRC validation for sector reads.
 '' When enabled, each sector read validates CRC and updates match/mismatch counts.
@@ -572,6 +595,22 @@ PUB setCRCValidation(enabled)
 '' @param enabled - TRUE (non-zero) enables CRC checking, FALSE (0) disables
 
   diag_crc_enabled := (enabled <> 0) ? 1 : 0
+
+PUB getWriteDiag() : result_code, r1_resp, data_resp, sector_num
+'' Get diagnostic info from last writeSector call.
+'' Codes: 0=not called, 1=CMD24 fatal, 2=data-response timeout,
+''        3=data CRC reject, 4=data write-err, 5=data unknown reject,
+''        6=busy timeout, 7=success
+''
+'' @returns result_code - Outcome code
+'' @returns r1_resp - CMD24 R1 response byte
+'' @returns data_resp - Data response token
+'' @returns sector_num - Sector number attempted
+
+  result_code := diag_write_result
+  r1_resp := diag_write_r1
+  data_resp := diag_write_dresp
+  sector_num := diag_write_sector
 #ENDIF
 
 PRI set_error(code) : code_out
@@ -713,6 +752,7 @@ PRI fs_worker() | cur_cmd
 
       CMD_WRITE_SECTOR_RAW:
         bytemove(@buf, pb_param1, 512)
+        debug("  [WRITE_RAW] after bytemove: buf[0..3]=$", uhex_byte_(buf[0]), " $", uhex_byte_(buf[1]), " $", uhex_byte_(buf[2]), " $", uhex_byte_(buf[3]), " sig=$", uhex_word_(WORD[@buf + $1FE]))
         if writeSector(pb_param0, BUF_DATA)                                     ' writeSector returns true on success
           pb_status := SUCCESS
         else
@@ -1058,13 +1098,17 @@ PRI do_mount() : result | reserved, pPart, pVBR, pFSI
 
   ' Card is initialized (either fresh or from RAW mode)
   debug("  [do_mount] Reading MBR sector 0...")
-  readSector(0, BUF_DATA)                                                       '  read master boot record
+  if readSector(0, BUF_DATA) < 0                                                '  read master boot record
+    debug("  [do_mount] FAIL: MBR read error")
+    return E_IO_ERROR
   pPart := @buf + $1BE                                                          '  overlay partition entry 1
   debug("  [do_mount] MBR type code: ", uhex_(partType(pPart)))
   if partType(pPart) == $0B or partType(pPart) == $0C                           '  $0B and $0C specify FAT32
     vbr_sec := partLbaStart(pPart)                                              '  volume boot record sector number
     debug("  [do_mount] FAT32 detected, VBR at sector ", udec(vbr_sec))
-    readSector(vbr_sec, BUF_DATA)                                               '  read volume boot record
+    if readSector(vbr_sec, BUF_DATA) < 0                                        '  read volume boot record
+      debug("  [do_mount] FAIL: VBR read error")
+      return E_IO_ERROR
   else
     debug("  [do_mount] FAIL: Not FAT32 (type=", uhex_(partType(pPart)), ")")
     return E_NOT_FAT32
@@ -1097,16 +1141,20 @@ PRI do_mount() : result | reserved, pPart, pVBR, pFSI
 
   ' Read FSInfo sector for free cluster count and next-free hint
   if fsinfo_sec > 0 and fsinfo_sec < reserved
-    readSector(vbr_sec + fsinfo_sec, BUF_DATA)
-    pFSI := @buf                                                                 '  overlay FSInfo
-    if fsiLeadSig(pFSI) == $4161_5252 and fsiStructSig(pFSI) == $6141_7272
-      fsi_free_count := fsiFreeClusters(pFSI)
-      fsi_nxt_free := fsiNextFreeHint(pFSI)
-      debug("  [do_mount] FSInfo: free_count=", udec(fsi_free_count), " nxt_free=", udec(fsi_nxt_free))
-    else
+    if readSector(vbr_sec + fsinfo_sec, BUF_DATA) < 0
+      debug("  [do_mount] FSInfo read failed, continuing without free count")
       fsi_free_count := $FFFF_FFFF
       fsi_nxt_free := $FFFF_FFFF
-      debug("  [do_mount] FSInfo: invalid signatures, ignoring")
+    else
+      pFSI := @buf                                                               '  overlay FSInfo
+      if fsiLeadSig(pFSI) == $4161_5252 and fsiStructSig(pFSI) == $6141_7272
+        fsi_free_count := fsiFreeClusters(pFSI)
+        fsi_nxt_free := fsiNextFreeHint(pFSI)
+        debug("  [do_mount] FSInfo: free_count=", udec(fsi_free_count), " nxt_free=", udec(fsi_nxt_free))
+      else
+        fsi_free_count := $FFFF_FFFF
+        fsi_nxt_free := $FFFF_FFFF
+        debug("  [do_mount] FSInfo: invalid signatures, ignoring")
   else
     fsi_free_count := $FFFF_FFFF
     fsi_nxt_free := $FFFF_FFFF
@@ -1122,7 +1170,9 @@ PRI do_mount() : result | reserved, pPart, pVBR, pFSI
   ' after mount to initialize internal state. Without this, the first multi-block
   ' write followed by multi-block read can return corrupted data.
   ' A single-sector multi-block read (count=1) exercises the CMD18 path.
-  readSectors(0, 1, @buf)
+  if readSectors(0, 1, @buf) < 1
+    debug("  [do_mount] FAIL: warmup read error — SPI unreliable")
+    return E_IO_ERROR
   sec_in_buf := -1                                                              ' Clear cache
 #ENDIF
 
@@ -1158,7 +1208,9 @@ PRI do_init_card_only() : result
   if initCard()
     debug("  [do_init_card_only] Card initialized successfully")
     ' WORKAROUND: First streamer operation after card init needs warmup
-    readSector(0, BUF_DATA)
+    if readSector(0, BUF_DATA) < 0
+      debug("  [do_init_card_only] FAIL: warmup read error")
+      return E_IO_ERROR
     sec_in_buf := -1                                                            ' Clear cache for user's first read
     driver_mode := MODE_RAW
     debug("  [do_init_card_only] SUCCESS, mode=RAW")
@@ -1294,11 +1346,14 @@ PRI do_close() : result
 
   ' Update directory entry on disk
   if flags & (F_NEWDIR | F_NEWDATA)
-    readSector(entry_address >> 9, BUF_DIR)
-    bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
-    if not writeSector(entry_address >> 9, BUF_DIR)
-      debug("  [do_close] Directory write FAILED for sector ", udec_(entry_address >> 9))
+    if readSector(entry_address >> 9, BUF_DIR) < 0
+      debug("  [do_close] Directory read FAILED for sector ", udec_(entry_address >> 9))
       result := E_IO_ERROR
+    else
+      bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
+      if not writeSector(entry_address >> 9, BUF_DIR)
+        debug("  [do_close] Directory write FAILED for sector ", udec_(entry_address >> 9))
+        result := E_IO_ERROR
 
   bytefill(@entry_buffer, 0, 32)
   flags := flags & !F_NEWDATA & !F_NEWDIR & !F_OPEN
@@ -1471,9 +1526,15 @@ PRI do_create(p_path) : handle | temp, first_cluster
   dirEntSetFileSize(@entry_buffer, 0)
 
   ' Write directory entry to disk
-  readSector(entry_address >> 9, BUF_DIR)
+  if readSector(entry_address >> 9, BUF_DIR) < 0
+    debug("  [do_create] Directory read FAILED for sector ", udec_(entry_address >> 9))
+    freeHandle(handle)
+    return E_IO_ERROR
   bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
-  writeSector(entry_address >> 9, BUF_DIR)
+  if not writeSector(entry_address >> 9, BUF_DIR)
+    debug("  [do_create] Directory write FAILED for sector ", udec_(entry_address >> 9))
+    freeHandle(handle)
+    return E_IO_ERROR
 
   ' Populate handle state
   h_start_clus[handle] := first_cluster
@@ -1517,11 +1578,14 @@ PRI do_close_h(handle) : result | p_buf
 
   ' If opened for write, update directory entry with final size
   if h_flags[handle] & HF_WRITE
-    readSector(h_dir_sector[handle], BUF_DIR)
-    long[@dir_buf + h_dir_offset[handle] + 28] := h_size[handle]                  ' Update size field
-    if not writeSector(h_dir_sector[handle], BUF_DIR)
-      debug("  [do_close_h] Directory write FAILED for sector ", udec_(h_dir_sector[handle]))
+    if readSector(h_dir_sector[handle], BUF_DIR) < 0
+      debug("  [do_close_h] Directory read FAILED for sector ", udec_(h_dir_sector[handle]))
       result := E_IO_ERROR
+    else
+      long[@dir_buf + h_dir_offset[handle] + 28] := h_size[handle]                ' Update size field
+      if not writeSector(h_dir_sector[handle], BUF_DIR)
+        debug("  [do_close_h] Directory write FAILED for sector ", udec_(h_dir_sector[handle]))
+        result := E_IO_ERROR
 
   ' Free the handle
   freeHandle(handle)
@@ -1566,7 +1630,9 @@ PRI do_read_h(handle, p_buffer, count) : bytes_read | p_hbuf, available, offset,
     ' Ensure current sector is loaded into handle's buffer
     if h_buf_sector[handle] <> h_sector[handle]
       ' Load sector into shared buffer, then copy to handle's buffer
-      readSector(h_sector[handle], BUF_DATA)
+      if readSector(h_sector[handle], BUF_DATA) < 0
+        debug("  [do_read_h] Sector read FAILED for sector ", udec_(h_sector[handle]))
+        return bytes_read                                                              ' Return partial read count
       bytemove(p_hbuf, @buf, 512)
       h_buf_sector[handle] := h_sector[handle]
 
@@ -1590,7 +1656,9 @@ PRI do_read_h(handle, p_buffer, count) : bytes_read | p_hbuf, available, offset,
       if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
         ' Follow FAT chain to next cluster
         cluster := h_cluster[handle]
-        readSector(cluster >> 7 + fat_sec, BUF_FAT)
+        if readSector(cluster >> 7 + fat_sec, BUF_FAT) < 0
+          debug("  [do_read_h] FAT read FAILED for cluster ", udec_(cluster))
+          return bytes_read                                                            ' Return partial read count
         fat_addr := @fat_buf + ((cluster << 2) & 511)
         next_cluster := long[fat_addr]
         if next_cluster >= $0FFF_FFF8
@@ -1652,7 +1720,9 @@ PRI do_write_h(handle, p_buffer, count) : bytes_written | p_hbuf, offset, to_wri
       ' Load sector (or zero-fill if writing past end)
       if h_position[handle] < h_size[handle]
         ' Within existing file - load sector
-        readSector(h_sector[handle], BUF_DATA)
+        if readSector(h_sector[handle], BUF_DATA) < 0
+          debug("  [do_write_h] Sector read FAILED for sector ", udec_(h_sector[handle]))
+          return bytes_written                                                         ' Return partial write count
         bytemove(p_hbuf, @buf, 512)
       else
         ' Past end of file - zero-fill buffer
@@ -1748,7 +1818,9 @@ PRI do_seek_h(handle, position) : result | target_cluster_idx, cluster, i, fat_a
   if target_cluster_idx > 0
     repeat i from 0 to target_cluster_idx - 1
       ' Read FAT entry for current cluster
-      readSector(cluster >> 7 + fat_sec, BUF_FAT)
+      if readSector(cluster >> 7 + fat_sec, BUF_FAT) < 0
+        debug("  [do_seek_h] FAT read FAILED for cluster ", udec_(cluster))
+        return E_IO_ERROR
       fat_addr := @fat_buf + ((cluster << 2) & 511)
       cluster := long[fat_addr]
       if cluster >= $0FFF_FFF8
@@ -1796,7 +1868,9 @@ PRI do_sync_h(handle) : result | p_buf
   ' If opened for write, update directory entry with current size
   if h_flags[handle] & HF_WRITE
     debug("  [do_sync_h] Updating directory: size=", udec_(h_size[handle]))
-    readSector(h_dir_sector[handle], BUF_DIR)
+    if readSector(h_dir_sector[handle], BUF_DIR) < 0
+      debug("  [do_sync_h] Directory read FAILED for sector ", udec_(h_dir_sector[handle]))
+      return E_IO_ERROR
     long[@dir_buf + h_dir_offset[handle] + 28] := h_size[handle]
     writeSector(h_dir_sector[handle], BUF_DIR)
 
@@ -1901,7 +1975,9 @@ PRI do_read_dir_h(handle) : result | p_hbuf, offset, char, attrib, cluster, fat_
       if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
         ' Follow FAT chain to next cluster
         cluster := h_cluster[handle]
-        readSector(cluster >> 7 + fat_sec, BUF_FAT)
+        if readSector(cluster >> 7 + fat_sec, BUF_FAT) < 0
+          debug("  [do_read_dir_h] FAT read FAILED for cluster ", udec_(cluster))
+          return E_IO_ERROR
         fat_addr := @fat_buf + ((cluster << 2) & 511)
         next_cluster := long[fat_addr]
         if next_cluster >= $0FFF_FFF8
@@ -1912,7 +1988,9 @@ PRI do_read_dir_h(handle) : result | p_hbuf, offset, char, attrib, cluster, fat_
 
     ' Load current sector into handle's buffer if not cached
     if h_buf_sector[handle] <> h_sector[handle]
-      readSector(h_sector[handle], BUF_DATA)
+      if readSector(h_sector[handle], BUF_DATA) < 0
+        debug("  [do_read_dir_h] Sector read FAILED for sector ", udec_(h_sector[handle]))
+        return E_IO_ERROR
       bytemove(p_hbuf, @buf, 512)
       h_buf_sector[handle] := h_sector[handle]
 
@@ -1976,7 +2054,9 @@ PRI do_read(p_buffer, count) : bytes_read | delta, sectors_to_boundary, full_sec
 
     ' Handle partial first sector (if not at sector boundary)
     if (file_idx & 511) and count > 0
-      readSector(n_sec, BUF_DATA)
+      if readSector(n_sec, BUF_DATA) < 0
+        debug("  [do_read] Sector read FAILED for sector ", udec_(n_sec))
+        return 0
       delta := (512 - (file_idx & 511)) <# count
       bytemove(p_buffer, @buf + (file_idx & 511), delta)
       file_idx += delta
@@ -2010,7 +2090,9 @@ PRI do_read(p_buffer, count) : bytes_read | delta, sectors_to_boundary, full_sec
           quit                                                                  ' Error - exit loop
       else
         ' Single-sector read (for partial cluster or small reads)
-        readSector(n_sec, BUF_DATA)
+        if readSector(n_sec, BUF_DATA) < 0
+          debug("  [do_read] Sector read FAILED for sector ", udec_(n_sec))
+          return bytes_read                                                           ' Return partial read count
         bytemove(p_buffer, @buf, 512)
         file_idx += 512
         bytes_read += 512
@@ -2020,7 +2102,9 @@ PRI do_read(p_buffer, count) : bytes_read | delta, sectors_to_boundary, full_sec
 
     ' Handle partial last sector
     if count > 0
-      readSector(n_sec, BUF_DATA)
+      if readSector(n_sec, BUF_DATA) < 0
+        debug("  [do_read] Tail sector read FAILED for sector ", udec_(n_sec))
+        return bytes_read                                                             ' Return partial read count
       bytemove(p_buffer, @buf, count)
       file_idx += count
       bytes_read += count
@@ -2126,7 +2210,9 @@ PRI do_seek(pos) : result | cluster
     cluster := long[readFat(cluster)]
   n_sec := clus2sec(cluster)
   n_sec += (pos / 512) // sec_per_clus
-  readSector(n_sec, BUF_DATA)
+  if readSector(n_sec, BUF_DATA) < 0
+    debug("  [do_seek] Sector read FAILED for sector ", udec_(n_sec))
+    return E_IO_ERROR
   file_idx := pos
   return SUCCESS
 
@@ -2179,7 +2265,9 @@ PRI do_newdir(name_ptr) : result | temp
   dirEntSetModifyStamp(@entry_buffer, date_stamp)
   dirEntSetFileSize(@entry_buffer, 0)
 
-  readSector(entry_address >> 9, BUF_DIR)
+  if readSector(entry_address >> 9, BUF_DIR) < 0
+    debug("  [do_newdir] Directory read FAILED for sector ", udec_(entry_address >> 9))
+    return E_IO_ERROR
   debug("  [do_newdir] Before write: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
   bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
   debug("  [do_newdir] After copy: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
@@ -2187,8 +2275,10 @@ PRI do_newdir(name_ptr) : result | temp
   writeSector(entry_address >> 9, BUF_DIR)
   ' Verify write by reading back
   dir_sec_in_buf := -1                                                          ' Force re-read
-  readSector(entry_address >> 9, BUF_DIR)
-  debug("  [do_newdir] After verify read: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
+  if readSector(entry_address >> 9, BUF_DIR) < 0
+    debug("  [do_newdir] Verify read FAILED for sector ", udec_(entry_address >> 9))
+  else
+    debug("  [do_newdir] After verify read: dir_buf[", udec_(entry_address & 511), "]=[", lstr_(@dir_buf + (entry_address & 511), 11), "]")
 
   bytefill(@dir_buf, 0, 512)
   bytemove(@dir_buf[0], string(".          "), 11)
@@ -2214,8 +2304,10 @@ PRI do_newdir(name_ptr) : result | temp
   dir_sec_in_buf := n_sec
   ' Verify the ./.. write
   dir_sec_in_buf := -1
-  readSector(n_sec, BUF_DIR)
-  debug("  [do_newdir] After ./.. verify: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
+  if readSector(n_sec, BUF_DIR) < 0
+    debug("  [do_newdir] Verify ./.. read FAILED for sector ", udec_(n_sec))
+  else
+    debug("  [do_newdir] After ./.. verify: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
   return SUCCESS
 
 PRI do_delete(name_ptr) : result | cluster, p_cluster, fat_sector, loop_count
@@ -2284,7 +2376,9 @@ PRI do_freespace() : result | cluster
     return 0
   n_sec := fat_sec
   repeat sec_per_fat
-    readSector(n_sec++, BUF_FAT)
+    if readSector(n_sec++, BUF_FAT) < 0
+      debug("  [do_freespace] FAT read FAILED, returning partial count")
+      return result
     repeat cluster from 0 to 127
       if long[@fat_buf + cluster << 2] == 0
         result++
@@ -2297,9 +2391,11 @@ PRI do_sync()
     writeSector(n_sec, BUF_DATA)
     flags := flags & !F_NEWDATA
   if flags & F_NEWDIR
-    readSector(entry_address >> 9, BUF_DIR)
-    bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
-    writeSector(entry_address >> 9, BUF_DIR)
+    if readSector(entry_address >> 9, BUF_DIR) < 0
+      debug("  [do_sync] Directory read FAILED for sector ", udec_(entry_address >> 9))
+    else
+      bytemove(@dir_buf + (entry_address & 511), @entry_buffer, 32)
+      writeSector(entry_address >> 9, BUF_DIR)
     flags := flags & !F_NEWDIR
 
 PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[8], p_buf
@@ -2332,7 +2428,9 @@ PRI do_rename(old_name, new_name) : result | bookmark, temp_sec, i, saved_entry[
     if searchDirectory(new_name) == 0                                           ' Verify new name doesn't exist
       debug("  [do_rename] New name doesn't exist, proceeding")
       bytemove(@entry_buffer, @saved_entry, 32)                                ' Restore complete entry
-      readSector(bookmark >> 9, BUF_DIR)
+      if readSector(bookmark >> 9, BUF_DIR) < 0
+        debug("  [do_rename] Directory read FAILED for sector ", udec_(bookmark >> 9))
+        return E_IO_ERROR
       ' Parse new_name directly into buffer in 8.3 format
       p_buf := @dir_buf + (bookmark & 511)
       i := 0
@@ -2378,7 +2476,9 @@ PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3], pVBR
   debug("  [do_set_vol_label] new label=[", lstr_(@label_83, 11), "]")
 
   ' Step 1: Update BPB volume label (VBR sector)
-  readSector(vbr_sec, BUF_DATA)
+  if readSector(vbr_sec, BUF_DATA) < 0
+    debug("  [do_set_vol_label] FAIL: read VBR")
+    return E_IO_ERROR
   pVBR := @buf
   bytemove(vbrVolLabelAddr(pVBR), @label_83, 11)
   if writeSector(vbr_sec, BUF_DATA) == 0
@@ -2387,7 +2487,9 @@ PRI do_set_vol_label(p_label) : result | i, ch, p_entry, label_83[3], pVBR
 
   ' Step 2: Find and update volume label entry in root directory
   n_sec := root_sec
-  readSector(n_sec, BUF_DIR)
+  if readSector(n_sec, BUF_DIR) < 0
+    debug("  [do_set_vol_label] FAIL: read root dir")
+    return E_IO_ERROR
   i := 0
   repeat
     p_entry := @dir_buf + (i & 511)
@@ -2430,7 +2532,9 @@ PRI do_movefile(name_ptr, dest_folder) : result | bookmark, p_temp, temp_sec
       if do_newfile(p_temp) == SUCCESS
         debug("  [do_movefile] newfile OK, new entry_address=", uhex_(entry_address))
         debug("  [do_movefile] Reading sector ", udec_(bookmark >> 9), " (dir_sec_in_buf=", sdec_(dir_sec_in_buf), ")")
-        readSector(bookmark >> 9, BUF_DIR)
+        if readSector(bookmark >> 9, BUF_DIR) < 0
+          debug("  [do_movefile] Directory read FAILED for sector ", udec_(bookmark >> 9))
+          return E_IO_ERROR
         debug("  [do_movefile] After read: dir_buf[128]=[", lstr_(@dir_buf + 128, 11), "] dir_buf[", udec_(bookmark & 511), "]=[", lstr_(@dir_buf + (bookmark & 511), 11), "]")
         bytemove(@entry_buffer, @dir_buf + (bookmark & 511), 32)
         debug("  [do_movefile] Copied entry: [", lstr_(@entry_buffer, 11), "]")
@@ -2459,7 +2563,9 @@ PRI do_readdir(entry_num) : result | idx, char, attrib
 
   idx := 0
   n_sec := cog_dir_sec[pb_caller]
-  readSector(n_sec, BUF_DIR)
+  if readSector(n_sec, BUF_DIR) < 0
+    debug("  [do_readdir] Directory read FAILED for sector ", udec_(n_sec))
+    return E_IO_ERROR
 
   repeat until entry_num == -1
     char := byte[@dir_buf + (idx & 511)]
@@ -2820,7 +2926,9 @@ PUB readVBRRaw(p_buf) : result
     debug("  [readVBRRaw] FAILED: Card not mounted")
     return false
   sec_in_buf := -1                                                              '  force re-read
-  readSector(vbr_sec, BUF_DATA)
+  if readSector(vbr_sec, BUF_DATA) < 0
+    debug("  [readVBRRaw] FAILED: VBR read error")
+    return false
   bytemove(p_buf, @buf, 512)
   debug("  [readVBRRaw] VBR read from sector ", udec(vbr_sec))
   return true
@@ -3002,10 +3110,12 @@ PRI parseTimeouts(p_csd) | csd_ver, taac, nsac, r2w_factor, read_timeout_ns, tim
   csd_ver := byte[p_csd] >> 6                                                   ' CSD_STRUCTURE in bits [7:6] of byte 0
 
   if csd_ver == 1
-    ' CSD Version 2.0 (SDHC/SDXC): Use fixed timeouts per SD Physical Layer spec
+    ' CSD Version 2.0 (SDHC/SDXC): Use generous timeouts
+    ' SD spec says 250ms max for writes, but real cards (especially large SDXC)
+    ' can exceed this on cold writes or sector 0. Use 500ms for reliability.
     card_read_timeout_ms := 100                                                 ' 100ms read timeout
-    card_write_timeout_ms := 250                                                ' 250ms write timeout
-    debug("  [parseTimeouts] SDHC/SDXC: read=", udec_(card_read_timeout_ms), "ms, write=", udec_(card_write_timeout_ms), "ms (fixed per spec)")
+    card_write_timeout_ms := 500                                                ' 500ms write timeout (2x spec for margin)
+    debug("  [parseTimeouts] SDHC/SDXC: read=", udec_(card_read_timeout_ms), "ms, write=", udec_(card_write_timeout_ms), "ms")
   else
     ' CSD Version 1.0 (SDSC): Calculate from TAAC, NSAC, R2W_FACTOR
     taac := byte[p_csd + 1]                                                     ' Data read access time-1 (TAAC)
@@ -3261,13 +3371,17 @@ PUB attemptHighSpeed() : hs_ok | test_buf[128], verify_buf[128], i, mismatch
 
   ' Verify by reading a sector, writing it back, reading again
   ' Use root directory sector as test (always valid after mount)
-  readSector(root_sec, BUF_DATA)
+  if readSector(root_sec, BUF_DATA) < 0
+    debug("  [attemptHighSpeed] Read FAILED at 50 MHz")
+    return false
   longmove(@test_buf, @buf, 128)                                                ' Copy 512 bytes
 
   writeSector(root_sec, BUF_DATA)                                               ' Write same data back
   bytefill(@buf, $AA, 512)                                                      ' Clear buffer with pattern
 
-  readSector(root_sec, BUF_DATA)                                                ' Read again
+  if readSector(root_sec, BUF_DATA) < 0                                         ' Read again
+    debug("  [attemptHighSpeed] Verify read FAILED at 50 MHz")
+    return false
   longmove(@verify_buf, @buf, 128)
 
   ' Compare
@@ -3817,7 +3931,9 @@ PRI updateFSInfo() : result | pFSI
   ' Use cached free count (tracked incrementally, no FAT scan needed)
 
   ' Read FSInfo sector
-  readSector(vbr_sec + fsinfo_sec, BUF_DATA)
+  if readSector(vbr_sec + fsinfo_sec, BUF_DATA) < 0
+    debug("  [updateFSInfo] FSInfo read FAILED")
+    return false
   pFSI := @buf                                                                  '  overlay FSInfo
 
   ' Verify signatures before writing
@@ -3849,7 +3965,9 @@ PRI countFreeClusters() : count | fat_idx, entry
     if fat_idx & 511 == 0                                                       '  if at sector boundary
       if fat_idx >> 9 >= sec_per_fat                                            '  if past end of FAT
         quit
-      readSector(fat_sec + fat_idx >> 9, BUF_FAT)                               '  read next FAT sector
+      if readSector(fat_sec + fat_idx >> 9, BUF_FAT) < 0                         '  read next FAT sector
+        debug("  [countFreeClusters] FAT read FAILED, returning partial count")
+        return count
     entry := long[@fat_buf + (fat_idx & 511)]
     if (entry & $0FFF_FFFF) == 0                                                '  check only low 28 bits
       count++
@@ -4071,7 +4189,9 @@ PRI searchDirectory(name_ptr) : result | p_temp, p_entry, i, search_sec
 
     i := 0
     debug("  [searchDir] Starting search at n_sec=", udec_(n_sec), " for [", lstr_(@entry_buffer, 11), "]")
-    readSector(n_sec, BUF_DIR)                                                  '  read 1st sector of directory
+    if readSector(n_sec, BUF_DIR) < 0                                           '  read 1st sector of directory
+      debug("  [searchDir] Directory read FAILED for sector ", udec_(n_sec))
+      return false
     debug("  [searchDir] After read: dir_buf[0]=[", lstr_(@dir_buf, 11), "] dir_buf[32]=[", lstr_(@dir_buf + 32, 11), "]")
     entry_address := 0
     repeat
@@ -4160,7 +4280,9 @@ PUB debugDumpRootDir() | sec, i, p_entry
 
   sec := root_sec
   debug("  [debugDumpRootDir] root_sec=", udec_(sec), " cog_dir_sec=", udec_(cog_dir_sec[COGID()]))
-  readSector(sec, BUF_DIR)
+  if readSector(sec, BUF_DIR) < 0
+    debug("  [debugDumpRootDir] Read FAILED for sector ", udec_(sec))
+    return
   debug("  [debugDumpRootDir] Read sector ", udec_(sec), " into dir_buf")
   repeat i from 0 to 15                                                         ' First 16 entries
     p_entry := @dir_buf + (i * 32)
@@ -4306,7 +4428,9 @@ PRI readFat(cluster) : result | contents, p_contents
 ' @local contents - (unused)
 ' @local p_contents - (unused)
 
-  readSector((cluster >> 7 + fat_sec), BUF_FAT)                                 '  128 entries in each FAT sector
+  if readSector((cluster >> 7 + fat_sec), BUF_FAT) < 0                          '  128 entries in each FAT sector
+    debug("  [readFat] FAT read FAILED for cluster ", udec_(cluster))
+    return @fat_buf                                                              '  Return valid pointer but caller gets stale data
   result := @fat_buf + ((cluster << 2) & 511)
 
 PRI allocateCluster(cluster) : result | fat_idx, buf_idx, high_bits
@@ -4320,11 +4444,15 @@ PRI allocateCluster(cluster) : result | fat_idx, buf_idx, high_bits
 ' @local high_bits - Preserved high 4 bits of FAT entry
 
   fat_idx := 8                                                                  ' Start at cluster 2 (skip reserved 0,1)
-  readSector(fat_sec, BUF_FAT)                                                  ' Pre-load first FAT sector
+  if readSector(fat_sec, BUF_FAT) < 0                                           ' Pre-load first FAT sector
+    debug("  [allocateCluster] FAT pre-load FAILED")
+    return -1
   '   if cluster parameter <> 0, writes newly allocated cluster number in parameter cell
   repeat
     if fat_idx & 511 == 0 and fat_idx > 0                                       '  if at sector boundary (but not first iteration)
-      readSector(fat_sec + fat_idx >> 9, BUF_FAT)                               '   load next sector of FAT
+      if readSector(fat_sec + fat_idx >> 9, BUF_FAT) < 0                        '   load next sector of FAT
+        debug("  [allocateCluster] FAT scan read FAILED")
+        return -1
     buf_idx := fat_idx & 511
     result := long[@fat_buf + buf_idx]                                          '  read a cluster cell
     if (result & $0FFF_FFFF) == $0000_0000                                      '  if cluster cell is empty (check only low 28 bits)
@@ -4334,7 +4462,9 @@ PRI allocateCluster(cluster) : result | fat_idx, buf_idx, high_bits
       writeSector(fat_sec + result >> 7, BUF_FAT)                               '  write FAT1 sector
       writeSector(fat2_sec + result >> 7, BUF_FAT)                              '  write FAT2 sector (MIRROR)
       if cluster <> 0                                                           '  if allocateCluster was called with a non-zero cluster parameter
-        readSector(fat_sec + cluster >> 7, BUF_FAT)                             '   read FAT sector containing cluster cell
+        if readSector(fat_sec + cluster >> 7, BUF_FAT) < 0                     '   read FAT sector containing cluster cell
+          debug("  [allocateCluster] FAT chain-link read FAILED — cluster orphaned")
+          return -1
         buf_idx := (cluster << 2) & 511
         high_bits := long[@fat_buf + buf_idx] & $F000_0000                      '  preserve high 4 bits
         long[@fat_buf + buf_idx] := high_bits | (result & $0FFF_FFFF)           '  link to new cluster, preserve high bits
@@ -4368,7 +4498,9 @@ PRI readNextSector(buf_type) | cluster, address, contents, p_buf
   n_sec++
   if ((n_sec - cluster_offset) & (sec_per_clus - 1)) == 0                       '  if next sector is in a different cluster
     cluster := sec2clus(n_sec-1)                                                '   find current cluster number
-    readSector(cluster >> 7 + fat_sec, BUF_FAT)                                 '   read sector of FAT containing cluster number (128 cluster entries in each FAT sector)
+    if readSector(cluster >> 7 + fat_sec, BUF_FAT) < 0                          '   read sector of FAT containing cluster number (128 cluster entries in each FAT sector)
+      debug("  [readNextSector] FAT read FAILED for cluster ", udec_(cluster))
+      return
     address := @fat_buf + ((cluster << 2) & 511)                                '   find long within FAT buffer for current cluster
     contents := long[address]                                                   '   read contents to determine next cluster number
     if contents >= $0FFF_FFF8                                                   '   end-of-chain marker detected
@@ -4382,7 +4514,8 @@ PRI readNextSector(buf_type) | cluster, address, contents, p_buf
           bytefill(@buf, 0, 512)
       return                                                                    '    don't read invalid sector
     n_sec := clus2sec(contents)                                                 '   convert next cluster number into sector number
-  readSector(n_sec, buf_type)
+  if readSector(n_sec, buf_type) < 0
+    debug("  [readNextSector] Sector read FAILED for sector ", udec_(n_sec))
 
 PRI followFatChain() | cluster, address, contents
 ' Follow FAT chain to next cluster - for multi-sector reads.
@@ -4395,7 +4528,9 @@ PRI followFatChain() | cluster, address, contents
 ' @local contents - FAT entry contents (next cluster or end marker)
 
   cluster := sec2clus(n_sec - 1)                                                '  find cluster number of the sector we just finished reading
-  readSector(cluster >> 7 + fat_sec, BUF_FAT)                                   '  read sector of FAT containing cluster number
+  if readSector(cluster >> 7 + fat_sec, BUF_FAT) < 0                            '  read sector of FAT containing cluster number
+    debug("  [followFatChain] FAT read FAILED for cluster ", udec_(cluster))
+    return
   address := @fat_buf + ((cluster << 2) & 511)                                  '  find long within FAT buffer for current cluster
   contents := long[address]                                                     '  read contents to determine next cluster number
   if contents < $0FFF_FFF8                                                      '  if not end-of-chain marker
@@ -4917,7 +5052,7 @@ PRI cmd(op,parm) : result | t
   if op <> 17 and op <> 24 and op <> CMD18 and op <> CMD25 and op <> 55         '  keep cs asserted for sector read/write and application commands
     pinh(cs)                                                                    '  CS HIGH = deselected (standard active-LOW)
 
-PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf, align_delay, p_cache
+PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout, stream_mode, clk_count, xfrq, init_phase, p_buf, align_delay, p_cache, attempt
 ' Read a sector into buffer using P2 streamer - hardware DMA for bulk 512-byte transfer.
 ' Reference: flash_loader.spin2 pattern for SPI reads
 '
@@ -4963,114 +5098,117 @@ PRI readSector(sector, buf_type) : result | _sck, _miso, data, loop_ctr, timeout
   'debug("  [readSector] Reading sector ", udec_(sector), " type=", udec_(buf_type), " p_buf=", uhex_(p_buf))
   long[p_cache] := sector
 
-  ' Send CMD17 (READ_SINGLE_BLOCK)
-  cmd(17, sector << hcs)
-
-  ' Wait for start token ($FE) - use sp_transfer_8 for token polling
-  timeout := getct() + (clkfreq / 100) * card_read_timeout_ms                   ' CSD-based timeout with 10x margin
-  loop_ctr := 0
-  repeat
-    data := sp_transfer_8($FF)
-    loop_ctr++
-    if data == $FE
-      quit                                                                      ' Got start token
-    if data <> $FF
-      debug("  [readSector] ERROR: got $", uhex_byte_(data), " instead of $FF or $FE")
-      pinh(cs)
-      long[p_cache] := -1
-      return -1
-    if getct() - timeout > 0
-      debug("  [readSector] TIMEOUT waiting for start token")
-      pinh(cs)
-      long[p_cache] := -1
-      return -1
-
-  ' ════════════════════════════════════════════════════════════════════════════
-  ' STREAMER BULK TRANSFER: Receive 512 bytes from MISO to hub buffer
-  ' Pattern: SETXFRQ -> WRFAST -> WYPIN(clk) -> WAITX -> XINIT -> WAITXFI
-  ' CRITICAL: Must disable MISO smart pin before streamer capture!
-  ' ════════════════════════════════════════════════════════════════════════════
+  ' Pre-compute streamer constants (invariant across retries)
   _sck := sck
   _miso := miso
-  ' p_buf already set above based on buf_type
-
-  ' CRITICAL FIX: Disable MISO smart pin before streamer capture
-  ' The smart pin interferes with streamer's direct pin reading
-  ' Reference: flash_loader.spin2 does NOT configure smart pin on MISO during reads
-  ' Verified fix: 2026-01-23 in SD_streamer_lut_test.spin2
-  pinclear(_miso)                                                               ' Clear smart pin mode
-  pinf(_miso)                                                                   ' Float pin (input mode)
-  ' Mode word format: base_mode | (pin << 17) | bit_count
-  ' For 512 bytes: 512 * 8 = 4096 bits = $1000
   stream_mode := STREAM_RX_BASE | (_miso << 17) | (512 * 8)                     ' RX mode + MISO pin + bit count
   clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
-
-  ' Calculate streamer NCO frequency to match SPI clock
-  ' NCO adds xfrq to phase accumulator each sysclock; sample occurs on MSB 0->1 transition
-  ' Full SPI bit period = 2 * spi_period sysclocks
-  ' xfrq = $8000_0000 / (full_period) = $8000_0000 / (2 * spi_period) = $4000_0000 / spi_period
-  ' BUG FIX: Previous code had << 1 which DOUBLED the rate, sampling twice per bit!
   xfrq := $4000_0000 / spi_period                                               ' One sample per full clock period
-
-  ' Phase alignment: sample in middle of each bit for stability
-  ' After wypin starts clock: first rising edge at T=spi_period
-  ' With waitx spi_period, xinit happens at T=spi_period (first rising edge)
-  ' init_phase=$4000_0000 causes first sample ~spi_period later (middle of bit 0)
   init_phase := $4000_0000                                                      ' Sample mid-bit for stability
   align_delay := spi_period                                                     ' Wait one half-period before streamer
 
-  ' DIAGNOSTIC: Capture buffer state BEFORE streamer
-  diag_before_b0 := byte[p_buf]
-  diag_before_b1 := byte[p_buf+1]
-  diag_before_b2 := byte[p_buf+2]
-  diag_before_b3 := byte[p_buf+3]
-  diag_spi_period := spi_period
-
   ' ════════════════════════════════════════════════════════════════════════════
-  ' STREAMER BULK TRANSFER: 512 bytes from MISO to hub via DMA
+  ' CRC RETRY LOOP: Re-read on CRC mismatch (industry standard practice)
+  ' Card has no CRC-error state — it just sees another CMD17 on retry
   ' ════════════════════════════════════════════════════════════════════════════
-  org
-        setxfrq xfrq                              ' Set streamer NCO rate
-        wrfast  #0, p_buf                         ' Setup WRFAST to hub buffer
-        wypin   clk_count, _sck                   ' Start clock transitions
-        waitx   align_delay                       ' Wait one half-period to align with first rising edge
-        xinit   stream_mode, init_phase           ' Start streamer with phase offset
-        waitxfi                                   ' Wait for streamer to complete
-  end
+  repeat attempt from 1 to MAX_READ_CRC_RETRIES
 
-  ' DIAGNOSTIC: Capture data for test cog to read
-  diag_last_sector := sector
-  diag_last_buftype := buf_type
-  diag_last_token := data                                                       ' Start token ($FE if success)
-  diag_p_buf := p_buf
-  diag_buf_byte0 := byte[p_buf]
-  diag_buf_byte1 := byte[p_buf+1]
-  diag_buf_byte2 := byte[p_buf+2]
-  diag_buf_byte3 := byte[p_buf+3]
+    ' Send CMD17 (READ_SINGLE_BLOCK)
+    cmd(17, sector << hcs)
 
-  ' Re-enable MISO smart pin for CRC reads (sp_transfer_8 needs it)
-  wrpin(_miso, spi_rx_mode)                                                     ' P_SYNC_RX | P_PLUS3_B
-  wxpin(_miso, %1_00111)                                                        ' On-edge sample, 8 bits
-  pinh(_miso)                                                                   ' DIRH - enable smart pin
+    ' Wait for start token ($FE) - use sp_transfer_8 for token polling
+    timeout := getct() + (clkfreq / 100) * card_read_timeout_ms                 ' CSD-based timeout with 10x margin
+    loop_ctr := 0
+    repeat
+      data := sp_transfer_8($FF)
+      loop_ctr++
+      if data == $FE
+        quit                                                                    ' Got start token
+      if data <> $FF
+        debug("  [readSector] ERROR: got $", uhex_byte_(data), " instead of $FF or $FE")
+        pinh(cs)
+        long[p_cache] := -1
+        return -1
+      if getct() - timeout > 0
+        debug("  [readSector] TIMEOUT waiting for start token")
+        pinh(cs)
+        long[p_cache] := -1
+        return -1
 
-  ' Read and capture 2 CRC bytes (high byte first per SD protocol)
-  diag_recv_crc := sp_transfer_8($FF) << 8
-  diag_recv_crc |= sp_transfer_8($FF)
+    ' ══════════════════════════════════════════════════════════════════════════
+    ' STREAMER BULK TRANSFER: Receive 512 bytes from MISO to hub buffer
+    ' Pattern: SETXFRQ -> WRFAST -> WYPIN(clk) -> WAITX -> XINIT -> WAITXFI
+    ' CRITICAL: Must disable MISO smart pin before streamer capture!
+    ' ══════════════════════════════════════════════════════════════════════════
 
-  ' CRC-16 validation: calculate CRC of received data and compare with card's CRC
-  if diag_crc_enabled
+    ' CRITICAL FIX: Disable MISO smart pin before streamer capture
+    ' The smart pin interferes with streamer's direct pin reading
+    ' Reference: flash_loader.spin2 does NOT configure smart pin on MISO during reads
+    ' Verified fix: 2026-01-23 in SD_streamer_lut_test.spin2
+    pinclear(_miso)                                                             ' Clear smart pin mode
+    pinf(_miso)                                                                 ' Float pin (input mode)
+
+    ' DIAGNOSTIC: Capture buffer state BEFORE streamer
+    diag_before_b0 := byte[p_buf]
+    diag_before_b1 := byte[p_buf+1]
+    diag_before_b2 := byte[p_buf+2]
+    diag_before_b3 := byte[p_buf+3]
+    diag_spi_period := spi_period
+
+    ' ══════════════════════════════════════════════════════════════════════════
+    ' STREAMER BULK TRANSFER: 512 bytes from MISO to hub via DMA
+    ' ══════════════════════════════════════════════════════════════════════════
+    org
+          setxfrq xfrq                              ' Set streamer NCO rate
+          wrfast  #0, p_buf                         ' Setup WRFAST to hub buffer
+          wypin   clk_count, _sck                   ' Start clock transitions
+          waitx   align_delay                       ' Wait one half-period to align with first rising edge
+          xinit   stream_mode, init_phase           ' Start streamer with phase offset
+          waitxfi                                   ' Wait for streamer to complete
+    end
+
+    ' DIAGNOSTIC: Capture data for test cog to read
+    diag_last_sector := sector
+    diag_last_buftype := buf_type
+    diag_last_token := data                                                     ' Start token ($FE if success)
+    diag_p_buf := p_buf
+    diag_buf_byte0 := byte[p_buf]
+    diag_buf_byte1 := byte[p_buf+1]
+    diag_buf_byte2 := byte[p_buf+2]
+    diag_buf_byte3 := byte[p_buf+3]
+
+    ' Re-enable MISO smart pin for CRC reads (sp_transfer_8 needs it)
+    wrpin(_miso, spi_rx_mode)                                                   ' P_SYNC_RX | P_PLUS3_B
+    wxpin(_miso, %1_00111)                                                      ' On-edge sample, 8 bits
+    pinh(_miso)                                                                 ' DIRH - enable smart pin
+
+    ' Read and capture 2 CRC bytes (high byte first per SD protocol)
+    diag_recv_crc := sp_transfer_8($FF) << 8
+    diag_recv_crc |= sp_transfer_8($FF)
+
+    ' CRC-16 validation: always validate received data against card's CRC
     diag_calc_crc := calcDataCRC(p_buf, 512)
     if diag_calc_crc == diag_recv_crc
       diag_crc_matches++
+      pinh(cs)                                                                  ' Deselect card — CRC OK
+      quit                                                                      ' Exit retry loop on success
     else
       diag_crc_mismatches++
-      debug("  [readSector] CRC MISMATCH! recv=$", uhex_(diag_recv_crc), " calc=$", uhex_(diag_calc_crc))
+      pinh(cs)                                                                  ' Deselect card before retry
+      sp_transfer_8($FF)                                                        ' 8 NCS recovery clocks (CS HIGH, SD spec)
+      if attempt < MAX_READ_CRC_RETRIES
+        diag_crc_retries++
+        debug("  [readSector] CRC MISMATCH attempt ", udec_(attempt), "/", udec_(MAX_READ_CRC_RETRIES), " recv=$", uhex_(diag_recv_crc), " calc=$", uhex_(diag_calc_crc), " — retrying")
+        long[p_cache] := -1                                                     ' Invalidate cache before retry
+      else
+        debug("  [readSector] CRC FAILED after ", udec_(MAX_READ_CRC_RETRIES), " attempts recv=$", uhex_(diag_recv_crc), " calc=$", uhex_(diag_calc_crc))
+        long[p_cache] := -1                                                     ' Invalidate cache on failure
+        return -1
 
-  pinh(cs)                                                                      ' Deselect card
-
-  ' CMD13: Verify card is in good state after read
+  ' CMD13: Verify card internal state after read
+  ' CRC validates wire integrity; CMD13 validates card-internal state (ECC, address, etc.)
   if checkCardStatus(@"readSector") < 0
-    long[p_cache] := -1                                                         ' Invalidate cache on error
+    long[p_cache] := -1                                                           ' Invalidate cache on card error
     return -1
 
   result := 0
@@ -5211,19 +5349,22 @@ PRI readSectors(start_sector, count, p_buffer) : sectors_read | _sck, _miso, p_b
 
     sectors_read++
 
-  ' Send CMD12 to stop transmission
+  ' Send CMD12 to stop transmission — card is in DATA_OUT mode, must terminate cleanly
   if sendStopTransmission() < 0
-    debug("  [readSectors] CMD12 failed")
-    ' Still return sectors_read - we got the data even if stop failed
+    debug("  [readSectors] CMD12 failed — card still in DATA_OUT, recovering")
+    recoverToIdle()                                                               ' Force card back to idle
+    sectors_read := 0                                                             ' Data can't be trusted
+    return
 
   pinh(cs)                                                                      ' Deselect card
 
-  ' CMD13: Verify card is in good state after multi-block read
+  ' CMD13: Verify card internal state after multi-block read
   if checkCardStatus(@"readSectors") < 0
     debug("  [readSectors] CMD13 status check FAILED")
-    ' Still return sectors_read - data may be valid
+    sectors_read := 0                                                             ' Card reports error — data can't be trusted
+    return
 
-PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, t, resp, p_cache
+PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, t, resp, p_cache, align_delay
 ' Write buffer into a sector using P2 streamer - hardware DMA for bulk 512-byte transfer.
 ' Reference: flash_loader.spin2 pattern for SPI writes
 '
@@ -5268,7 +5409,19 @@ PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, cl
   ' Invalidate cache for this buffer type after write
   long[p_cache] := -1
 
-  cmd(24, sector << hcs)
+  ' Capture sector for diagnostics
+  diag_write_sector := sector
+  diag_write_result := 0                                                         ' Reset: not yet determined
+
+  resp := cmd(24, sector << hcs)
+  diag_write_r1 := resp                                                          ' Capture CMD24 R1 response
+  if resp & $64                                                                  ' Fatal R1 bits: illegal cmd ($04), address err ($20), parameter err ($40)
+    debug("  [writeSector] CMD24 FATAL, R1=$", uhex_byte_(resp))
+    diag_write_result := 1                                                       ' 1 = CMD24 fatal
+    pinh(cs)
+    return false
+  if resp & $1B                                                                  ' Stale R1 bits: idle ($01), erase reset ($02), CRC ($08), erase seq ($10)
+    debug("  [writeSector] CMD24 warning: R1=$", uhex_byte_(resp), " (stale bits, proceeding)")
   sp_transfer_8($FE)                                                            ' Data start token
 
   ' ════════════════════════════════════════════════════════════════════════════
@@ -5283,24 +5436,30 @@ PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, cl
   ' Calculate streamer NCO frequency to match SPI clock
   ' Same formula as readSector: one bit per full clock period
   xfrq := $4000_0000 / spi_period                                               ' One output per full clock period
+  align_delay := spi_period - 2                                                  ' NCO ramp delay minus 2 instruction cycles
 
-  ' CRITICAL FIX: Disable MOSI smart pin before streamer TX
-  ' The smart pin configuration interferes with streamer's direct pin driving
-  ' Same pattern as MISO disable in readSector()
-  pinclear(_mosi)                                                               ' Clear smart pin mode
-  pinl(_mosi)                                                                   ' Drive pin low (output mode)
+  pinclear(_mosi)                                                               ' Clear smart pin mode (WRPIN=0, DIR=0)
+  pinl(_mosi)                                                                   ' Drive pin low (DIR=1, output mode)
 
-  ' For TX: xinit BEFORE wypin (data leads clock) - per flash_loader pattern
-  ' This ensures data is stable before rising edge when slave samples
+  ' Streamer TX with clock delay: xinit starts streamer NCO, then waitx gives the
+  ' NCO time to output the first data bit BEFORE the first SCK rising edge.
+  ' Timing analysis (all times relative to xinit):
+  '   - NCO first rollover (first data bit on pin): T = 2 * spi_period
+  '   - waitx executes at T = 2 cycles (xinit takes 2 cycles)
+  '   - wypin executes at T = 2 + align_delay
+  '   - First SCK rising edge at T = 2 + align_delay + spi_period
+  '   - For alignment: 2 + align_delay + spi_period = 2 * spi_period
+  '   - Therefore: align_delay = spi_period - 2
   org
         setxfrq xfrq                              ' Set streamer bit rate
         rdfast  #0, p_buf                         ' Setup RDFAST from hub buffer
-        xinit   stream_mode, #0                   ' Start streamer output first
-        wypin   clk_count, _sck                   ' Then start clock transitions
+        xinit   stream_mode, #0                    ' Start streamer; NCO ramps from zero
+        waitx   align_delay                        ' Wait for NCO (spi_period - 2 instruction cycles)
+        wypin   clk_count, _sck                   ' Start clock — first edge aligned with first data bit
         waitxfi                                   ' Wait for streamer to complete
   end
 
-  ' Re-enable MOSI smart pin for CRC and response byte transfers (sp_transfer_8 needs it)
+  ' Rebuild MOSI smart pin for CRC and response byte transfers
   wrpin(_mosi, spi_tx_mode)                                                     ' P_SYNC_TX | P_OE | P_PLUS2_B
   wxpin(_mosi, %1_00111)                                                        ' Start-stop mode, 8 bits
   pinh(_mosi)                                                                   ' DIRH - enable smart pin
@@ -5319,12 +5478,23 @@ PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, cl
       quit
     if getct() - t > 0
       debug("  [writeSector] TIMEOUT waiting for data-response")
+      diag_write_result := 2                                                     ' 2 = data-response timeout
+      diag_write_dresp := $FF
       pinh(cs)
       return false
 
-  ' Verify data-response token: bits [4:0] should be xxx00101 = $05 (data accepted)
+  diag_write_dresp := resp                                                       ' Capture data response token
+  ' Verify data-response token: bits [3:1] decode as: 010=accepted, 101=CRC error, 110=write error
   if (resp & $1F) <> $05
-    debug("  [writeSector] Data rejected: response=$", uhex_(resp))
+    if (resp & $1F) == $0B
+      debug("  [writeSector] Data REJECTED: CRC error (response=$", uhex_byte_(resp), ")")
+      diag_write_result := 3                                                     ' 3 = CRC reject
+    elseif (resp & $1F) == $0D
+      debug("  [writeSector] Data REJECTED: Write error (response=$", uhex_byte_(resp), ")")
+      diag_write_result := 4                                                     ' 4 = write error reject
+    else
+      debug("  [writeSector] Data REJECTED: Unknown status (response=$", uhex_byte_(resp), ")")
+      diag_write_result := 5                                                     ' 5 = unknown reject
     pinh(cs)
     return false
 
@@ -5338,18 +5508,22 @@ PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, cl
       quit
     if getct() - t > 0
       debug("  [writeSector] TIMEOUT waiting for programming complete")
+      diag_write_result := 6                                                     ' 6 = busy timeout
       pinh(cs)
       return false
 
   pinh(cs)
 
-  ' CMD13: Verify card status after write
+  diag_write_result := 7                                                         ' 7 = success
+
+  ' CMD13: Verify card internal state after write
+  ' Data response $05 confirms wire-level acceptance; CMD13 validates card-internal state
   if checkCardStatus(@"writeSector") < 0
     return false
 
   return true
 
-PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, settle_delay, resp
+PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi, p_buf, stream_mode, clk_count, xfrq, resp, align_delay
 ' Write multiple consecutive sectors using CMD25 (WRITE_MULTIPLE_BLOCK).
 ' More efficient than individual writeSector() calls because:
 ' - Only one CMD25 command instead of N CMD24 commands
@@ -5372,7 +5546,6 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
 ' @local stream_mode - Streamer mode word
 ' @local clk_count - Number of clock transitions
 ' @local xfrq - Streamer NCO frequency
-' @local settle_delay - Stabilization delay after pin transition
 ' @local resp - Response byte
   '' - Reduced overhead from CS cycling and command processing
   ''
@@ -5391,7 +5564,7 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
   stream_mode := STREAM_TX_BASE | (_mosi << 17) | (512 * 8)                     ' TX mode + MOSI pin + 4096 bits
   clk_count := 512 * 8 * 2                                                      ' 8192 clock transitions
   xfrq := $4000_0000 / spi_period                                               ' One output per full clock period
-  settle_delay := spi_period                                                    ' Stabilization delay after pin transition
+  align_delay := spi_period - 2                                                  ' NCO ramp delay minus 2 instruction cycles
 
   ' Send CMD25 (WRITE_MULTIPLE_BLOCK) with starting sector
   ' Note: cmd() handles CS assertion and returns R1 response
@@ -5409,25 +5582,22 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
     ' Send multi-block write start token ($FC, NOT $FE!)
     sp_transfer_8(TOKEN_START_MULTI_WRITE)                                      ' $FC
 
-    ' Disable MOSI smart pin before streamer TX
-    ' CRITICAL: Must ensure clean transition from smart pin mode to streamer mode
     pinclear(_mosi)                                                               ' Clear smart pin mode
-    pinl(_mosi)                                                                   ' Drive low directly
-    wypin(0, sck)                                                                 ' Clear any pending clock counts
+    pinl(_mosi)                                                                   ' Drive pin low (output mode)
 
-    ' Streamer bulk transfer: 512 bytes from hub to MOSI
-    ' CRITICAL: settle_delay ensures MOSI pin and clock are stable after
-    ' pinclear/pinl transition - prevents bit corruption on subsequent blocks
+    ' Streamer TX with clock delay (see writeSector for full rationale)
+    ' waitx(align_delay) between xinit and wypin gives NCO time to output first bit
+    ' before the first SCK rising edge — prevents 1-bit shift on timing-sensitive cards
     org
           setxfrq xfrq
           rdfast  #0, p_buf
-          waitx   settle_delay                    ' Stabilize after pinclear/pinl/wypin(0)
-          xinit   stream_mode, #0
-          wypin   clk_count, _sck
+          xinit   stream_mode, #0                  ' Start streamer; NCO ramps from zero
+          waitx   align_delay                      ' Wait for NCO to output first bit
+          wypin   clk_count, _sck                 ' NOW start clock — aligned with data
           waitxfi
     end
 
-    ' Re-enable MOSI smart pin for CRC and response
+    ' Rebuild MOSI smart pin for CRC and response
     wrpin(_mosi, spi_tx_mode)
     wxpin(_mosi, %1_00111)
     pinh(_mosi)
@@ -5457,17 +5627,20 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
   sp_transfer_8(TOKEN_STOP_TRAN)                                                ' $FD
   sp_transfer_8($FF)                                                            ' Stuff byte (NWR=1, required by spec)
 
-  ' Wait for card to finish any final programming
+  ' Wait for card to finish any final programming — card is in PROGRAMMING state
   if waitBusyComplete() < 0
-    debug("  [writeSectors] Final busy timeout")
-    ' Still return sectors_written - data may have been written
+    debug("  [writeSectors] Final busy timeout — card still programming, recovering")
+    recoverToIdle()                                                               ' Force card back to idle
+    sectors_written := 0                                                          ' Write integrity unknown
+    return
 
   pinh(cs)                                                                      ' Deselect card
 
-  ' CMD13: Verify card status after multi-block write
+  ' CMD13: Verify card internal state after multi-block write
   if checkCardStatus(@"writeSectors") < 0
     debug("  [writeSectors] CMD13 status check FAILED after writing ", udec_(sectors_written), " sectors")
-    ' Still return sectors_written - some data may have been written
+    sectors_written := 0                                                          ' Card reports error — writes can't be trusted
+    return
 
 ' ════════════════════════════════════════════════════════════════════════════════
 ' MULTI-BLOCK HELPER FUNCTIONS
@@ -5576,6 +5749,30 @@ PRI sendStopTransmission() : result | resp
 
   ' Wait for busy to complete (card may still be finishing last block)
   result := waitBusyComplete()
+
+PRI recoverToIdle() : result
+' Force the card's SPI state machine back to idle by deasserting CS and clocking.
+' In SPI mode, CS deassert aborts any pending operation (multi-block read/write, busy).
+' Dummy clocks with CS high allow the card to release MISO and transition to standby.
+' VERIFIES that the card actually released the bus (MISO goes high).
+'
+' @returns result - 0 if card released bus, -1 if card still holding MISO low
+
+  pinh(cs)                                                                        ' CS HIGH — abort any pending operation
+  repeat 10
+    sp_transfer_8($FF)                                                            ' 80 clocks with CS deasserted — let card release bus
+
+  ' Verify card released MISO (should be high via pull-up when CS is deasserted)
+  if pinr(miso) == 0
+    ' Card still holding MISO low — try extended clocking
+    debug("  [recoverToIdle] MISO still low after 80 clocks, extending...")
+    repeat 20
+      sp_transfer_8($FF)                                                          ' 160 more clocks — extended recovery
+    if pinr(miso) == 0
+      debug("  [recoverToIdle] FAILED: card holding MISO low after 240 clocks")
+      return -1                                                                   ' Card stuck — caller must handle
+
+  return 0                                                                        ' Card released bus — back to idle
 
 PRI checkCardStatus(caller) : result | r1, status
 ' Send CMD13 to verify card status after operation - checks R2 response for errors.
@@ -5731,7 +5928,9 @@ PUB displayFAT(cluster)
 '' @param cluster - Cluster number to display FAT sector for
 
   n_sec := fat_sec + cluster >> 7
-  readSector(n_sec, BUF_DATA)                                                   ' Uses BUF_DATA since displaySector reads from buf
+  if readSector(n_sec, BUF_DATA) < 0                                            ' Uses BUF_DATA since displaySector reads from buf
+    debug("  [displayFAT] Read FAILED for sector ", udec_(n_sec))
+    return
   displaySector()
 #ENDIF
 

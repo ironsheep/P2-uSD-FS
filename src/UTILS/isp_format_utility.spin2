@@ -38,6 +38,9 @@ CON
     FAT32_EOC           = $0FFFFFFF ' End of chain marker
     FAT32_MEDIA_TYPE    = $0FFFFFF8 ' Media descriptor in FAT[0]
 
+    ' Multi-sector write batch size for initFAT/initRootDirectory
+    MULTI_BATCH_SIZE    = 64        ' Sectors per CMD25 batch (32 KB)
+
     ' FSInfo signatures
     FSINFO_SIG1         = $41615252 ' "RRaA"
     FSINFO_SIG2         = $61417272 ' "rrAa"
@@ -62,6 +65,8 @@ VAR
 
     ' Sector buffer
     BYTE    buf[BYTES_PER_SECTOR]
+    BYTE    verifyBuf[BYTES_PER_SECTOR]
+    BYTE    zeroBuf[MULTI_BATCH_SIZE * BYTES_PER_SECTOR]  ' 32 KB zero buffer for CMD25 batches
 
     ' Card geometry
     LONG    totalSectors
@@ -189,13 +194,38 @@ PRI doFormat() : result | i
     debug("* Writing MBR...")
     if not writeMBR()
         debug("ERROR: Failed to write MBR!")
+        showWriteDiag()
         return false
+
+    ' Verify MBR read-back
+    sd.readSectorRaw(0, @verifyBuf)
+    debug("  MBR readback: sig=$", uhex_word_(WORD[@verifyBuf + $1FE]), ...
+      " type=$", uhex_byte_(verifyBuf[$1C2]), ...
+      " start=", udec_(LONG[@verifyBuf + $1C6]))
+    debug("  MBR read[0..7]: $", uhex_byte_(verifyBuf[0]), " $", uhex_byte_(verifyBuf[1]), ...
+      " $", uhex_byte_(verifyBuf[2]), " $", uhex_byte_(verifyBuf[3]), ...
+      " $", uhex_byte_(verifyBuf[4]), " $", uhex_byte_(verifyBuf[5]), ...
+      " $", uhex_byte_(verifyBuf[6]), " $", uhex_byte_(verifyBuf[7]))
+    debug("  verify buf addr: $", uhex_long_(@verifyBuf))
+    if WORD[@verifyBuf + $1FE] <> MBR_SIGNATURE
+        debug("  *** MBR READBACK MISMATCH! Written data not on card ***")
 
     ' Write VBR (Volume Boot Record)
     debug("* Writing VBR...")
     if not writeVBR()
         debug("ERROR: Failed to write VBR!")
+        showWriteDiag()
         return false
+
+    ' Verify VBR read-back
+    sd.readSectorRaw(partitionStart, @verifyBuf)
+    debug("  VBR readback: jump=$", uhex_byte_(verifyBuf[0]), ...
+      " OEM=$", uhex_byte_(verifyBuf[3]), uhex_byte_(verifyBuf[4]), ...
+      " bps=", udec_(WORD[@verifyBuf + $0B]), ...
+      " spc=", udec_(verifyBuf[$0D]), ...
+      " sig=$", uhex_word_(WORD[@verifyBuf + $1FE]))
+    if verifyBuf[0] <> $EB
+        debug("  *** VBR READBACK MISMATCH! Expected $EB got $", uhex_byte_(verifyBuf[0]), " ***")
 
     ' Write FSInfo sector
     debug("* Writing FSInfo...")
@@ -313,6 +343,16 @@ PRI writeMBR() : success | partitionSectors
     ' MBR signature
     WORD[@buf + $1FE] := MBR_SIGNATURE
 
+    ' Diagnostic: dump write buffer before writing
+    debug("  MBR write buf: sig=$", uhex_word_(WORD[@buf + $1FE]), ...
+      " type=$", uhex_byte_(buf[$1C2]), ...
+      " start=", udec_(LONG[@buf + $1C6]))
+    debug("  MBR buf[0..7]: $", uhex_byte_(buf[0]), " $", uhex_byte_(buf[1]), ...
+      " $", uhex_byte_(buf[2]), " $", uhex_byte_(buf[3]), ...
+      " $", uhex_byte_(buf[4]), " $", uhex_byte_(buf[5]), ...
+      " $", uhex_byte_(buf[6]), " $", uhex_byte_(buf[7]))
+    debug("  MBR buf addr: $", uhex_long_(@buf))
+
     ' Write MBR to sector 0
     success := sd.writeSectorRaw(0, @buf)
 
@@ -406,8 +446,9 @@ PRI writeBackupBoot() : success
     writeFSInfo()
     success := sd.writeSectorRaw(partitionStart + 7, @buf)
 
-PRI initFAT(fatStart) : success | sector, i
+PRI initFAT(fatStart) : success | sector, remaining, batch, written
 ' Initialize a FAT table with media type and root cluster.
+' Uses CMD25 multi-sector writes in 64-sector batches for ~5.5x speedup.
 '
 ' @param fatStart - Starting sector of the FAT
 ' @returns success - TRUE if all sectors written, FALSE otherwise
@@ -420,24 +461,28 @@ PRI initFAT(fatStart) : success | sector, i
     LONG[@buf + 4] := FAT32_EOC             ' FAT[1] - end of chain marker
     LONG[@buf + 8] := FAT32_EOC             ' FAT[2] - root directory (end of chain)
 
-    ' Write first FAT sector
+    ' Write first FAT sector (single-sector, has special entries)
     if not sd.writeSectorRaw(fatStart, @buf)
         return false
 
-    ' Clear buffer for remaining sectors
-    bytefill(@buf, 0, BYTES_PER_SECTOR)
-
-    ' Write remaining FAT sectors (all zeros = free clusters)
-    repeat sector from 1 to sectorsPerFat - 1
-        if not sd.writeSectorRaw(fatStart + sector, @buf)
+    ' Write remaining FAT sectors in CMD25 batches (all zeros = free clusters)
+    ' zeroBuf is zero-initialized by Spin2 VAR section
+    sector := 1
+    remaining := sectorsPerFat - 1
+    repeat while remaining > 0
+        batch := remaining <# MULTI_BATCH_SIZE                                   ' Clamp to 64 or remainder
+        written := sd.writeSectorsRaw(fatStart + sector, batch, @zeroBuf)
+        if written <> batch
+            debug("  FAT batch write FAILED at sector ", udec_(sector), " wrote ", udec_(written), "/", udec_(batch))
             return false
-        ' Progress indicator every 256 sectors
-        if (sector & $FF) == 0
-            debug("  Progress: ", udec_(sector), "/", udec_(sectorsPerFat))
+        if (sector & $FF) == 0 or remaining <= batch
+            debug("  Progress: ", udec_(sector + batch), "/", udec_(sectorsPerFat))
+        sector += batch
+        remaining -= batch
 
     return true
 
-PRI initRootDirectory() : success | i
+PRI initRootDirectory() : success | written
 ' Initialize the root directory cluster with volume label entry.
 '
 ' @returns success - TRUE if all sectors written, FALSE otherwise
@@ -466,13 +511,22 @@ PRI initRootDirectory() : success | i
     if not sd.writeSectorRaw(dataStart, @buf)
         return false
 
-    ' Clear remaining sectors of root cluster
-    bytefill(@buf, 0, BYTES_PER_SECTOR)
-    repeat i from 1 to sectorsPerCluster - 1
-        if not sd.writeSectorRaw(dataStart + i, @buf)
+    ' Clear remaining sectors of root cluster using CMD25 batch write
+    ' zeroBuf is zero-initialized by Spin2 VAR section; max 63 sectors fits in 32 KB
+    if sectorsPerCluster > 1
+        written := sd.writeSectorsRaw(dataStart + 1, sectorsPerCluster - 1, @zeroBuf)
+        if written <> sectorsPerCluster - 1
+            debug("  Root dir batch write FAILED: wrote ", udec_(written), "/", udec_(sectorsPerCluster - 1))
             return false
 
     return true
+
+PRI showWriteDiag() | wResult, wR1, wDresp, wSector
+' Display write diagnostic info from driver after a write failure.
+
+    wResult, wR1, wDresp, wSector := sd.getWriteDiag()
+    debug("  DIAG: result=", udec_(wResult), " R1=$", uhex_byte_(wR1), " dresp=$", uhex_byte_(wDresp), " sector=", udec_(wSector))
+    debug("  (1=CMD24fatal 2=drespTimeout 3=CRCreject 4=writeErr 5=unknownReject 6=busyTimeout 7=OK)")
 
 CON { license }
 

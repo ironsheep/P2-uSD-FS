@@ -152,6 +152,7 @@ DAT
   sdst_speed_class    BYTE    0           ' Decoded from sdst_buf[8]
   sdst_uhs_grade      BYTE    0           ' Decoded from sdst_buf[14] upper nibble
   sdst_video_class    BYTE    0           ' Decoded from sdst_buf[15]
+  sdst_app_perf_class BYTE    0           ' Decoded from sdst_buf[21] lower nibble (0=None, 1=A1, 2=A2)
   sdst_valid          BYTE    0           ' TRUE if ACMD13 read succeeded
 
   ' SD spec version string buffer
@@ -190,6 +191,7 @@ DAT
                 BYTE    $9E, "GSKILL", 0
                 BYTE    $9F, "Shared OEM", 0
                 BYTE    $AD, "Longsys/Lexar", 0
+                BYTE    $C9, "BIWIN/Longsys", 0
                 BYTE    $FE, "PNY OEM", 0
                 BYTE    $FF                   ' End marker
 
@@ -1040,10 +1042,12 @@ PRI parseSDStatus()
     sdst_speed_class := sdst_buf[8]
     sdst_uhs_grade := sdst_buf[14] >> 4
     sdst_video_class := sdst_buf[15]
+    sdst_app_perf_class := sdst_buf[21] & $0F
   else
     sdst_speed_class := 0
     sdst_uhs_grade := 0
     sdst_video_class := 0
+    sdst_app_perf_class := 0
 
 ' ============================================================
 ' CARD DESIGNATOR (2-LINE FORMAT)
@@ -1076,10 +1080,16 @@ PRI displayCardDesignator() | cap_gb, spi_mhz, p_mfr, p_type, p_fs, speedVal
   ' Line 2
   if sdst_valid
     speedVal := decodeSpeedClass(sdst_speed_class)
-    if vbr_oem_name[0] <> 0 and vbr_oem_name[0] <> " "
-      debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz  [", zstr_(@vbr_oem_name), "]")
+    if sdst_app_perf_class > 0
+      if vbr_oem_name[0] <> 0 and vbr_oem_name[0] <> " "
+        debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", A", udec_(sdst_app_perf_class), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz  [", zstr_(@vbr_oem_name), "]")
+      else
+        debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", A", udec_(sdst_app_perf_class), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz")
     else
-      debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz")
+      if vbr_oem_name[0] <> 0 and vbr_oem_name[0] <> " "
+        debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz  [", zstr_(@vbr_oem_name), "]")
+      else
+        debug("Class ", udec_(speedVal), ", U", udec_(sdst_uhs_grade), ", V", udec_(sdst_video_class), ", SPI ", udec_(spi_mhz), " MHz")
   else
     if vbr_oem_name[0] <> 0 and vbr_oem_name[0] <> " "
       debug("SPI ", udec_(spi_mhz), " MHz  [", zstr_(@vbr_oem_name), "]  (ACMD13 unavailable)")
