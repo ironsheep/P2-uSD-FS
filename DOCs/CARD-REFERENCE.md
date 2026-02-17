@@ -33,7 +33,7 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 SanDisk SN128 SDXC 119GB [FAT32] SD 6.x rev8.0 SN:F79E34F6 2019/12
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 ### lexar-mssd0-64gb
@@ -203,7 +203,7 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 | Card | ACMD13 Status | Line 2 Source | Benchmark |
 |------|:---:|---|:---:|
 | sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
-| sandisk-sn128-128gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
+| sandisk-sn128-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | lexar-mssd0-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) — different unit SN:33549024 | 350+250 |
 | lexar-mssd0-128gb | **verified** | ACMD13 (Class 10, U3, V30) | 350+250 |
 | samsung-gd4qt-128gb | **verified** | ACMD13 (Class 10, U3, V0) — different unit SN:4AC85F42 | 350+250 |

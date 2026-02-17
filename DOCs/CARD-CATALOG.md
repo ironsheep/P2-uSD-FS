@@ -212,7 +212,7 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 **SanDisk Nintendo Switch 128GB SDXC** — [sandisk-sn128-128gb.md](cards/sandisk-sn128-128gb.md)
 ```
 SanDisk SN128 SDXC 119GB [FAT32] SD 6.x rev8.0 SN:F79E34F6 2019/12
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 **Lexar MicroSD XC V30 U3 64GB** — [lexar-mssd0-64gb.md](cards/lexar-mssd0-64gb.md)
