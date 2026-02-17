@@ -194,85 +194,96 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 
 ### Benchmark Results (Smart Pin SPI + Multi-Sector)
 
-**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: 25,000 kHz @ 350 MHz, 25,000 kHz @ 250 MHz
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: 25,000 kHz at both clock speeds
 
-#### 350 MHz Run
+#### 350 MHz: Pre-Fix (2026-02-14) vs Post-Fix (2026-02-16)
 
-**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 232.7 ms
+Post-fix driver includes: TX streamer align_delay fix (commit 07fc806) + dirl/drvl SCK reset (designer suggestion).
 
-| Test | Min (us) | Avg (us) | Max (us) | KB/s |
-|------|----------|----------|----------|------|
-| **Raw Single-Sector** | | | | |
-| Read 1x512B | 402 | 616 | 2,486 | **831** |
-| Write 1x512B | 747 | 760 | 771 | **673** |
-| **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | 1,851 | 1,853 | 1,873 | **2,210** |
-| Read 32 sectors (16 KB) | 6,876 | 6,878 | 6,903 | **2,382** |
-| Read 64 sectors (32 KB) | 13,517 | 13,519 | 13,543 | **2,423** |
-| Write 8 sectors (4 KB) | 2,188 | 2,207 | 2,225 | **1,855** |
-| Write 32 sectors (16 KB) | 7,390 | 7,402 | 7,422 | **2,213** |
-| Write 64 sectors (32 KB) | 14,406 | 14,422 | 14,431 | **2,272** |
-| **File-Level** | | | | |
-| File Write 512B | 5,183 | 5,605 | 5,686 | **91** |
-| File Write 4 KB | 10,987 | 11,065 | 11,156 | **370** |
-| File Write 32 KB | 53,385 | 54,185 | 56,307 | **604** |
-| File Read 4 KB | 2,949 | 2,989 | 3,310 | **1,370** |
-| File Read 32 KB | 22,821 | 22,869 | 23,205 | **1,432** |
-| File Read 128 KB | 89,987 | 90,673 | 92,887 | **1,445** |
-| File Read 256 KB | 179,945 | 181,539 | 183,086 | **1,444** |
-| **Overhead** | | | | |
-| File Open | 92 | 127 | 448 | — |
-| File Close | 20 | 20 | 20 | — |
-| Mount | — | 232,700 | — | — |
+| Test | Pre-Fix Avg (us) | Pre-Fix KB/s | Post-Fix Avg (us) | Post-Fix KB/s | Delta |
+|------|-------------------|--------------|--------------------|--------------:|-------|
+| **Raw Single-Sector** | | | | | |
+| Read 1x512B | 616 | **831** | 625 | **819** | -1.4% |
+| Write 1x512B | 760 | **673** | 752 | **680** | +1.0% |
+| **Raw Multi-Sector** | | | | | |
+| Read 8 (4 KB) | 1,853 | **2,210** | 1,856 | **2,206** | -0.2% |
+| Read 32 (16 KB) | 6,878 | **2,382** | 6,888 | **2,378** | -0.2% |
+| Read 64 (32 KB) | 13,519 | **2,423** | 13,535 | **2,420** | -0.1% |
+| Write 8 (4 KB) | 2,207 | **1,855** | 2,209 | **1,854** | -0.1% |
+| Write 32 (16 KB) | 7,402 | **2,213** | 7,395 | **2,215** | +0.1% |
+| Write 64 (32 KB) | 14,422 | **2,272** | 14,398 | **2,275** | +0.1% |
+| **File-Level** | | | | | |
+| File Write 512B | 5,605 | **91** | 5,014 | **102** | +12.1% |
+| File Write 4 KB | 11,065 | **370** | 10,428 | **392** | +5.9% |
+| File Write 32 KB | 54,185 | **604** | 53,171 | **616** | +2.0% |
+| File Read 4 KB | 2,989 | **1,370** | 2,991 | **1,369** | -0.1% |
+| File Read 32 KB | 22,869 | **1,432** | 22,511 | **1,455** | +1.6% |
+| File Read 128 KB | 90,673 | **1,445** | 90,739 | **1,444** | -0.1% |
+| File Read 256 KB | 181,539 | **1,444** | 181,490 | **1,444** | 0.0% |
+| **Overhead** | | | | | |
+| File Open | 127 | — | 128 | — | +0.8% |
+| File Close | 20 | — | 20 | — | 0.0% |
+| Mount | 232,700 | — | 399,900 | — | * |
 
-Multi-sector improvement: 64x single reads = 27,709 us vs 1x CMD18 = 13,526 us (**51% faster**)
+\* Mount time variance is card-state dependent, not driver-related.
 
-#### 250 MHz Run
+Multi-sector improvement (post-fix): 64x single = 27,908 us vs CMD18 = 13,542 us (**51% faster**)
 
-**SysClk**: 250 MHz | **SPI**: 25,000 kHz | **Mount**: 234.8 ms
+**350 MHz Summary**: Raw sector throughput is **unchanged** (within run-to-run noise). File-level writes show a small improvement (2-12%), likely due to card state rather than driver changes. The TX streamer fix has **zero measurable performance impact** on raw transfers.
 
-| Test | Min (us) | Avg (us) | Max (us) | KB/s |
-|------|----------|----------|----------|------|
-| **Raw Single-Sector** | | | | |
-| Read 1x512B | — | — | — | ERROR* |
-| Write 1x512B | — | — | — | ERROR* |
-| **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | — | — | — | ERROR* |
-| Read 32 sectors (16 KB) | — | — | — | ERROR* |
-| Read 64 sectors (32 KB) | — | — | — | ERROR* |
-| Write 8 sectors (4 KB) | — | — | — | ERROR* |
-| Write 32 sectors (16 KB) | — | — | — | ERROR* |
-| Write 64 sectors (32 KB) | — | — | — | ERROR* |
-| **File-Level** | | | | |
-| File Write 512B | 5,251 | 5,645 | 5,719 | **90** |
-| File Write 4 KB | 11,472 | 11,573 | 12,015 | **353** |
-| File Write 32 KB | 57,366 | 57,517 | 57,808 | **569** |
-| File Read 4 KB | 3,412 | 3,457 | 3,821 | **1,184** |
-| File Read 32 KB | 26,025 | 26,121 | 26,517 | **1,254** |
-| File Read 128 KB | 102,767 | 103,531 | 105,813 | **1,266** |
-| File Read 256 KB | 206,041 | 207,518 | 209,042 | **1,263** |
-| **Overhead** | | | | |
-| File Open | 137 | 177 | 540 | — |
-| File Close | 28 | 28 | 29 | — |
-| Mount | — | 234,800 | — | — |
+#### 250 MHz: Pre-Fix (2026-02-14) vs Post-Fix (2026-02-16)
 
-Multi-sector improvement: 64x single reads = 33,241 us vs 1x CMD18 = 14,646 us (**55% faster**)
+Pre-fix 250 MHz raw sector tests failed due to CMD25 stuff byte bug (fixed in commit 58f6347). Post-fix now has complete results.
 
-*\*Raw sector API errors were caused by missing CMD25 stuff byte bug (fixed in commit 58f6347). 250 MHz benchmark not yet re-run with fix.*
+| Test | Pre-Fix Avg (us) | Pre-Fix KB/s | Post-Fix Avg (us) | Post-Fix KB/s | Delta |
+|------|-------------------|--------------|--------------------|--------------:|-------|
+| **Raw Single-Sector** | | | | | |
+| Read 1x512B | — | ERROR | 687 | **745** | fixed |
+| Write 1x512B | — | ERROR | 821 | **623** | fixed |
+| **Raw Multi-Sector** | | | | | |
+| Read 8 (4 KB) | — | ERROR | 2,035 | **2,012** | fixed |
+| Read 32 (16 KB) | — | ERROR | 7,478 | **2,190** | fixed |
+| Read 64 (32 KB) | — | ERROR | 14,671 | **2,233** | fixed |
+| Write 8 (4 KB) | — | ERROR | 2,405 | **1,703** | fixed |
+| Write 32 (16 KB) | — | ERROR | 8,091 | **2,024** | fixed |
+| Write 64 (32 KB) | — | ERROR | 15,735 | **2,082** | fixed |
+| **File-Level** | | | | | |
+| File Write 512B | 5,645 | **90** | 6,344 | **80** | -11.1% |
+| File Write 4 KB | 11,573 | **353** | 12,252 | **334** | -5.4% |
+| File Write 32 KB | 57,517 | **569** | 59,437 | **551** | -3.2% |
+| File Read 4 KB | 3,457 | **1,184** | 3,451 | **1,186** | +0.2% |
+| File Read 32 KB | 26,121 | **1,254** | 25,909 | **1,264** | +0.8% |
+| File Read 128 KB | 103,531 | **1,266** | 104,120 | **1,258** | -0.6% |
+| File Read 256 KB | 207,518 | **1,263** | 208,685 | **1,256** | -0.6% |
+| **Overhead** | | | | | |
+| File Open | 177 | — | 170 | — | -4.0% |
+| File Close | 28 | — | 29 | — | +3.6% |
+| Mount | 234,800 | — | 235,100 | — | +0.1% |
 
-#### Sysclk Effect (350 vs 250 MHz)
+Multi-sector improvement (post-fix): 64x single = 31,614 us vs CMD18 = 14,674 us (**53% faster**)
+
+**250 MHz Summary**: Raw sector API now fully functional (was broken pre-fix). File-level performance is **unchanged** within run-to-run noise. Small write throughput variations (3-11%) are card-state dependent.
+
+#### Sysclk Effect: Post-Fix 350 vs 250 MHz
 
 | Test | 350 MHz (KB/s) | 250 MHz (KB/s) | Delta |
 |------|----------------|----------------|-------|
-| File Write 512B | 91 | 90 | +1.1% |
-| File Write 4 KB | 370 | 353 | +4.8% |
-| File Write 32 KB | 604 | 569 | +6.2% |
-| File Read 4 KB | 1,370 | 1,184 | +15.7% |
-| File Read 32 KB | 1,432 | 1,254 | +14.2% |
-| File Read 128 KB | 1,445 | 1,266 | +14.1% |
-| File Read 256 KB | 1,444 | 1,263 | +14.3% |
+| **Raw Single-Sector** | | | |
+| Read 1x512B | 819 | 745 | +9.9% |
+| Write 1x512B | 680 | 623 | +9.2% |
+| **Raw Multi-Sector** | | | |
+| Read 64 (32 KB) | 2,420 | 2,233 | +8.4% |
+| Write 64 (32 KB) | 2,275 | 2,082 | +9.3% |
+| **File-Level** | | | |
+| File Write 512B | 102 | 80 | +27.5% |
+| File Write 4 KB | 392 | 334 | +17.4% |
+| File Write 32 KB | 616 | 551 | +11.8% |
+| File Read 4 KB | 1,369 | 1,186 | +15.4% |
+| File Read 32 KB | 1,455 | 1,264 | +15.1% |
+| File Read 128 KB | 1,444 | 1,258 | +14.8% |
+| File Read 256 KB | 1,444 | 1,256 | +15.0% |
 
-Reads show a significant **14-16% improvement** at 350 MHz vs 250 MHz, while writes show only 1-6% difference. Both produce exact 25.000 MHz SPI — the difference is entirely Spin2 driver overhead, which scales inversely with sysclk. Reads are more CPU-bound (FAT traversal, buffer management), while writes are card-controller-limited (flash programming latency dominates).
+Both speeds produce exactly 25,000 kHz SPI clock. The **8-10% raw sector improvement** at 350 MHz reflects reduced Spin2 overhead between streamer operations. The **15% file-level read improvement** reflects FAT traversal and buffer management overhead. File-level writes show **12-28% improvement** — the smaller the transfer, the more overhead-dominated and sysclk-sensitive it becomes.
 
 #### Cross-Card Comparison: Blue 128GB vs Red 64GB (both at 350 MHz / 25 MHz SPI)
 

@@ -5441,21 +5441,29 @@ PRI writeSector(sector, buf_type) : result | _sck, _mosi, p_buf, stream_mode, cl
   pinclear(_mosi)                                                               ' Clear smart pin mode (WRPIN=0, DIR=0)
   pinl(_mosi)                                                                   ' Drive pin low (DIR=1, output mode)
 
-  ' Streamer TX with clock delay: xinit starts streamer NCO, then waitx gives the
-  ' NCO time to output the first data bit BEFORE the first SCK rising edge.
-  ' Timing analysis (all times relative to xinit):
-  '   - NCO first rollover (first data bit on pin): T = 2 * spi_period
-  '   - waitx executes at T = 2 cycles (xinit takes 2 cycles)
-  '   - wypin executes at T = 2 + align_delay
-  '   - First SCK rising edge at T = 2 + align_delay + spi_period
-  '   - For alignment: 2 + align_delay + spi_period = 2 * spi_period
-  '   - Therefore: align_delay = spi_period - 2
+  ' Streamer TX with deterministic clock alignment:
+  '   1. dirl/pinl on SCK resets the P_TRANSITION base-period counter to a known state
+  '      (DIR=0 resets counter, output, Y without clearing WRPIN/WXPIN config)
+  '   2. xinit starts streamer NCO from phase=0
+  '   3. waitx gives NCO time to output first data bit before first SCK edge
+  '   4. wypin starts clock — base period counter phase is now deterministic
+  '      (not dependent on free-running counter from init)
+  '
+  ' Timing (all relative to pinl, each PASM instruction = 2 sysclk cycles):
+  '   T=0:  pinl (SCK counter starts fresh)
+  '   T=2:  setxfrq
+  '   T=4:  rdfast
+  '   T=6:  xinit (streamer NCO starts; first data bit at T=6 + 2*spi_period)
+  '   T=8:  waitx begins (waits align_delay cycles)
+  '   T=8+align_delay: wypin (clock starts; first edge at next base period boundary)
   org
+        dirl    _sck                              ' Reset SCK: counter stops, output LOW, Y=0
+        drvl    _sck                              ' Re-enable: DIR=1 restarts base period counter fresh
         setxfrq xfrq                              ' Set streamer bit rate
         rdfast  #0, p_buf                         ' Setup RDFAST from hub buffer
         xinit   stream_mode, #0                    ' Start streamer; NCO ramps from zero
-        waitx   align_delay                        ' Wait for NCO (spi_period - 2 instruction cycles)
-        wypin   clk_count, _sck                   ' Start clock — first edge aligned with first data bit
+        waitx   align_delay                        ' Wait for NCO to output first data bit
+        wypin   clk_count, _sck                   ' Start clock — deterministic phase from drvl
         waitxfi                                   ' Wait for streamer to complete
   end
 
@@ -5585,15 +5593,16 @@ PRI writeSectors(start_sector, count, p_buffer) : sectors_written | _sck, _mosi,
     pinclear(_mosi)                                                               ' Clear smart pin mode
     pinl(_mosi)                                                                   ' Drive pin low (output mode)
 
-    ' Streamer TX with clock delay (see writeSector for full rationale)
-    ' waitx(align_delay) between xinit and wypin gives NCO time to output first bit
-    ' before the first SCK rising edge — prevents 1-bit shift on timing-sensitive cards
+    ' Streamer TX with deterministic clock alignment (see writeSector for full rationale)
+    ' dirl/drvl resets SCK base-period counter; wypin then starts clock in known phase
     org
+          dirl    _sck                              ' Reset SCK: counter stops, output LOW, Y=0
+          drvl    _sck                              ' Re-enable: DIR=1 restarts base period counter fresh
           setxfrq xfrq
           rdfast  #0, p_buf
           xinit   stream_mode, #0                  ' Start streamer; NCO ramps from zero
           waitx   align_delay                      ' Wait for NCO to output first bit
-          wypin   clk_count, _sck                 ' NOW start clock — aligned with data
+          wypin   clk_count, _sck                 ' Start clock — deterministic phase from drvl
           waitxfi
     end
 
