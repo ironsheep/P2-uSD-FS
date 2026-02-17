@@ -1165,17 +1165,6 @@ PRI do_mount() : result | reserved, pPart, pVBR, pFSI
     setdate(2009,01,27,07,00,00)
   flags |= F_MOUNTED
 
-#IFDEF SD_INCLUDE_RAW
-  ' WORKAROUND: Multi-block operations (CMD18/CMD25) require a warmup operation
-  ' after mount to initialize internal state. Without this, the first multi-block
-  ' write followed by multi-block read can return corrupted data.
-  ' A single-sector multi-block read (count=1) exercises the CMD18 path.
-  if readSectors(0, 1, @buf) < 1
-    debug("  [do_mount] FAIL: warmup read error — SPI unreliable")
-    return E_IO_ERROR
-  sec_in_buf := -1                                                              ' Clear cache
-#ENDIF
-
   driver_mode := MODE_FILESYSTEM
   debug("  [do_mount] SUCCESS, mode=FILESYSTEM")
   return SUCCESS
@@ -1207,11 +1196,6 @@ PRI do_init_card_only() : result
   debug("  [do_init_card_only] Calling initCard()...")
   if initCard()
     debug("  [do_init_card_only] Card initialized successfully")
-    ' WORKAROUND: First streamer operation after card init needs warmup
-    if readSector(0, BUF_DATA) < 0
-      debug("  [do_init_card_only] FAIL: warmup read error")
-      return E_IO_ERROR
-    sec_in_buf := -1                                                            ' Clear cache for user's first read
     driver_mode := MODE_RAW
     debug("  [do_init_card_only] SUCCESS, mode=RAW")
     return SUCCESS

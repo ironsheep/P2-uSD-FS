@@ -4,38 +4,19 @@ Items to investigate when time permits.
 
 ---
 
-### Formatter: Switch FAT initialization to multi-sector writes (CMD25)
+### ~~Formatter: Switch FAT initialization to multi-sector writes (CMD25)~~ RESOLVED
 
-**Priority:** ESSENTIAL — implement tomorrow
+**Status:** DONE — implemented in `isp_format_utility.spin2` with 64-sector CMD25 batches (`MULTI_BATCH_SIZE = 64`, 32 KB zero buffer). Both `initFAT()` and `initRootDirectory()` use `writeSectorsRaw()`. Verified working across multiple cards during onboarding.
 
-The format utility (`isp_format_utility.spin2`) writes each FAT sector individually with `writeSectorRaw()` in a loop (line 431-432). For a 128GB card with ~30,500 sectors per FAT, that's ~61,000 single-sector writes — the slowest path.
-
-Benchmark data from the Samsung GD4QT shows:
-- Single-sector write: **1,305 us/sector** (392 KB/s)
-- 64-sector CMD25 write: **235 us/sector** (2,176 KB/s) — **5.5x faster**
-
-The FAT clearing loop writes identical zero-filled buffers to consecutive sectors — the ideal case for `writeSectorsRaw()` with CMD25. The change is straightforward:
-- After writing FAT sector 0 (special entries), batch the remaining `sectorsPerFat - 1` sectors into 64-sector CMD25 writes
-- Handle the remainder (last batch < 64 sectors) with a smaller multi-sector write
-- Same approach for `initRootDirectory()` which also writes consecutive zero sectors
-
-**Expected improvement:** Format time for both FATs on a 128GB card drops from ~80 seconds to ~14 seconds.
-
-**File:** `src/UTILS/isp_format_utility.spin2`, `initFAT()` method (line 409)
-
-*Noted: 2026-02-15*
+*Noted: 2026-02-15 | Resolved: 2026-02-17*
 
 ---
 
-### BUG: openFileRead -40 errors on Samsung GD4QT benchmark
+### ~~BUG: openFileRead -40 errors on Samsung GD4QT benchmark~~ RESOLVED
 
-**Priority:** ESSENTIAL — fix tomorrow
+**Status:** DONE — root cause was TX streamer 1-bit shift bug and CMD25 stuff byte bug, fixed in commits `07fc806` and `58f6347`. Post-fix Samsung GD4QT benchmarks at 350 MHz show all file reads succeeding (1,369-1,455 KB/s, zero -40 errors). Verified at both 350 and 250 MHz (commit `beb0646`).
 
-At 350 MHz, ALL file read benchmarks fail with `E_FILE_NOT_FOUND` (-40). At 250 MHz, 128KB read fails but 4KB, 32KB, and 256KB succeed. The file is created, written, and closed successfully — but `openFileRead` can't find it immediately after. Suggests a timing-sensitive directory entry caching or FAT flush race condition in the driver. The faster Spin2 at 350 MHz hits the race window consistently; at 250 MHz it's intermittent.
-
-**File:** `src/SD_card_driver.spin2`, `openFileRead()` / directory search / FAT cache flush
-
-*Noted: 2026-02-15*
+*Noted: 2026-02-15 | Resolved: 2026-02-16*
 
 ---
 
@@ -64,25 +45,15 @@ At 350 MHz, ALL file read benchmarks fail with `E_FILE_NOT_FOUND` (-40). At 250 
 
 ---
 
-### Investigate whether CMD18 warmup in do_mount() is still needed
+### ~~Investigate whether CMD18 warmup in do_mount() is still needed~~ RESOLVED
 
-**Priority:** HIGH — affects driver correctness and card compatibility
+**Status:** DONE — warmup confirmed vestigial and removed from both `do_mount()` and `do_init_card_only()`. The warmup was masking the TX streamer bit-shift bug (fixed in `07fc806`). Proven by running `SD_RT_multiblock_tests` (CMD25 write → CMD18 read → verify) on 4 cards across 4 manufacturers and 3 SD spec versions — all 6/6 PASS without warmup:
+- Gigastone SD16G 16GB (SD 3.x)
+- SanDisk Industrial SA16G 16GB (SD 5.x)
+- Lexar Red MSSD0 64GB (SD 6.x)
+- Samsung EVO Select 128GB (SD 6.x)
 
-**Background:** `do_mount()` in SD_card_driver.spin2 (line 1168-1177, inside `#IFDEF SD_INCLUDE_RAW`) issues a CMD18 warmup read after successfully reading MBR/VBR/FSInfo. The comment says: *"Multi-block operations require a warmup operation after mount to initialize internal state. Without this, the first multi-block write followed by multi-block read can return corrupted data."*
-
-This warmup was added as a workaround for what was likely the TX streamer bit-shift bug (init_phase=$4000_0000 causing MOSI data corruption). That bug has since been fixed (init_phase=#0, dirl/drvl SCK reset pattern). The warmup may now be vestigial code.
-
-**Problem:** The warmup blocks cards that can't do CMD18 (Silicon Power SPCC 64GB) from mounting at all, even though single-sector operations work perfectly.
-
-**Proof strategy:**
-1. Remove the warmup entirely from `do_mount()`
-2. Run `SD_RT_multiblock_tests.spin2` — Test 1 does mount → CMD25 write 8 sectors → CMD18 read 8 sectors → verify. This is the exact sequence the warmup was protecting against.
-3. Run on multiple CMD18-capable cards (SanDisk, Lexar, Samsung — especially cards that originally exhibited write corruption)
-4. If all pass with 0 CRC mismatches across multiple cards → warmup is confirmed vestigial → remove permanently
-
-**File:** `src/SD_card_driver.spin2`, `do_mount()` lines 1168-1177
-
-*Noted: 2026-02-17*
+*Noted: 2026-02-17 | Resolved: 2026-02-17*
 
 ---
 
