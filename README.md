@@ -170,28 +170,31 @@ P2-uSD-Study/
 
 ## Performance
 
-Measured performance at 320 MHz sysclk with 25 MHz SPI, smart pin hardware acceleration, and streamer DMA:
+Measured at 350 MHz sysclk with 25 MHz SPI, smart pin hardware acceleration, streamer DMA, and multi-sector commands (CMD18/CMD25):
 
-| Operation | PNY 16GB | Gigastone 32GB | SanDisk Extreme 64GB |
-|-----------|----------|----------------|----------------------|
-| Sequential Read (256KB) | 850 KB/s | 1,339 KB/s | 1,467 KB/s |
-| Multi-sector Write (32KB) | 216 KB/s | 325 KB/s | 425 KB/s |
-| Single-sector Write (512B) | 52 KB/s | 85 KB/s | 90 KB/s |
-| Mount | 139 ms | 138 ms | 152 ms |
+| Operation | SanDisk Industrial 16GB | Lexar Blue 128GB | SanDisk Extreme 64GB | Samsung PRO Endurance 128GB |
+|-----------|:-:|:-:|:-:|:-:|
+| File Read (256KB) | 745 KB/s | 1,444 KB/s | 1,031 KB/s | 1,419 KB/s |
+| File Write (32KB) | 321 KB/s | 616 KB/s | 370 KB/s | 758 KB/s |
+| Raw Multi-sector Read (32KB) | 2,393 KB/s | 2,420 KB/s | 2,410 KB/s | 2,427 KB/s |
+| Raw Multi-sector Write (32KB) | 2,170 KB/s | 2,275 KB/s | 2,144 KB/s | 2,319 KB/s |
+| Mount | 486 ms | 400 ms | 233 ms | 243 ms |
 
-Internal card throughput (single-sector reads at 25 MHz SPI) varies widely by card:
+Raw SPI efficiency reaches 80% of theoretical maximum (2,427 / 3,052 KB/s). Multi-sector commands provide 46-67% improvement over single-sector operations.
 
-| Card | Throughput | Class |
-|------|------------|-------|
-| Lexar V30 U3 64GB | 1,059 KB/s | HIGH |
-| Gigastone Camera Plus 64GB | 944 KB/s | HIGH |
-| SanDisk Extreme PRO 64GB | 866 KB/s | HIGH |
-| SanDisk Industrial 16GB | 824 KB/s | HIGH |
-| Samsung EVO Select 128GB | 783 KB/s | HIGH |
-| Gigastone High Endurance 16GB | 368 KB/s | MEDIUM |
-| PNY 16GB (Phison) | 31 KB/s | LOW |
+Single-sector read throughput (internal card controller speed) varies widely:
 
-Performance varies significantly by card controller, not just speed class rating. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization of 16 tested cards and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for file-level throughput measurements.
+| Card | Throughput | App Perf Class |
+|------|------------|----------------|
+| Samsung PRO Endurance 128GB | 1,283 KB/s | A2 |
+| Lexar V30 U3 64GB | 1,239 KB/s | A2 |
+| SanDisk Extreme 64GB | 1,001 KB/s | A2 |
+| Samsung EVO Select 128GB | 937 KB/s | -- |
+| SanDisk Nintendo Switch 128GB | 887 KB/s | A2 |
+| Lexar Blue 128GB | 819 KB/s | A2 |
+| SanDisk Industrial 16GB | 792 KB/s | -- |
+
+Performance varies significantly by card controller, not just speed class rating. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for full cross-card comparisons at 350 and 250 MHz.
 
 ## API Overview
 
