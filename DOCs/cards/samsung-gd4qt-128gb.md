@@ -191,25 +191,19 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 
 **Performance Class:** HIGH - Very similar to SanDisk Nintendo Switch (within 0.4%).
 
-### Benchmark Results (Smart Pin SPI + Multi-Sector)
+### Non-Multiple Sysclk Characterization (320/270 MHz)
 
-**Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: ~22.8 kHz @ 320 MHz, ~22.5 kHz @ 270 MHz
+**Test Program**: SD_performance_benchmark.spin2 v2.0 | **Card Unit**: SN:C0305565
+**Test Date**: 2026-02-08 | **SPI**: 22,857 kHz @ 320 MHz, 22,500 kHz @ 270 MHz
 
-**Raw Sector Results Incomplete**: The initial benchmark run (pre-fix driver, 2026-02-02) returned 0 for all raw sector tests due to a test seeding issue. These ERROR entries are from the pre-fix driver; see Standard Protocol section below for complete post-fix results at 350/250 MHz. File-level results below remain valid for 320/270 MHz comparison.
+These runs used sysclk values that are NOT clean multiples of the SPI frequency (320/25 = 12.8, 270/25 = 10.8). This shows real-world behavior with non-integer clock dividers. Raw sector data unavailable (pre-fix driver); file-level results are valid.
 
-#### 320 MHz Run
+#### 320 MHz Run (File-Level Only)
 
 **SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 202.3 ms
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
-| **Raw Single-Sector** | | | | |
-| Read 1x512B | — | — | — | **ERROR** |
-| Write 1x512B | — | — | — | **ERROR** |
-| **Raw Multi-Sector** | | | | |
-| Read 8/32/64 sectors | — | — | — | **ERROR** |
-| Write 8/32/64 sectors | — | — | — | **ERROR** |
-| **File-Level** | | | | |
 | File Write 512B | 7,821 | 8,027 | 8,537 | **63** |
 | File Write 4 KB | 16,686 | 17,253 | 18,142 | **237** |
 | File Write 32 KB | 84,730 | 102,330 | 121,699 | **320** |
@@ -217,24 +211,13 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 | File Read 32 KB | 35,227 | 35,296 | 35,769 | **928** |
 | File Read 128 KB | 158,710 | 158,857 | 159,994 | **825** |
 | File Read 256 KB | 340,113 | 340,286 | 341,577 | **770** |
-| **Overhead** | | | | |
-| File Open | 101 | 153 | 628 | — |
-| File Close | 22 | 22 | 22 | — |
-| Mount | — | 202,300 | — | — |
 
-#### 270 MHz Run
+#### 270 MHz Run (File-Level Only)
 
 **SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 214.4 ms
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
-| **Raw Single-Sector** | | | | |
-| Read 1x512B | — | — | — | **ERROR** |
-| Write 1x512B | — | — | — | **ERROR** |
-| **Raw Multi-Sector** | | | | |
-| Read 8/32/64 sectors | — | — | — | **ERROR** |
-| Write 8/32/64 sectors | — | — | — | **ERROR** |
-| **File-Level** | | | | |
 | File Write 512B | 8,083 | 8,278 | 8,773 | **61** |
 | File Write 4 KB | 17,630 | 18,128 | 18,611 | **225** |
 | File Write 32 KB | 87,594 | 100,385 | 122,577 | **326** |
@@ -242,12 +225,8 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 | File Read 32 KB | 37,533 | 37,594 | 38,110 | **871** |
 | File Read 128 KB | 154,502 | 154,634 | 155,691 | **847** |
 | File Read 256 KB | 342,910 | 343,077 | 344,231 | **764** |
-| **Overhead** | | | | |
-| File Open | 120 | 189 | 816 | — |
-| File Close | 26 | 26 | 27 | — |
-| Mount | — | 214,400 | — | — |
 
-#### Sysclk Effect (320 vs 270 MHz)
+#### Sysclk Effect (320 vs 270 MHz, non-multiple)
 
 | Test | 320 MHz (KB/s) | 270 MHz (KB/s) | Delta |
 |------|----------------|----------------|-------|
@@ -255,80 +234,79 @@ SCR: $02 $C5 $80 $03 $00 $00 $00 $00
 | File Read 256 KB | 770 | 764 | -0.8% |
 | File Write 32 KB | 320 | 326 | +1.9% |
 
-File reads at small sizes show the typical ~5% sysclk effect. At large sizes, the card controller's internal read latency dominates, making the sysclk difference negligible. File write results are within noise. This Samsung card has notably slower file reads (770 KB/s at 256 KB) compared to other cards (1,029-1,274 KB/s), likely due to higher internal controller latency.
+File reads at small sizes show the typical ~5% sysclk effect. At large sizes, the card controller's internal read latency dominates. This Samsung card has notably slower file reads (770 KB/s at 256 KB) compared to other cards (1,029-1,274 KB/s), likely due to higher internal controller latency.
 
 ### Benchmark Results — Standard Protocol (350/250 MHz, 25 MHz SPI)
 
 **Test Program**: SD_performance_benchmark.spin2 v2.0 | **SPI**: 25,000 kHz at both clock speeds
-**Card Unit**: SN:4AC85F42 (different unit from catalog SN:C0305565, same model)
+**Test Date**: 2026-02-17 | **Driver**: commit 797f913 (TX streamer fix + dirl/drvl SCK reset)
+**Card Unit**: SN:4AC85F42
 
-#### 350 MHz: Pre-Fix (2026-02-15) vs Post-Fix (2026-02-17)
+#### 350 MHz Run
 
-Post-fix driver includes: TX streamer align_delay fix + dirl/drvl SCK reset (commit 797f913).
+**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 202.6 ms
 
-| Test | Pre-Fix Avg (us) | Pre-Fix KB/s | Post-Fix Avg (us) | Post-Fix KB/s | Delta |
-|------|-------------------|--------------|--------------------|--------------:|-------|
-| **Raw Single-Sector** | | | | | |
-| Read 1x512B | 626 | **817** | 546 | **937** | +14.7% |
-| Write 1x512B | 1,305 | **392** | 46,988 | **10** | \*\* |
-| **Raw Multi-Sector** | | | | | |
-| Read 8 (4 KB) | 2,151 | **1,904** | 2,044 | **2,003** | +5.2% |
-| Read 32 (16 KB) | 7,412 | **2,210** | 7,136 | **2,295** | +3.8% |
-| Read 64 (32 KB) | 14,548 | **2,252** | 13,925 | **2,353** | +4.5% |
-| Write 8 (4 KB) | 2,825 | **1,449** | 34,774 | **117** | \*\* |
-| Write 32 (16 KB) | 7,576 | **2,162** | 39,905 | **410** | \*\* |
-| Write 64 (32 KB) | 15,052 | **2,176** | 56,408 | **580** | \*\* |
-| **File-Level** | | | | | |
-| File Write 512B | 7,672 | **66** | 9,177 | **55** | \*\* |
-| File Write 4 KB | 18,175 | **225** | 16,599 | **246** | +9.3% |
-| File Write 32 KB | 89,784 | **364** | 100,636 | **325** | \*\* |
-| File Read 4 KB | — | ERROR | 6,060 | **675** | fixed |
-| File Read 32 KB | — | ERROR | 33,484 | **978** | fixed |
-| File Read 128 KB | — | ERROR | 151,788 | **863** | fixed |
-| File Read 256 KB | — | ERROR | 275,781 | **950** | fixed |
-| **Overhead** | | | | | |
-| File Open | 2,400 | — | 151 | — | fixed |
-| File Close | 16 | — | 20 | — | |
-| Mount | 202,100 | — | 202,600 | — | 0.0% |
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 541 | 546 | 551 | **937** |
+| Write 1x512B | 32,874 | 46,988 | 65,480 | **10** \* |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,044 | 2,044 | 2,045 | **2,003** |
+| Read 32 sectors (16 KB) | 7,136 | 7,136 | 7,136 | **2,295** |
+| Read 64 sectors (32 KB) | 13,925 | 13,925 | 13,926 | **2,353** |
+| Write 8 sectors (4 KB) | 34,537 | 34,774 | 35,020 | **117** \* |
+| Write 32 sectors (16 KB) | 39,527 | 39,905 | 40,055 | **410** \* |
+| Write 64 sectors (32 KB) | 46,879 | 56,408 | 76,552 | **580** \* |
+| **File-Level** | | | | |
+| File Write 512B | 7,334 | 9,177 | 24,637 | **55** |
+| File Write 4 KB | 15,681 | 16,599 | 17,766 | **246** |
+| File Write 32 KB | 81,627 | 100,636 | 120,334 | **325** |
+| File Read 4 KB | 5,987 | 6,060 | 6,684 | **675** |
+| File Read 32 KB | 33,424 | 33,484 | 33,932 | **978** |
+| File Read 128 KB | 151,644 | 151,788 | 152,865 | **863** |
+| File Read 256 KB | 275,661 | 275,781 | 276,694 | **950** |
+| **Overhead** | | | | |
+| File Open | 98 | 151 | 629 | — |
+| File Close | 20 | 20 | 21 | — |
+| Unmount | — | 0 | — | — |
 
-\*\* Write performance variance is Samsung flash controller state-dependent (wear leveling / GC pauses). The 350 MHz post-fix run hit a flash housekeeping event: single-sector write avg jumped from 1,305 to 46,988 us. This is card behavior, not driver-related — read performance improved and file reads are now fully functional.
+\* Write results affected by Samsung flash controller housekeeping (wear leveling / GC pause). Single-sector write avg of 46,988 us is anomalous vs the 250 MHz run's 1,298 us — this is card-state behavior, not driver-related. Read performance and all file operations are normal.
 
-Multi-sector improvement (post-fix): 64x single = 39,124 us vs CMD18 = 14,176 us (**63% faster**)
+Multi-sector improvement: 64x single reads = 39,124 us vs 1x CMD18 = 14,176 us (**63% faster**)
 
-**350 MHz Key Result**: File reads now fully functional (were ERROR -40 pre-fix). Read throughput improved 5-15%. Write performance variance is card-state dependent.
+#### 250 MHz Run
 
-#### 250 MHz: Pre-Fix (2026-02-15) vs Post-Fix (2026-02-17)
+**SysClk**: 250 MHz | **SPI**: 25,000 kHz | **Mount**: 205.8 ms
 
-| Test | Pre-Fix Avg (us) | Pre-Fix KB/s | Post-Fix Avg (us) | Post-Fix KB/s | Delta |
-|------|-------------------|--------------|--------------------|--------------:|-------|
-| **Raw Single-Sector** | | | | | |
-| Read 1x512B | 832 | **615** | 639 | **801** | +30.2% |
-| Write 1x512B | 1,752 | **292** | 1,298 | **394** | +34.9% |
-| **Raw Multi-Sector** | | | | | |
-| Read 8 (4 KB) | 2,540 | **1,612** | 2,280 | **1,796** | +11.4% |
-| Read 32 (16 KB) | 8,203 | **1,997** | 7,822 | **2,094** | +4.9% |
-| Read 64 (32 KB) | 15,619 | **2,097** | 15,518 | **2,111** | +0.7% |
-| Write 8 (4 KB) | 14,888 | **275** | 2,966 | **1,380** | +401% |
-| Write 32 (16 KB) | 8,198 | **1,998** | 8,228 | **1,991** | -0.4% |
-| Write 64 (32 KB) | 16,314 | **2,008** | 16,359 | **2,003** | -0.2% |
-| **File-Level** | | | | | |
-| File Write 512B | 10,462 | **48** | 8,633 | **59** | +22.9% |
-| File Write 4 KB | 19,253 | **212** | 18,214 | **224** | +5.7% |
-| File Write 32 KB | 102,749 | **318** | 100,884 | **324** | +1.9% |
-| File Read 4 KB | 9,966 | **410** | 5,071 | **807** | +96.8% |
-| File Read 32 KB | 39,924 | **820** | 40,797 | **803** | -2.1% |
-| File Read 128 KB | — | ERROR | 180,949 | **724** | fixed |
-| File Read 256 KB | 374,624 | **699** | 347,399 | **754** | +7.9% |
-| **Overhead** | | | | | |
-| File Open | 3,393 | — | 212 | — | fixed |
-| File Close | 29 | — | 29 | — | 0.0% |
-| Mount | 205,000 | — | 205,800 | — | +0.4% |
+| Test | Min (us) | Avg (us) | Max (us) | KB/s |
+|------|----------|----------|----------|------|
+| **Raw Single-Sector** | | | | |
+| Read 1x512B | 627 | 639 | 652 | **801** |
+| Write 1x512B | 1,279 | 1,298 | 1,358 | **394** |
+| **Raw Multi-Sector** | | | | |
+| Read 8 sectors (4 KB) | 2,280 | 2,280 | 2,280 | **1,796** |
+| Read 32 sectors (16 KB) | 7,821 | 7,822 | 7,827 | **2,094** |
+| Read 64 sectors (32 KB) | 15,216 | 15,518 | 15,553 | **2,111** |
+| Write 8 sectors (4 KB) | 2,945 | 2,966 | 3,025 | **1,380** |
+| Write 32 sectors (16 KB) | 8,217 | 8,228 | 8,290 | **1,991** |
+| Write 64 sectors (32 KB) | 16,322 | 16,359 | 16,465 | **2,003** |
+| **File-Level** | | | | |
+| File Write 512B | 8,392 | 8,633 | 9,754 | **59** |
+| File Write 4 KB | 17,688 | 18,214 | 18,683 | **224** |
+| File Write 32 KB | 85,887 | 100,884 | 128,186 | **324** |
+| File Read 4 KB | 5,012 | 5,071 | 5,598 | **807** |
+| File Read 32 KB | 40,728 | 40,797 | 41,339 | **803** |
+| File Read 128 KB | 180,785 | 180,949 | 182,256 | **724** |
+| File Read 256 KB | 346,947 | 347,399 | 349,505 | **754** |
+| **Overhead** | | | | |
+| File Open | 137 | 212 | 888 | — |
+| File Close | 29 | 29 | 29 | — |
+| Unmount | — | 0 | — | — |
 
-Multi-sector improvement (post-fix): 64x single = 45,794 us vs CMD18 = 15,233 us (**66% faster**)
+Multi-sector improvement: 64x single reads = 45,794 us vs 1x CMD18 = 15,233 us (**66% faster**)
 
-**250 MHz Key Results**: File Read 128KB now works (was ERROR). File Open dropped from 3,393 to 212 us (pre-fix had stale file handle issue). 8-sector CMD25 write normalized (pre-fix had 121,353 us outlier from flash GC). Single-sector reads improved 30% — likely card was in better cache state.
-
-#### Sysclk Effect: Post-Fix 350 vs 250 MHz
+#### Sysclk Effect (350 vs 250 MHz)
 
 | Test | 350 MHz (KB/s) | 250 MHz (KB/s) | Delta |
 |------|----------------|----------------|-------|
@@ -340,9 +318,9 @@ Multi-sector improvement (post-fix): 64x single = 45,794 us vs CMD18 = 15,233 us
 | **File-Level** | | | |
 | File Write 4 KB | 246 | 224 | +9.8% |
 | File Write 32 KB | 325 | 324 | +0.3% |
-| File Read 4 KB | 675 | 807 | -16.4% |
+| File Read 4 KB | 675 | 807 | -16.4% \* |
 | File Read 32 KB | 978 | 803 | +21.8% |
 | File Read 128 KB | 863 | 724 | +19.2% |
 | File Read 256 KB | 950 | 754 | +26.0% |
 
-Note: 350 MHz raw write comparison excluded due to flash housekeeping event during that run. File Read 4 KB anomaly at 250 MHz (faster than 350 MHz) likely reflects card cache state difference between runs. Large file reads show expected 19-26% sysclk improvement from faster Spin2 FAT traversal overhead.
+350 MHz raw write excluded (flash housekeeping anomaly). \* File Read 4 KB anomaly (250 faster than 350) likely reflects card cache state difference between runs. Large file reads show expected 19-26% sysclk improvement from faster Spin2 FAT traversal overhead.

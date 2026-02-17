@@ -2,7 +2,8 @@
 
 **Document Purpose**: Record actual performance measurements from benchmark testing
 **Test Program**: `src/UTILS/SD_performance_benchmark.spin2` (v2.0)
-**System Clock**: 320 MHz (default), 270 MHz (comparison runs)
+**Standard Protocol**: 350 MHz and 250 MHz sysclk, both producing exactly 25 MHz SPI clock
+**Driver**: Smart Pin SPI + Multi-Sector (CMD18/CMD25) + TX Streamer Fix (commit 797f913)
 
 Detailed per-card benchmark data is in each card's page under [DOCs/cards/](cards/). This document provides cross-card comparisons and analysis.
 
@@ -13,7 +14,53 @@ Detailed per-card benchmark data is in each card's page under [DOCs/cards/](card
 - **Hardware**: P2 Edge Module with microSD slot
 - **Pins**: CS=P60, MOSI=P59, MISO=P58, SCK=P61
 - **Iterations**: 10 per test (averaged)
-- **Test Date**: 2026-01-21 (baseline), 2026-02-07 through 2026-02-09 (current driver)
+- **Standard Protocol**: 350 MHz and 250 MHz sysclk both produce exactly 25,000 kHz SPI clock — this isolates Spin2 inter-transfer overhead from SPI bus speed
+- **Test Dates**: 2026-01-21 (bit-banged baseline), 2026-02-07 through 2026-02-17 (current driver)
+
+---
+
+## Current Driver Results (350 MHz, 25 MHz SPI)
+
+Test program: `src/UTILS/SD_performance_benchmark.spin2` v2.0
+Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD25), and file-level (handle API).
+
+### Cross-Card Comparison (350 MHz, Best Numbers)
+
+| Metric | SanDisk Industrial 16GB | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB |
+|--------|:-:|:-:|:-:|:-:|
+| **Mount** | 486 ms | 358 ms | 400 ms | **203 ms** |
+| **File Open** | 159 µs | 149 µs | **128 µs** | 151 µs |
+| **Raw Read 1×512B** | 792 KB/s | **1,239 KB/s** | 819 KB/s | 937 KB/s |
+| **Raw Read 64× (32KB)** | 2,393 KB/s | 2,379 KB/s | **2,420 KB/s** | 2,353 KB/s |
+| **Raw Write 1×512B** | 361 KB/s | 677 KB/s | **680 KB/s** | — † |
+| **Raw Write 64× (32KB)** | 2,170 KB/s | 2,248 KB/s | **2,275 KB/s** | — † |
+| **File Read 256KB** | 745 KB/s ‡ | **1,531 KB/s** | 1,444 KB/s | 950 KB/s |
+| **File Write 32KB** | 321 KB/s | 469 KB/s | **616 KB/s** | 325 KB/s |
+| **Multi-sector gain** | 67% | 51% | 51% | 63% |
+| **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/lexar-mssd0-128gb.md) | [card page](cards/samsung-gd4qt-128gb.md) |
+
+**Best Read**: Lexar V30 64GB — fastest single-sector reads and file-level reads.
+**Best Write**: Lexar Blue 128GB — fastest raw and file-level writes.
+
+† Samsung 350 MHz raw write results affected by flash controller housekeeping pause (wear leveling/GC). 250 MHz run was clean: Write 1×512B = 394 KB/s, Write 64× = 2,003 KB/s. See [card page](cards/samsung-gd4qt-128gb.md).
+‡ SanDisk Industrial 350 MHz File Read 256KB showed high variance (Max=655 ms outlier); 250 MHz result of 790 KB/s is representative.
+
+---
+
+### Sysclk Effect (350 vs 250 MHz at same 25 MHz SPI)
+
+Both speeds produce identical 25 MHz SPI clock — differences are purely Spin2 inter-transfer overhead.
+
+| Test | SanDisk Industrial | Lexar Blue 128GB | Samsung EVO 128GB |
+|------|:-:|:-:|:-:|
+| **Raw Read 64×** | +8% | +8% | +11% |
+| **Raw Write 64×** | +9% | +9% | — |
+| **File Read 256KB** | -6% ‡ | +15% | +26% |
+| **File Write 32KB** | +4% | +12% | +0.3% |
+
+**Pattern**: Raw multi-sector operations gain ~8-11% from faster Spin2 processing between streamer transfers. File-level reads gain 15-26% from reduced FAT traversal overhead. File-level writes are card-dependent — cards with longer flash programming times (Samsung) are dominated by card latency rather than sysclk speed.
+
+‡ SanDisk Industrial 350 MHz had measurement artifacts; 250 MHz results more representative for this card.
 
 ---
 
@@ -109,28 +156,23 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 
 ---
 
-## Current Driver Results (Smart Pin SPI + Multi-Sector)
+## Legacy Cross-Card Reference (320 MHz, 22.9 MHz SPI)
 
-Test program: `src/UTILS/SD_performance_benchmark.spin2` v2.0
-Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD25), and file-level (handle API).
-
-### Cross-Card Comparison (320 MHz, Best Numbers)
+These results were collected during initial smart-pin driver benchmarking (2026-02-07 through 2026-02-09) at 320 MHz sysclk, before the TX streamer fix. Raw sector results for Samsung were affected by a test seeding issue; file-level results were valid. This table is preserved for its broader card coverage (6 cards) until all cards are re-benchmarked at the standard 350/250 MHz protocol.
 
 | Metric | SanDisk Industrial 16GB | Lexar V30 64GB | Gigastone Camera+ 64GB | Samsung EVO 128GB | Gigastone HE 16GB | PNY 16GB |
 |--------|:-:|:-:|:-:|:-:|:-:|:-:|
 | **Mount** | 235 ms | 212 ms | 202 ms | 202 ms | 203 ms | 203 ms |
 | **File Open** | 144 µs | 198 µs | 199 µs | 153 µs | 186 µs | **16,945 µs** |
-| **Raw Read 1×512B** | 698 KB/s | **1,142 KB/s** | 942 KB/s | ERROR | 565 KB/s | 630 KB/s |
-| **Raw Read 64× (32KB)** | 2,189 KB/s | **2,173 KB/s** | 1,950 KB/s | ERROR | 1,915 KB/s | 2,035 KB/s |
-| **Raw Write 64× (32KB)** | 1,996 KB/s | **2,059 KB/s** | 1,969 KB/s | ERROR | 1,670 KB/s | 995 KB/s |
+| **Raw Read 1×512B** | 698 KB/s | **1,142 KB/s** | 942 KB/s | — | 565 KB/s | 630 KB/s |
+| **Raw Read 64× (32KB)** | 2,189 KB/s | **2,173 KB/s** | 1,950 KB/s | — | 1,915 KB/s | 2,035 KB/s |
+| **Raw Write 64× (32KB)** | 1,996 KB/s | **2,059 KB/s** | 1,969 KB/s | — | 1,670 KB/s | 995 KB/s |
 | **File Read 256KB** | 835 KB/s | **1,274 KB/s** | 1,029 KB/s | 770 KB/s | 631 KB/s | 662 KB/s |
 | **File Write 32KB** | 321 KB/s | **501 KB/s** | 367 KB/s | 320 KB/s | 105 KB/s | 173 KB/s |
 | **Multi-sector gain** | 65% | 50% | 51% | — | 70% | 67% |
 | **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/gigastone-astc-64gb.md) | [card page](cards/samsung-gd4qt-128gb.md) | [card page](cards/gigastone-sd16g-16gb.md) | [card page](cards/pny-sd16g-16gb.md) |
 
-**Winner**: Lexar V30 U3 64GB — fastest across nearly all metrics.
-
-Samsung raw sector results omitted due to test seeding issue (file-level results valid). See [card page](cards/samsung-gd4qt-128gb.md) for details.
+Note: SPI clock at 320 MHz = 22,857 kHz (non-integer divider: 320/25 = 12.8). The 350 MHz standard protocol produces a clean 25,000 kHz SPI clock.
 
 ---
 
@@ -138,39 +180,40 @@ Samsung raw sector results omitted due to test seeding issue (file-level results
 
 ### Card Controller Variance
 
-The dramatic difference in file open times (293 µs vs 14,136 µs) demonstrates that SD card performance varies significantly based on the internal controller, not just the rated speed class.
+The dramatic difference in file open times (128 µs vs 16,945 µs) demonstrates that SD card performance varies significantly based on the internal controller, not just the rated speed class.
 
-### Write Speed Scaling
+### Write Speed Scaling (Baseline → Current)
 
 Write throughput increases with block size due to:
 1. Fewer command/response cycles
 2. Better alignment with card's internal erase blocks
 3. Reduced FAT update overhead
 
-| Block Size | Gigastone | PNY | SanDisk |
-|------------|-----------|-----|---------|
-| 512B | 85 KB/s | 52 KB/s | 90 KB/s |
-| 4KB | 210 KB/s (2.5×) | 182 KB/s (3.5×) | 302 KB/s (3.4×) |
-| 32KB | 325 KB/s (3.8×) | 216 KB/s (4.2×) | 425 KB/s (4.7×) |
+| Block Size | Baseline Best (SanDisk 64GB) | Current Best (Lexar Blue 128GB) | Improvement |
+|------------|------------------------------|--------------------------------|-------------|
+| 512B | 90 KB/s | 102 KB/s | +13% |
+| 4KB | 302 KB/s | 392 KB/s | +30% |
+| 32KB | 425 KB/s | 616 KB/s | +45% |
 
 ### Read Performance
 
-Sequential read performance is consistent and significantly faster than writes:
-- Gigastone: 1,339 KB/s (4× faster than best write)
-- PNY: 850 KB/s (4× faster than best write)
-- SanDisk: 1,467 KB/s (3.5× faster than best write)
+Sequential read performance at file level (current driver, 350 MHz):
+- Lexar V30 64GB: **1,531 KB/s** (best)
+- Lexar Blue 128GB: 1,444 KB/s
+- Samsung EVO 128GB: 950 KB/s
+- SanDisk Industrial 16GB: 745 KB/s (measurement artifact — 790 KB/s at 250 MHz is representative)
 
 ### Multi-Sector Improvement
 
-CMD18/CMD25 multi-sector operations provide 50-70% improvement over repeated single-sector commands:
-- Cards with slower internal controllers benefit more (Gigastone HE: 70%, PNY: 67%)
-- Fast cards benefit less (Lexar: 50%, Gigastone Camera+: 51%)
+CMD18/CMD25 multi-sector operations provide 50-67% improvement over repeated single-sector commands:
+- Cards with slower internal controllers benefit more (SanDisk Industrial: 67%, Samsung: 63%)
+- Fast cards benefit less (Lexar V30: 51%, Lexar Blue: 51%)
 - The improvement comes from eliminating per-sector command overhead
 
-### PNY Phison Controller Anomalies
+### PNY Phison Controller Anomalies (320 MHz data)
 
 The PNY card (MID $27 Phison) has distinctive behavior:
-- **File open: 16.9 ms** (85× slower than other cards' ~200 µs)
+- **File open: 16.9 ms** (85× slower than other cards' ~150 µs)
 - **Raw single-sector write: 57 KB/s** with enormous variance (Min=2,965, Max=11,110 µs)
 - **Multi-sector reads surprisingly fast**: 2,110 KB/s at 32 sectors — competitive with the best cards
 - **Extremely consistent reads**: Min=Max for single-sector (812 µs) at 320 MHz — zero variance
@@ -179,11 +222,11 @@ The PNY card (MID $27 Phison) has distinctive behavior:
 
 ## Theoretical Limits
 
-At 320 MHz sysclk with Smart Pin SPI:
-- **SPI clock**: ~22.9 MHz
-- **Theoretical byte rate**: ~2,790 KB/s
-- **Best raw achieved**: 2,189 KB/s read, 2,059 KB/s write (78% / 74% efficiency)
-- **Best file-level achieved**: 1,274 KB/s read, 501 KB/s write
+At 350 MHz sysclk with Smart Pin SPI:
+- **SPI clock**: 25.0 MHz (exact — 350/25 = 14, integer divider)
+- **Theoretical byte rate**: ~3,052 KB/s (25 MHz / 8 bits)
+- **Best raw achieved**: 2,420 KB/s read, 2,275 KB/s write (79% / 75% efficiency)
+- **Best file-level achieved**: 1,531 KB/s read, 616 KB/s write
 
 The raw-to-theoretical gap is due to:
 - Command/response framing per transfer
@@ -202,11 +245,11 @@ The file-to-raw gap is due to:
 
 | Level | Read (KB/s) | Write (KB/s) | Read % | Write % |
 |-------|-------------|--------------|--------|---------|
-| Theoretical (22.9 MHz SPI) | 2,790 | 2,790 | 100% | 100% |
-| Raw multi-sector (best) | 2,189 | 2,059 | 78% | 74% |
-| File-level (best) | 1,274 | 501 | 46% | 18% |
+| Theoretical (25 MHz SPI) | 3,052 | 3,052 | 100% | 100% |
+| Raw multi-sector (best) | 2,420 | 2,275 | 79% | 75% |
+| File-level (best) | 1,531 | 616 | 50% | 20% |
 
-The raw SPI layer is reasonably efficient. The largest remaining headroom is in file-level write throughput, where FAT metadata updates consume over 80% of available bandwidth.
+The raw SPI layer is reasonably efficient (~77% average). The largest remaining headroom is in file-level write throughput, where FAT metadata updates consume over 80% of available bandwidth.
 
 ---
 
@@ -215,14 +258,17 @@ The raw SPI layer is reasonably efficient. The largest remaining headroom is in 
 | Date | Driver Version | Change | Notes |
 |------|----------------|--------|-------|
 | 2026-01-21 | Baseline (bit-banged) | Initial benchmark | 3 cards tested |
-| 2026-02-07 | Current (smart pin + multi-sector) | Benchmark v2.0 | SanDisk Industrial 16GB @ 320+270 MHz |
-| 2026-02-08 | Current (smart pin + multi-sector) | Benchmark v2.0 | Lexar V30 U3 64GB @ 320+270 MHz |
-| 2026-02-08 | Current (smart pin + multi-sector) | Benchmark v2.0 | Gigastone Camera Plus 64GB @ 320+270 MHz |
-| 2026-02-08 | Current (smart pin + multi-sector) | Benchmark v2.0 | Samsung EVO Select 128GB @ 320+270 MHz (raw sector API errors) |
-| 2026-02-08 | Current (smart pin + multi-sector) | Benchmark v2.0 | Gigastone High Endurance 16GB @ 320+270 MHz |
-| 2026-02-09 | Current (smart pin + multi-sector) | Benchmark v2.0 | PNY 16GB @ 320+270 MHz |
+| 2026-02-07 | Smart pin + multi-sector | Benchmark v2.0 | SanDisk Industrial 16GB @ 320+270 MHz |
+| 2026-02-08 | Smart pin + multi-sector | Benchmark v2.0 | Lexar V30 U3 64GB @ 320+270+350 MHz |
+| 2026-02-08 | Smart pin + multi-sector | Benchmark v2.0 | Gigastone Camera Plus 64GB @ 320+270 MHz |
+| 2026-02-08 | Smart pin + multi-sector | Benchmark v2.0 | Samsung EVO Select 128GB @ 320+270 MHz (raw sector errors) |
+| 2026-02-08 | Smart pin + multi-sector | Benchmark v2.0 | Gigastone High Endurance 16GB @ 320+270 MHz |
+| 2026-02-09 | Smart pin + multi-sector | Benchmark v2.0 | PNY 16GB @ 320+270 MHz |
+| 2026-02-16 | TX streamer fix (797f913) | Standard protocol | SanDisk Industrial 16GB @ 350+250 MHz |
+| 2026-02-16 | TX streamer fix (797f913) | Standard protocol | Lexar Blue 128GB @ 350+250 MHz |
+| 2026-02-17 | TX streamer fix (797f913) | Standard protocol | Samsung EVO Select 128GB @ 350+250 MHz |
 
 ---
 
 *Document maintained as part of P2-uSD-Study project*
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-17*
