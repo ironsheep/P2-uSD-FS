@@ -143,6 +143,7 @@ This section documents ALL fields available from SD card registers and indicates
 | SanDisk_SU08G_8.0_0AA81F11_201010 | Unknown (claims SanDisk $03) - Chinese #1 | SU08G | ~7 GB | **C** | PASS |
 | Samsung_00000_1.0_D9FB539C_201408 | Samsung ($1B) - Chinese #2 | 00000 | ~7 GB | **C** | PASS |
 | SanDisk_SS08G_3.0_DAAEE8AD_201509 | SanDisk ($03) - Taiwan | SS08G | ~7 GB | **C** | PASS |
+| SharedOEM_SPCC_0.7_00940105_202507 | Silicon Power (Shared OEM $9F) | SPCC | ~57 GB | **B** | **BLOCKED** |
 | Phison_SD16G_3.0_01CD5CF5_201808 | PNY (Phison $27) | SD16G | ~14 GB | **D** | PARTIAL |
 
 ---
@@ -178,9 +179,10 @@ Cards tested with `SD_speed_characterize.spin2` have measured internal throughpu
 | SanDisk_SU08G | Chinese #1 ($03) | ~7 GB | — | — | — | not yet tested |
 | Samsung_00000 | Chinese #2 ($1B) | ~7 GB | — | — | — | not yet tested |
 | SanDisk_SS08G | SanDisk Taiwan ($03) | ~7 GB | — | — | — | not yet tested |
+| SharedOEM_SPCC | Silicon Power ($9F) | ~57 GB | — | — | — | CMD18 blocked (see punch list) |
 | Phison_SD16G | PNY ($27) | ~14 GB | **31.3 KB/s** | 16.0 ms | LOW | 25 MHz |
 
-**Tested: 8 of 16 cards**
+**Tested: 8 of 17 cards** (1 blocked)
 
 **Key Observations:**
 1. **Lexar V30 U3 64GB** - **Fastest card tested** (1,059 KB/s), 12% faster than Gigastone
@@ -226,6 +228,12 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 **Rating B** - Fast:
+
+**Silicon Power Elite 64GB SDXC** — [siliconpower-spcc-64gb.md](cards/siliconpower-spcc-64gb.md) **[BLOCKED — CMD18 investigation required]**
+```
+SharedOEM SPCC SDXC 57GB [FAT32] SD 6.x rev0.7 SN:00940105 2025/07
+Class 10, U3, A1, V30, SPI 25 MHz  [P2FMTER]
+```
 
 **Samsung EVO Select 128GB SDXC** — [samsung-gd4qt-128gb.md](cards/samsung-gd4qt-128gb.md)
 ```
@@ -402,5 +410,5 @@ SCR: [8 bytes hex]
 ---
 
 *Catalog created: 2026-01-20*
-*Last updated: 2026-02-15*
-*Cards cataloged: 17 (individual card pages in [DOCs/cards/](cards/))*
+*Last updated: 2026-02-17*
+*Cards cataloged: 18 (individual card pages in [DOCs/cards/](cards/))*

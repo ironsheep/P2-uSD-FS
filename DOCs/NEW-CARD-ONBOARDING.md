@@ -163,9 +163,9 @@ Run at **two sysclk speeds** (350 MHz and 250 MHz):
 
 ### Restore default
 
-After both runs, restore the original clock speed:
+After both runs, restore the standard clock speed:
 ```
-_CLKFREQ = 320_000_000
+_CLKFREQ = 350_000_000
 ```
 
 **What to capture for each run:**
@@ -219,7 +219,7 @@ Run the complete regression test suite at both clock speeds to verify driver cor
    ./run_test.sh ../regression-tests/SD_RT_format_tests.spin2 -t 300
    ```
 3. Record pass/fail for each test
-4. After all tests complete, restore `_CLKFREQ` to the default (270 MHz)
+4. After all tests complete, restore `_CLKFREQ` to the default (350 MHz)
 
 ### 350 MHz Run
 
@@ -231,7 +231,45 @@ Set `_CLKFREQ = 250_000_000` in all test files, run suite, record results.
 
 ### Restore defaults
 
-After both runs, restore `_CLKFREQ = 270_000_000` in all test files.
+After both runs, restore `_CLKFREQ = 350_000_000` in all test files.
+
+---
+
+## Handling Flash Housekeeping Events
+
+During benchmarking, some cards exhibit anomalous write latency caused by internal flash controller housekeeping — wear leveling, garbage collection (GC), or block remapping. These are card-state-dependent and unpredictable.
+
+### How to Recognize
+
+A flash housekeeping event looks like this in benchmark results:
+- **Single-sector write avg wildly above normal**: e.g., 46,988 us instead of ~1,300 us
+- **Huge Min/Max spread**: e.g., Min=32,874, Max=65,480 us (all iterations slow)
+- **Multi-sector writes also affected**: cascading slowness across all write tests in that run
+- **Read performance normal**: only writes are affected (flash programming is the bottleneck)
+
+The Samsung GD4QT 128GB exhibited this at 350 MHz: raw single-sector write avg of 46,988 us vs the clean 250 MHz run's 1,298 us. The 250 MHz run (done after the card settled) was normal.
+
+### Standard Response
+
+1. **Complete the current benchmark run** — don't abort. The read data and file-level data may still be valid.
+2. **Check the 250 MHz run**: if it runs clean, the 350 MHz write anomaly was a housekeeping event, not a driver issue.
+3. **If both runs show anomalous writes**:
+   a. Wait 30-60 seconds (let the card finish internal operations)
+   b. Run a quick throwaway write cycle (e.g., mount test) to trigger any pending GC
+   c. Re-run the affected benchmark
+4. **Record what happened**: annotate the affected results with a footnote (e.g., `\* Flash controller housekeeping pause — see 250 MHz run for representative write performance`)
+5. **Use the clean run for cross-card comparisons**: if one run was affected and the other wasn't, use the clean run's write numbers in BENCHMARK-RESULTS.md comparison tables. Mark the affected run with `— †` and explain in a footnote.
+
+### Pre-Conditioning (Optional)
+
+For cards known to be housekeeping-prone (Samsung, large-capacity cards):
+- Before benchmarking, run the format test (`SD_RT_format_tests.spin2`) — this does heavy write activity that may trigger GC
+- Wait 30 seconds after the format test completes
+- Then proceed with the benchmark
+
+### Key Insight
+
+Flash housekeeping is **not a driver bug**. It's the card's internal controller performing maintenance. The same card can produce clean or anomalous results depending on its internal state. Our response is to: detect it, annotate it, use clean data for comparisons, and re-run if needed.
 
 ---
 
@@ -284,7 +322,7 @@ To benchmark an existing card at 350/250 MHz (e.g., to update catalog data from 
 4. Save the log
 5. Edit: set `_CLKFREQ = 250_000_000`
 6. Run again, save the log
-7. Restore: set `_CLKFREQ = 320_000_000`
+7. Restore: set `_CLKFREQ = 350_000_000`
 8. Update the card's catalog file with both new benchmark tables
 
 ### Full re-characterization (benchmark + regression)

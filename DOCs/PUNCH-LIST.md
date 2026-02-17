@@ -39,6 +39,53 @@ At 350 MHz, ALL file read benchmarks fail with `E_FILE_NOT_FOUND` (-40). At 250 
 
 ---
 
+### Silicon Power SPCC 64GB — CMD18 multi-block read times out
+
+**Priority:** HIGH — blocks characterization of this card
+
+**Card:** siliconpower-spcc-64gb
+**Unique ID:** `SharedOEM_SPCC_0.7_00940105_202507`
+**Card File:** [DOCs/cards/siliconpower-spcc-64gb.md](cards/siliconpower-spcc-64gb.md)
+
+**Symptom:** CMD18 (READ_MULTIPLE_BLOCK) times out 100% — the card never sends the $FE data token after CMD18 is accepted. Single-sector CMD17 reads work perfectly (11,000 consecutive reads, 0 CRC errors). CMD18 fails in both the speed characterizer (no-mount mode) and the driver mount process (warmup read at `do_mount()` line 1173).
+
+**Register contradiction:** CCC=$DB5 includes Class 2 (CMD18 supported). SCR CMD_SUPPORT=$03 includes CMD23 (SET_BLOCK_COUNT). The card explicitly advertises multi-block support. The timeout is NOT a documented card limitation.
+
+**Investigation leads:**
+1. Does this card require CMD23 before CMD18? Some cards that support CMD23 may expect a pre-defined block count rather than CMD12 termination.
+2. Check whether CMD18 R1 response is $00 (accepted) — confirm the command is reaching the card.
+3. Test CMD25 (multi-block write) separately — is it CMD18-specific or all multi-block?
+4. Check if other Shared OEM ($9F) cards exhibit the same behavior.
+5. This is the first SD 6.x spec card in the catalog — could be a spec-version-specific behavior.
+
+**Impact:** Mount fails because `do_mount()` has a CMD18 warmup read. Benchmark and regression testing blocked. Card cannot be fully characterized.
+
+*Noted: 2026-02-17*
+
+---
+
+### Investigate whether CMD18 warmup in do_mount() is still needed
+
+**Priority:** HIGH — affects driver correctness and card compatibility
+
+**Background:** `do_mount()` in SD_card_driver.spin2 (line 1168-1177, inside `#IFDEF SD_INCLUDE_RAW`) issues a CMD18 warmup read after successfully reading MBR/VBR/FSInfo. The comment says: *"Multi-block operations require a warmup operation after mount to initialize internal state. Without this, the first multi-block write followed by multi-block read can return corrupted data."*
+
+This warmup was added as a workaround for what was likely the TX streamer bit-shift bug (init_phase=$4000_0000 causing MOSI data corruption). That bug has since been fixed (init_phase=#0, dirl/drvl SCK reset pattern). The warmup may now be vestigial code.
+
+**Problem:** The warmup blocks cards that can't do CMD18 (Silicon Power SPCC 64GB) from mounting at all, even though single-sector operations work perfectly.
+
+**Proof strategy:**
+1. Remove the warmup entirely from `do_mount()`
+2. Run `SD_RT_multiblock_tests.spin2` — Test 1 does mount → CMD25 write 8 sectors → CMD18 read 8 sectors → verify. This is the exact sequence the warmup was protecting against.
+3. Run on multiple CMD18-capable cards (SanDisk, Lexar, Samsung — especially cards that originally exhibited write corruption)
+4. If all pass with 0 CRC mismatches across multiple cards → warmup is confirmed vestigial → remove permanently
+
+**File:** `src/SD_card_driver.spin2`, `do_mount()` lines 1168-1177
+
+*Noted: 2026-02-17*
+
+---
+
 ### Samsung 00000 8GB — FAT32 format writes but doesn't persist
 
 **Card:** samsung-00000-8gb

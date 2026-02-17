@@ -103,6 +103,17 @@ SanDisk SA16G SDHC 14GB [FAT32] SD 5.x rev8.0 SN:93E9C0A1 2025/11
 Class 10, U1, V10, SPI 25 MHz
 ```
 
+### siliconpower-spcc-64gb
+
+**Label:** SP Elite microSD XC UHS-I U1 (10)
+
+```
+SharedOEM SPCC SDXC 57GB [FAT32] SD 6.x rev0.7 SN:00940105 2025/07
+Class 10, U3, A1, V30, SPI 25 MHz  [P2FMTER]
+```
+
+**STATUS: BLOCKED** — CMD18 multi-block read times out; mount fails. See [card file](cards/siliconpower-spcc-64gb.md) and PUNCH-LIST.md.
+
 ---
 
 ## Rating C — Standard
@@ -208,8 +219,9 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 | samsung-00000-8gb | **verified** | ACMD13 (Class 6, U0, V0) — FAT16, format failed | — |
 | sandisk-ss08g-8gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
 | pny-sd16g-16gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
+| siliconpower-spcc-64gb | **verified** | ACMD13 (Class 10, U3, A1, V30) — label says U1 | **BLOCKED** |
 
 ---
 
 *Created: 2026-02-15*
-*Cards: 17*
+*Cards: 18*
