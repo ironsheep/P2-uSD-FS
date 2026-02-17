@@ -1,6 +1,6 @@
-# Card: Lexar Red MicroSD XC V30 U3 64GB
+# Card: Lexar Red MicroSD XC A1 V30 U3 64GB
 
-**Label:** Lexar V30 U3 64GB microSD XC (Red card)
+**Label:** Lexar A1 V30 U3 64GB microSD XC (Red card)
 **Unique ID:** `Longsys/Lexar_MSSD0_6.1_33549024_202411`
 **Test Date:** 2026-02-17 (full re-characterization)
 
@@ -11,7 +11,7 @@ Lexar MSSD0 SDXC 58GB [FAT32] SD 6.x rev6.1 SN:33549024 2024/11
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
-*Note: Two physical units tested. Current unit SN:33549024. Previous unit SN:31899471 had identical CSD/OCR/SCR registers.*
+*Note: Two physical units tested. Current unit SN:33549024. Previous unit SN:31899471 had identical CSD/OCR/SCR registers. Both units labeled A1 on the physical card; ACMD13 register reports A2.*
 
 ### Raw Registers
 

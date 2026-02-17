@@ -1,6 +1,6 @@
-# Card: Lexar Blue MicroSD XC 128GB
+# Card: Lexar Blue MicroSD XC A2 128GB
 
-**Label:** Lexar PLAY 128GB microSD XC (Blue card)
+**Label:** Lexar PLAY A2 128GB microSD XC (Blue card)
 **Unique ID:** `Unknown_MSSD0_6.1_34490F1E_202504`
 **Test Date:** 2026-02-14 (characterization)
 
@@ -8,7 +8,7 @@
 
 ```
 Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### Raw Registers

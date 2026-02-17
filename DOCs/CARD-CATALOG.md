@@ -216,16 +216,16 @@ SanDisk SN128 SDXC 119GB [FAT32] SD 6.x rev8.0 SN:F79E34F6 2019/12
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
-**Lexar MicroSD XC V30 U3 64GB** — [lexar-mssd0-64gb.md](cards/lexar-mssd0-64gb.md)
+**Lexar MicroSD XC A1 V30 U3 64GB** — [lexar-mssd0-64gb.md](cards/lexar-mssd0-64gb.md)
 ```
 Lexar MSSD0 SDXC 58GB [FAT32] SD 6.x rev6.1 SN:33549024 2024/11
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
-**Lexar PLAY 128GB SDXC** — [lexar-mssd0-128gb.md](cards/lexar-mssd0-128gb.md)
+**Lexar PLAY A2 128GB SDXC** — [lexar-mssd0-128gb.md](cards/lexar-mssd0-128gb.md)
 ```
 Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 **Samsung PRO Endurance 128GB SDXC** — [samsung-jd1y7-128gb.md](cards/samsung-jd1y7-128gb.md)

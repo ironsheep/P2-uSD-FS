@@ -38,7 +38,7 @@ Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 
 ### lexar-mssd0-64gb
 
-**Label:** Lexar V30 U3 64GB microSD XC (Red card)
+**Label:** Lexar A1 V30 U3 64GB microSD XC (Red card)
 
 ```
 Lexar MSSD0 SDXC 58GB [FAT32] SD 6.x rev6.1 SN:33549024 2024/11
@@ -47,11 +47,11 @@ Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 
 ### lexar-mssd0-128gb
 
-**Label:** Lexar PLAY 128GB microSD XC (Blue card)
+**Label:** Lexar PLAY A2 128GB microSD XC (Blue card)
 
 ```
 Lexar MSSD0 SDXC 117GB [FAT32] SD 6.x rev6.1 SN:34490F1E 2025/04
-Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
+Class 10, U3, A2, V30, SPI 25 MHz  [formatted by P2FMTER]
 ```
 
 ### samsung-jd1y7-128gb
@@ -213,8 +213,8 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 |------|:---:|---|:---:|
 | sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | sandisk-sn128-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
-| lexar-mssd0-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) — different unit SN:33549024 | 350+250 |
-| lexar-mssd0-128gb | **verified** | ACMD13 (Class 10, U3, V30) | 350+250 |
+| lexar-mssd0-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) — label says A1; different unit SN:33549024 | 350+250 |
+| lexar-mssd0-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | samsung-gd4qt-128gb | **verified** | ACMD13 (Class 10, U3, V0) — different unit SN:4AC85F42 | 350+250 |
 | sandisk-aggcf-128gb | **verified** | ACMD13 (Class 10, U3, V30) | — |
 | sandisk-aggce-64gb | **verified** | ACMD13 (Class 10, U3, V30) | — |

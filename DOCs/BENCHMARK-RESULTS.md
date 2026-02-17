@@ -37,11 +37,13 @@ Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD
 | **File Read 256KB** | 745 KB/s ‡ | 1,378 KB/s | **1,444 KB/s** | 950 KB/s | 1,016 KB/s | 1,031 KB/s | 1,419 KB/s |
 | **File Write 32KB** | 321 KB/s | 433 KB/s | 616 KB/s | 325 KB/s | 378 KB/s | 370 KB/s | **758 KB/s** |
 | **Multi-sector gain** | 67% | 51% | 51% | 63% | 61% | 58% | 46% |
+| **App Perf Class** | — | A2 ★ | A2 | — | A2 | A2 | A2 |
 | **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/lexar-mssd0-128gb.md) | [card page](cards/samsung-gd4qt-128gb.md) | [card page](cards/sandisk-sn128-128gb.md) | [card page](cards/sandisk-sn64g-64gb.md) | [card page](cards/samsung-jd1y7-128gb.md) |
 
 **Best Read**: Samsung PRO Endurance 128GB — fastest single-sector and raw multi-sector reads; Lexar Blue 128GB — fastest file-level reads.
 **Best Write**: Samsung PRO Endurance 128GB — fastest raw multi-sector and file-level writes; Lexar Blue 128GB — fastest single-sector writes.
 
+★ Lexar Red label says A1; ACMD13 register reports A2 (both physical units).
 † Samsung EVO 350 MHz raw write results affected by flash controller housekeeping pause (wear leveling/GC). 250 MHz run was clean: Write 1×512B = 394 KB/s, Write 64× = 2,003 KB/s. See [card page](cards/samsung-gd4qt-128gb.md).
 ‡ SanDisk Industrial 350 MHz File Read 256KB showed high variance (Max=655 ms outlier); 250 MHz result of 790 KB/s is representative.
 § SanDisk Extreme 350 MHz single-sector write had high variance (Max=4,340 µs outlier); 250 MHz run was tighter: 316 KB/s.
@@ -213,6 +215,17 @@ CMD18/CMD25 multi-sector operations provide 46-67% improvement over repeated sin
 - Cards with slower internal controllers benefit more (SanDisk Industrial: 67%, Samsung EVO: 63%)
 - Fast cards benefit less (Samsung PRO Endurance: 46%, Lexar V30: 51%, Lexar Blue: 51%)
 - The improvement comes from eliminating per-sector command overhead
+
+### Mount Time Observations
+
+The Samsung EVO Select 128GB holds the fastest mount time (203 ms) despite being the largest card without A-class certification. Possible factors:
+
+- **Simpler command class set**: CCC=$5B5 (missing Classes 1, 11) vs $DB7 on A-rated cards — fewer internal subsystems to initialize
+- **SD 3.x vs SD 6.x**: Older spec cards may skip initialization of A2/V30 performance guarantee infrastructure (internal queuing, IOPS state machines)
+- **ACMD41 convergence**: Mount time is dominated by the power-up initialization loop; Samsung's controller may reach ready status in fewer iterations
+- **Generational contrast**: Both Samsung cards bracket the field — EVO (SD 3.x, no A-class) = 203 ms, PRO Endurance (SD 6.x, A2) = 243 ms. Same silicon vendor, 20% difference
+
+Without instrumented mount breakdown (ACMD41 loop vs filesystem reads), the leading hypothesis is that older controllers with fewer performance guarantees to set up simply reach ready state faster.
 
 ### PNY Phison Controller Anomalies (320 MHz data)
 
