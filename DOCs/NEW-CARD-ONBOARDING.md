@@ -4,7 +4,7 @@ Complete procedure for characterizing, formatting, benchmarking, and cataloging 
 
 ## Overview
 
-When a new microSD card arrives, this pipeline identifies the card, formats it for P2 use, determines its SPI speed limits, measures performance at two sysclk speeds, and runs the full regression suite. All results are recorded in a card catalog file under `DOCs/cards/`.
+When a new microSD card arrives, this pipeline identifies the card, formats it for P2 use, determines its SPI speed limits, and measures performance at two sysclk speeds. All results are recorded in a card catalog file under `DOCs/cards/`.
 
 **Standard benchmark speeds:** 350 MHz and 250 MHz sysclk
 
@@ -69,7 +69,25 @@ Leave placeholder sections for SPI speed characterization and benchmark results.
 
 ---
 
-## Step 3: Format Card with P2FMTER
+## Step 3: Filesystem Check and Format (if needed)
+
+### 3a: Check Filesystem Health
+
+**Utility:** `src/UTILS/SD_FAT32_fsck.spin2`
+**Purpose:** Verify FAT32 filesystem integrity
+**Sysclk:** 270 MHz (default)
+
+```bash
+cd tools/
+./run_test.sh ../src/UTILS/SD_FAT32_fsck.spin2 -t 300
+```
+
+**Decision tree based on Step 1 characterization + fsck results:**
+- **Card is already FAT32 and fsck passes** → Skip formatting, proceed to Step 4
+- **Card is FAT32 but fsck reports errors** → Format (Step 3b)
+- **Card is exFAT ($07) or other non-FAT32** → Format (Step 3b)
+
+### 3b: Format with P2FMTER (only if needed)
 
 **Utility:** `src/UTILS/SD_format_card.spin2`
 **Purpose:** Format with FAT32 filesystem (label "P2-BENCH")
@@ -97,11 +115,13 @@ Update the card catalog file with the FAT32 filesystem section.
 
 ---
 
-## Step 4: SPI Frequency Sweep
+## Step 4: SPI Frequency Sweep (New Cards Only)
 
 **Utility:** `src/UTILS/SD_speed_characterize.spin2`
 **Purpose:** Find maximum reliable SPI clock frequency
 **Sysclk:** 200 MHz (default - provides clean SPI clock divisions)
+
+> **Skip this step** if the card model has already been speed-characterized in a prior session. The SPI speed limit is a property of the card's controller silicon, not the individual unit. Check the card's existing file or CARD-CATALOG.md for prior results.
 
 ```bash
 cd tools/
@@ -182,59 +202,6 @@ Update the card catalog with both benchmark tables plus the Sysclk Effect compar
 
 ---
 
-## Step 6: Full Regression Suite
-
-Run the complete regression test suite at both clock speeds to verify driver correctness.
-
-### Test list
-
-| Test File | Default Timeout | Notes |
-|-----------|----------------|-------|
-| `SD_RT_mount_tests.spin2` | 60s | |
-| `SD_RT_file_ops_tests.spin2` | 60s | |
-| `SD_RT_read_write_tests.spin2` | 60s | |
-| `SD_RT_directory_tests.spin2` | 60s | |
-| `SD_RT_seek_tests.spin2` | 60s | |
-| `SD_RT_multicog_tests.spin2` | 120s | Multi-cog needs longer |
-| `SD_RT_multihandle_tests.spin2` | 60s | |
-| `SD_RT_multiblock_tests.spin2` | 60s | |
-| `SD_RT_raw_sector_tests.spin2` | 60s | |
-| `SD_RT_format_tests.spin2` | 300s | Formats card - run last |
-
-### Procedure for each clock speed
-
-1. Edit `_CLKFREQ` in **every regression test file** listed above
-2. Run each test:
-   ```bash
-   cd tools/
-   ./run_test.sh ../regression-tests/SD_RT_mount_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_file_ops_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_read_write_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_directory_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_seek_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_multicog_tests.spin2 -t 120
-   ./run_test.sh ../regression-tests/SD_RT_multihandle_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_multiblock_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_raw_sector_tests.spin2
-   ./run_test.sh ../regression-tests/SD_RT_format_tests.spin2 -t 300
-   ```
-3. Record pass/fail for each test
-4. After all tests complete, restore `_CLKFREQ` to the default (350 MHz)
-
-### 350 MHz Run
-
-Set `_CLKFREQ = 350_000_000` in all test files, run suite, record results.
-
-### 250 MHz Run
-
-Set `_CLKFREQ = 250_000_000` in all test files, run suite, record results.
-
-### Restore defaults
-
-After both runs, restore `_CLKFREQ = 350_000_000` in all test files.
-
----
-
 ## Handling Flash Housekeeping Events
 
 During benchmarking, some cards exhibit anomalous write latency caused by internal flash controller housekeeping — wear leveling, garbage collection (GC), or block remapping. These are card-state-dependent and unpredictable.
@@ -273,7 +240,7 @@ Flash housekeeping is **not a driver bug**. It's the card's internal controller 
 
 ---
 
-## Step 7: Update Card Catalog
+## Step 6: Update Card Catalog
 
 Add the following sections to the card catalog file:
 
@@ -281,8 +248,7 @@ Add the following sections to the card catalog file:
 2. **Internal Throughput** - calculated from Phase 2 duration
 3. **Benchmark Results** - both clock speed runs with full tables
 4. **Sysclk Effect** - comparison table (350 vs 250 MHz)
-5. **Regression Results** - pass/fail at both speeds
-6. **Notes** - any interesting observations about the card's behavior
+5. **Notes** - any interesting observations about the card's behavior
 
 ---
 
@@ -325,9 +291,9 @@ To benchmark an existing card at 350/250 MHz (e.g., to update catalog data from 
 7. Restore: set `_CLKFREQ = 350_000_000`
 8. Update the card's catalog file with both new benchmark tables
 
-### Full re-characterization (benchmark + regression)
+### Full re-characterization (benchmark + documentation)
 
-Follow Steps 5-7 of this pipeline. Skip Steps 1-4 (card is already characterized and formatted).
+Follow Steps 5-6 of this pipeline. Skip Steps 1-4 (card is already characterized and formatted).
 
 ### Batch update script (future)
 

@@ -129,7 +129,7 @@ This section documents ALL fields available from SD card registers and indicates
 |---------|-------------|---------|----------|:-----:|-------------|
 | SanDisk_SN64G_8.6_7E650771_202211 | SanDisk ($03) | SN64G | ~59 GB | **A** | PASS |
 | SanDisk_SN128_8.0_F79E34F6_201912 | SanDisk ($03) | SN128 | ~119 GB | **A** | PASS |
-| Longsys/Lexar_MSSD0_6.1_31899471_202411 | Lexar (Longsys $AD) | MSSD0 | ~58 GB | **A** | PASS |
+| Longsys/Lexar_MSSD0_6.1_33549024_202411 | Lexar (Longsys $AD) | MSSD0 | ~58 GB | **A** | PASS |
 | Longsys/Lexar_MSSD0_6.1_34490F1E_202504 | Lexar (Longsys $AD) | MSSD0 | ~117 GB | **A** | PASS |
 | Samsung_GD4QT_3.0_C0305565_201805 | Samsung ($1B) | GD4QT | ~119 GB | **B** | PASS |
 | SanDisk_AGGCF_8.0_E05C352B_201707 | SanDisk ($03) | AGGCF | ~119 GB | **B** | PASS |
@@ -217,8 +217,8 @@ Class 10, U3, V30, SPI 25 MHz  [formatted by P2FMTER]
 
 **Lexar MicroSD XC V30 U3 64GB** — [lexar-mssd0-64gb.md](cards/lexar-mssd0-64gb.md)
 ```
-Lexar MSSD0 SDXC 58GB [exFAT] SD 6.x rev6.1 SN:31899471 2024/11
-Class 10, U3, V30, SPI 25 MHz
+Lexar MSSD0 SDXC 58GB [FAT32] SD 6.x rev6.1 SN:33549024 2024/11
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
 **Lexar PLAY 128GB SDXC** — [lexar-mssd0-128gb.md](cards/lexar-mssd0-128gb.md)

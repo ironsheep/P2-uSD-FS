@@ -1,20 +1,22 @@
 # Card: Lexar Red MicroSD XC V30 U3 64GB
 
 **Label:** Lexar V30 U3 64GB microSD XC (Red card)
-**Unique ID:** `Longsys/Lexar_MSSD0_6.1_31899471_202411`
-**Test Date:** 2026-02-02 (characterization)
+**Unique ID:** `Longsys/Lexar_MSSD0_6.1_33549024_202411`
+**Test Date:** 2026-02-17 (full re-characterization)
 
 ### Card Designator
 
 ```
-Lexar MSSD0 SDXC 58GB [exFAT] SD 6.x rev6.1 SN:31899471 2024/11
-Class 10, U3, V30, SPI 25 MHz
+Lexar MSSD0 SDXC 58GB [FAT32] SD 6.x rev6.1 SN:33549024 2024/11
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
+
+*Note: Two physical units tested. Current unit SN:33549024. Previous unit SN:31899471 had identical CSD/OCR/SCR registers.*
 
 ### Raw Registers
 
 ```
-CID: $AD $4C $53 $4D $53 $53 $44 $30 $61 $31 $89 $94 $71 $71 $8B $7D
+CID: $AD $4C $53 $4D $53 $53 $44 $30 $61 $33 $54 $90 $24 $71 $8B $55
 CSD: $40 $0E $00 $32 $DB $79 $00 $01 $D2 $67 $7F $80 $0A $40 $00 $59
 OCR: $C0FF_8000
 SCR: $02 $45 $84 $87 $33 $33 $30 $39
@@ -28,9 +30,9 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 | OID | [119:104] | $4C $53 | "LS" (Longsys/Lexar) | [INFO] |
 | PNM | [103:64] | $4D $53 $53 $44 $30 | "MSSD0" | [INFO] |
 | PRV | [63:56] | $61 | 6.1 | [INFO] |
-| PSN | [55:24] | $3189_9471 | 830,604,401 | [INFO] |
+| PSN | [55:24] | $3354_9024 | 862,269,476 | [INFO] |
 | MDT | [19:8] | $18B | 2024-11 (November 2024) | [INFO] |
-| CRC7 | [7:1] | $3E | $3E | [INFO] |
+| CRC7 | [7:1] | $2A | $2A | [INFO] |
 
 ### CSD Register (Card Specific Data) - All Fields
 
@@ -102,16 +104,28 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 | SD_SPECX | [41:38] | 2 | SD 5.x/6.x/7.x indicator | [INFO] |
 | CMD_SUPPORT | [33:32] | $03 | CMD20+CMD23 supported | [INFO] |
 
-**SD Version:** 4.xx (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=1)
+**SD Version:** 6.x (SD_SPEC=2, SD_SPEC3=1, SD_SPEC4=1, SD_SPECX=2)
 
-### Filesystem (Factory - exFAT)
+### Filesystem (FAT32 - formatted with P2FMTER)
 
 | Field | Value |
 |-------|-------|
-| MBR Partition Type | $07 (exFAT/NTFS) |
-| Factory Format | exFAT (default for 64GB+) |
-
-**Note:** Card ships with exFAT filesystem. Needs FAT32 format for P2 SD driver compatibility.
+| Factory Format | exFAT ($07) - reformatted to FAT32 |
+| MBR Partition Type | $0C (FAT32 LBA) |
+| VBR Sector | 8,192 |
+| OEM Name | P2FMTER |
+| Volume Label | P2-XFER |
+| Volume Serial | $047C_AD41 |
+| FS Type | FAT32 |
+| Bytes/Sector | 512 |
+| Sectors/Cluster | 64 (32 KB clusters) |
+| Reserved Sectors | 32 |
+| Number of FATs | 2 |
+| Sectors per FAT | 14,924 |
+| Root Cluster | 2 |
+| Total Sectors | 122,257,408 |
+| Data Region Start | Sector 29,880 |
+| Total Clusters | 1,909,805 |
 
 ### Test Results
 
@@ -122,8 +136,10 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 | CSD Read | PASS | Worker cog routing |
 | SCR Read | PASS | Worker cog routing |
 | OCR Read | PASS | Cached during init |
-| MBR Read | PASS | exFAT partition detected |
-| Mount | N/A | Requires FAT32 format first |
+| SD Status | PASS | ACMD13 (64 bytes) — Class 10, U3, A2, V30 |
+| MBR Read | PASS | FAT32 partition ($0C) |
+| Format | PASS | FAT32 formatted with P2FMTER |
+| Mount | PASS | 212.4 ms at 350 MHz |
 
 ### Notes
 
@@ -135,13 +151,12 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 - **U3** = UHS Speed Class 3 (30 MB/s minimum write)
 - **(10)** = Speed Class 10 (10 MB/s minimum write speed)
 - **100 MB/s*** = Maximum read speed (asterisk indicates "up to")
-- **SD 4.xx spec** compliant (SD_SPEC4=1) - newer than most cards in catalog
+- **SD 6.x** spec compliant (SD_SPEC4=1, SD_SPECX=2) — newest spec generation
+- **A2** = Application Performance Class 2 (confirmed by ACMD13 SD Status register)
 - **CMD23 supported** - Set Block Count for multi-block operations
-- Factory formatted with exFAT (not FAT32)
+- Factory formatted with exFAT — reformatted to FAT32 with P2FMTER
 - Very recent manufacture (November 2024)
-- Needs FAT32 reformat before use with P2 SD driver
 - DATA_STAT_AFTER_ERASE=0 (erased data reads as 0s)
-- **Benchmark data available** — see Benchmark Results section below for detailed throughput measurements (raw, multi-sector, and file-level)
 
 ### SPI Speed Characterization
 
@@ -186,107 +201,78 @@ SCR: $02 $45 $84 $87 $33 $33 $30 $39
 
 **Test Program**: SD_performance_benchmark.spin2 v2.0
 
-#### 350 MHz Run
+#### 350 MHz Run (2026-02-17)
 
-**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 358.0 ms
-
-| Test | Min (us) | Avg (us) | Max (us) | KB/s |
-|------|----------|----------|----------|------|
-| **Raw Single-Sector** | | | | |
-| Read 1x512B | 402 | 413 | 505 | **1,239** |
-| Write 1x512B | 746 | 756 | 841 | **677** |
-| **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | 1,886 | 1,896 | 1,985 | **2,160** |
-| Read 32 sectors (16 KB) | 6,974 | 6,985 | 7,073 | **2,345** |
-| Read 64 sectors (32 KB) | 13,758 | 13,769 | 13,861 | **2,379** |
-| Write 8 sectors (4 KB) | 2,221 | 2,221 | 2,221 | **1,844** |
-| Write 32 sectors (16 KB) | 7,405 | 7,405 | 7,405 | **2,212** |
-| Write 64 sectors (32 KB) | 14,576 | 14,576 | 14,577 | **2,248** |
-| **File-Level** | | | | |
-| File Write 512B | 4,794 | 5,534 | 5,905 | **92** |
-| File Write 4 KB | 12,213 | 12,985 | 13,702 | **315** |
-| File Write 32 KB | 53,626 | 69,860 | 87,850 | **469** |
-| File Read 4 KB | 3,094 | 3,147 | 3,625 | **1,301** |
-| File Read 32 KB | 23,788 | 23,842 | 24,337 | **1,374** |
-| File Read 128 KB | 95,725 | 95,821 | 96,690 | **1,367** |
-| File Read 256 KB | 171,060 | 171,152 | 171,988 | **1,531** |
-| **Overhead** | | | | |
-| File Open | 103 | 149 | 570 | — |
-| File Close | 20 | 20 | 20 | — |
-| Mount | — | 358,000 | — | — |
-
-Multi-sector improvement: 64x single reads = 28,498 us vs 1x CMD18 = 13,758 us (**51% faster**)
-
-#### 320 MHz Run
-
-**SysClk**: 320 MHz | **SPI**: 22,857 kHz | **Mount**: 212.3 ms
+**SysClk**: 350 MHz | **SPI**: 25,000 kHz | **Mount**: 212.4 ms
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
 | **Raw Single-Sector** | | | | |
-| Read 1x512B | 438 | 448 | 538 | **1,142** |
-| Write 1x512B | 781 | 790 | 872 | **648** |
+| Read 1x512B | 402 | 413 | 506 | **1,239** |
+| Write 1x512B | 750 | 759 | 841 | **674** |
 | **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | 2,063 | 2,073 | 2,163 | **1,975** |
-| Read 32 sectors (16 KB) | 7,637 | 7,647 | 7,737 | **2,142** |
-| Read 64 sectors (32 KB) | 15,068 | 15,078 | 15,168 | **2,173** |
-| Write 8 sectors (4 KB) | 2,398 | 2,400 | 2,402 | **1,706** |
-| Write 32 sectors (16 KB) | 8,080 | 8,080 | 8,080 | **2,027** |
-| Write 64 sectors (32 KB) | 15,912 | 15,912 | 15,916 | **2,059** |
+| Read 8 sectors (4 KB) | 1,888 | 2,062 | 3,523 | **1,986** |
+| Read 32 sectors (16 KB) | 6,979 | 6,990 | 7,083 | **2,343** |
+| Read 64 sectors (32 KB) | 13,782 | 13,791 | 13,881 | **2,376** |
+| Write 8 sectors (4 KB) | 2,218 | 2,221 | 2,222 | **1,844** |
+| Write 32 sectors (16 KB) | 7,398 | 7,398 | 7,399 | **2,214** |
+| Write 64 sectors (32 KB) | 14,554 | 14,554 | 14,554 | **2,251** |
 | **File-Level** | | | | |
-| File Write 512B | 4,950 | 5,723 | 6,101 | **89** |
-| File Write 4 KB | 11,149 | 12,463 | 14,551 | **328** |
-| File Write 32 KB | 59,684 | 65,391 | 71,017 | **501** |
-| File Read 4 KB | 3,353 | 3,429 | 4,113 | **1,194** |
-| File Read 32 KB | 25,810 | 25,888 | 26,590 | **1,265** |
-| File Read 128 KB | 102,825 | 102,948 | 104,053 | **1,273** |
-| File Read 256 KB | 205,513 | 205,648 | 206,863 | **1,274** |
+| File Write 512B | 5,794 | 6,216 | 6,560 | **82** |
+| File Write 4 KB | 12,902 | 13,689 | 14,493 | **299** |
+| File Write 32 KB | 53,566 | 75,640 | 86,051 | **433** |
+| File Read 4 KB | 3,950 | 3,967 | 4,093 | **1,032** |
+| File Read 32 KB | 24,637 | 24,663 | 24,807 | **1,328** |
+| File Read 128 KB | 95,603 | 95,689 | 96,211 | **1,369** |
+| File Read 256 KB | 190,121 | 190,215 | 190,799 | **1,378** |
 | **Overhead** | | | | |
-| File Open | 101 | 198 | 1,080 | — |
-| File Close | 22 | 22 | 22 | — |
-| Mount | — | 212,300 | — | — |
+| File Open | 956 | 991 | 1,311 | — |
+| File Close | 20 | 20 | 21 | — |
+| Mount | — | 212,400 | — | — |
 
-Multi-sector improvement: 64x single reads = 30,644 us vs 1x CMD18 = 15,068 us (**50% faster**)
+Multi-sector improvement: 64x single reads = 28,659 us vs 1x CMD18 = 13,818 us (**51% faster**)
 
-#### 270 MHz Run
+#### 250 MHz Run (2026-02-17)
 
-**SysClk**: 270 MHz | **SPI**: 22,500 kHz | **Mount**: 213.4 ms
+**SysClk**: 250 MHz | **SPI**: 25,000 kHz | **Mount**: 214.2 ms
 
 | Test | Min (us) | Avg (us) | Max (us) | KB/s |
 |------|----------|----------|----------|------|
 | **Raw Single-Sector** | | | | |
-| Read 1x512B | 473 | 483 | 573 | **1,060** |
-| Write 1x512B | 811 | 820 | 901 | **624** |
+| Read 1x512B | 467 | 480 | 566 | **1,066** |
+| Write 1x512B | 801 | 811 | 898 | **631** |
 | **Raw Multi-Sector** | | | | |
-| Read 8 sectors (4 KB) | 2,185 | 2,195 | 2,285 | **1,866** |
-| Read 32 sectors (16 KB) | 8,053 | 8,063 | 8,153 | **2,031** |
-| Read 64 sectors (32 KB) | 15,889 | 15,898 | 15,988 | **2,061** |
-| Write 8 sectors (4 KB) | 2,533 | 2,533 | 2,533 | **1,617** |
-| Write 32 sectors (16 KB) | 8,543 | 8,543 | 8,544 | **1,917** |
-| Write 64 sectors (32 KB) | 16,812 | 16,812 | 16,812 | **1,949** |
+| Read 8 sectors (4 KB) | 2,083 | 2,093 | 2,182 | **1,956** |
+| Read 32 sectors (16 KB) | 7,625 | 7,634 | 7,723 | **2,146** |
+| Read 64 sectors (32 KB) | 15,013 | 15,023 | 15,117 | **2,181** |
+| Write 8 sectors (4 KB) | 2,434 | 2,434 | 2,435 | **1,682** |
+| Write 32 sectors (16 KB) | 8,139 | 8,139 | 8,139 | **2,013** |
+| Write 64 sectors (32 KB) | 15,996 | 15,996 | 15,996 | **2,048** |
 | **File-Level** | | | | |
-| File Write 512B | 5,219 | 6,004 | 6,400 | **85** |
-| File Write 4 KB | 13,139 | 13,899 | 14,618 | **294** |
-| File Write 32 KB | 58,388 | 67,086 | 87,308 | **488** |
-| File Read 4 KB | 3,611 | 3,677 | 4,271 | **1,113** |
-| File Read 32 KB | 27,687 | 27,754 | 28,365 | **1,180** |
-| File Read 128 KB | 110,258 | 110,373 | 111,413 | **1,187** |
-| File Read 256 KB | 220,354 | 220,481 | 221,633 | **1,188** |
+| File Write 512B | 6,390 | 6,813 | 7,152 | **75** |
+| File Write 4 KB | 13,878 | 14,662 | 15,451 | **279** |
+| File Write 32 KB | 77,125 | 82,677 | 87,890 | **396** |
+| File Read 4 KB | 4,630 | 4,645 | 4,738 | **881** |
+| File Read 32 KB | 28,565 | 28,586 | 28,698 | **1,146** |
+| File Read 128 KB | 110,678 | 110,740 | 111,225 | **1,183** |
+| File Read 256 KB | 220,168 | 220,236 | 220,829 | **1,190** |
 | **Overhead** | | | | |
-| File Open | 120 | 207 | 999 | — |
-| File Close | 26 | 26 | 27 | — |
-| Mount | — | 213,400 | — | — |
+| File Open | 1,153 | 1,183 | 1,425 | — |
+| File Close | 29 | 29 | 29 | — |
+| Mount | — | 214,200 | — | — |
 
-Multi-sector improvement: 64x single reads = 32,857 us vs 1x CMD18 = 15,889 us (**51% faster**)
+Multi-sector improvement: 64x single reads = 32,551 us vs 1x CMD18 = 15,013 us (**53% faster**)
 
-#### Sysclk Effect (350 vs 320 vs 270 MHz)
+#### Sysclk Effect (350 MHz vs 250 MHz)
 
-| Test | 350 MHz (KB/s) | 320 MHz (KB/s) | 270 MHz (KB/s) | 350→270 Delta |
-|------|----------------|----------------|----------------|---------------|
-| Raw Read 1x512B | 1,239 | 1,142 | 1,060 | +17% |
-| Raw Read 64x (32 KB) | 2,379 | 2,173 | 2,061 | +15% |
-| Raw Write 64x (32 KB) | 2,248 | 2,059 | 1,949 | +15% |
-| File Read 256 KB | 1,531 | 1,274 | 1,188 | +29% |
-| File Write 32 KB | 469 | 501 | 488 | -4% |
+SPI clock is identical (25,000 kHz) at both speeds. Differences show Spin2 inter-transfer overhead.
 
-**Note:** The jump from 320→350 MHz crosses an SPI divider boundary (22.9→25.0 MHz), giving a disproportionate throughput gain. File write 32 KB variance is dominated by card-internal flash programming time.
+| Metric | 350 MHz | 250 MHz | Overhead (us) | Overhead % |
+|--------|---------|---------|---------------|------------|
+| Raw Read 1x512B | 413 us | 480 us | +67 | +16% |
+| Raw Write 1x512B | 759 us | 811 us | +52 | +7% |
+| Raw Read 64x (32 KB) | 13,791 us | 15,023 us | +1,232 | +9% |
+| Raw Write 64x (32 KB) | 14,554 us | 15,996 us | +1,442 | +10% |
+| File Read 256 KB | 190,215 us | 220,236 us | +30,021 | +16% |
+| File Write 32 KB | 75,640 us | 82,677 us | +7,037 | +9% |
+| File Open | 991 us | 1,183 us | +192 | +19% |
