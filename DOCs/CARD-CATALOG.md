@@ -145,7 +145,8 @@ This section documents ALL fields available from SD card registers and indicates
 | Samsung_00000_1.0_D9FB539C_201408 | Samsung ($1B) - Chinese #2 | 00000 | ~7 GB | **C** | PASS |
 | SanDisk_SS08G_3.0_DAAEE8AD_201509 | SanDisk ($03) - Taiwan | SS08G | ~7 GB | **C** | PASS |
 | SharedOEM_SPCC_0.7_00940105_202507 | Silicon Power (Shared OEM $9F) | SPCC | ~57 GB | **B** | **BLOCKED** |
-| Phison_SD16G_3.0_01CD5CF5_201808 | PNY (Phison $27) | SD16G | ~14 GB | **D** | PARTIAL |
+| Longsys/Lexar_USD00_2.0_35841E2E_202507 | Amazon Basics (Longsys $AD) | USD00 | ~58 GB | **A** | PASS |
+| Phison_SD16G_3.0_01CD5CF5_201808 | PNY (Phison $27) | SD16G | ~14 GB | **D** | PASS |
 
 ---
 
@@ -165,6 +166,7 @@ Cards tested with `SD_speed_characterize.spin2` have measured internal throughpu
 
 | Card | Manufacturer | Capacity | Throughput | Latency | Class | Max SPI |
 |------|-------------|----------|------------|---------|-------|---------|
+| Longsys_USD00 | Amazon Basics ($AD) | ~58 GB | — | — | — | not yet tested |
 | SanDisk_SN64G | SanDisk ($03) | ~59 GB | — | — | — | not yet tested |
 | SanDisk_SN128 | SanDisk ($03) | ~119 GB | **780 KB/s** | 0.66 ms | HIGH | 25 MHz |
 | Longsys_MSSD0 | Lexar ($AD) | ~58 GB | **1,059 KB/s** | 0.48 ms | HIGH | 25 MHz |
@@ -183,7 +185,7 @@ Cards tested with `SD_speed_characterize.spin2` have measured internal throughpu
 | SharedOEM_SPCC | Silicon Power ($9F) | ~57 GB | — | — | — | CMD18 blocked (see punch list) |
 | Phison_SD16G | PNY ($27) | ~14 GB | **31.3 KB/s** | 16.0 ms | LOW | 25 MHz |
 
-**Tested: 8 of 17 cards** (1 blocked)
+**Tested: 8 of 20 cards** (1 blocked)
 
 **Key Observations:**
 1. **Lexar V30 U3 64GB** - **Fastest card tested** (1,059 KB/s), 12% faster than Gigastone
@@ -206,7 +208,7 @@ Each card has a dedicated page with full register dumps, field-by-field decode, 
 
 **SanDisk Extreme 64GB SDXC** — [sandisk-sn64g-64gb.md](cards/sandisk-sn64g-64gb.md)
 ```
-SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:$7E65_0771 2022/11
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -231,6 +233,12 @@ Class 10, U3, A2, V30, SPI 25 MHz  [formatted by P2FMTER]
 **Samsung PRO Endurance 128GB SDXC** — [samsung-jd1y7-128gb.md](cards/samsung-jd1y7-128gb.md)
 ```
 Samsung JD1Y7 SDXC 119GB [FAT32] SD 6.x rev3.0 SN:D27654A6 2025/12
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
+```
+
+**Amazon Basics 64GB SDXC** — [amazon-basics-usd00-64gb.md](cards/amazon-basics-usd00-64gb.md)
+```
+Longsys/Lexar USD00 SDXC 58GB [FAT32] SD 6.x rev2.0 SN:$3584_1E2E 2025/07
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -320,8 +328,8 @@ Class 4, SPI 25 MHz
 
 **PNY 16GB SDHC** — [pny-sd16g-16gb.md](cards/pny-sd16g-16gb.md)
 ```
-PNY SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:01CD5CF5 2018/08
-Class 4, SPI 25 MHz  [formatted by P2FMTER]
+Phison SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:$01CD_5CF5 2018/08
+Class 4, U0, V0, SPI 25 MHz  [P2FMTER]
 ```
 
 ---
@@ -418,4 +426,4 @@ SCR: [8 bytes hex]
 
 *Catalog created: 2026-01-20*
 *Last updated: 2026-02-17*
-*Cards cataloged: 19 (individual card pages in [DOCs/cards/](cards/))*
+*Cards cataloged: 20 (individual card pages in [DOCs/cards/](cards/))*

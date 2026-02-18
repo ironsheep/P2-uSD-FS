@@ -172,29 +172,31 @@ P2-uSD-Study/
 
 Measured at 350 MHz sysclk with 25 MHz SPI, smart pin hardware acceleration, streamer DMA, and multi-sector commands (CMD18/CMD25):
 
-| Operation | SanDisk Industrial 16GB | Lexar Blue 128GB | SanDisk Extreme 64GB | Samsung PRO Endurance 128GB |
+| Operation | SanDisk Industrial 16GB | Lexar Blue 128GB | Amazon Basics 64GB | Samsung PRO Endurance 128GB |
 |-----------|:-:|:-:|:-:|:-:|
-| File Read (256KB) | 745 KB/s | 1,444 KB/s | 1,031 KB/s | 1,419 KB/s |
-| File Write (32KB) | 321 KB/s | 616 KB/s | 370 KB/s | 758 KB/s |
-| Raw Multi-sector Read (32KB) | 2,393 KB/s | 2,420 KB/s | 2,410 KB/s | 2,427 KB/s |
-| Raw Multi-sector Write (32KB) | 2,170 KB/s | 2,275 KB/s | 2,144 KB/s | 2,319 KB/s |
+| File Read (256KB) | 745 KB/s | **1,444 KB/s** | 1,386 KB/s | 1,419 KB/s |
+| File Write (32KB) | 321 KB/s | 616 KB/s | **774 KB/s** | 758 KB/s |
+| Raw Multi-sector Read (32KB) | 2,393 KB/s | 2,420 KB/s | 2,425 KB/s | **2,427 KB/s** |
+| Raw Multi-sector Write (32KB) | 2,170 KB/s | 2,275 KB/s | 2,305 KB/s | **2,319 KB/s** |
 | Mount | 486 ms | 400 ms | 233 ms | 243 ms |
 
-Raw SPI efficiency reaches 80% of theoretical maximum (2,427 / 3,052 KB/s). Multi-sector commands provide 46-67% improvement over single-sector operations.
+Raw SPI efficiency reaches 80% of theoretical maximum (2,427 / 3,052 KB/s). Multi-sector commands provide 46-69% improvement over single-sector operations.
 
 Single-sector read throughput (internal card controller speed) varies widely:
 
 | Card | Throughput | App Perf Class |
 |------|------------|----------------|
 | Samsung PRO Endurance 128GB | 1,283 KB/s | A2 |
+| Amazon Basics 64GB | 1,245 KB/s | A2 |
 | Lexar V30 U3 64GB | 1,239 KB/s | A2 |
-| SanDisk Extreme 64GB | 1,001 KB/s | A2 |
+| SanDisk Extreme 64GB | 1,005 KB/s | A2 |
 | Samsung EVO Select 128GB | 937 KB/s | -- |
 | SanDisk Nintendo Switch 128GB | 887 KB/s | A2 |
 | Lexar Blue 128GB | 819 KB/s | A2 |
 | SanDisk Industrial 16GB | 792 KB/s | -- |
+| PNY 16GB | 734 KB/s | -- |
 
-Performance varies significantly by card controller, not just speed class rating. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for full cross-card comparisons at 350 and 250 MHz.
+Performance varies significantly by card controller, not just speed class rating. 20 cards tested across 9 manufacturers. See [Card Catalog](DOCs/CARD-CATALOG.md) for detailed characterization and [Benchmark Results](DOCs/BENCHMARK-RESULTS.md) for full cross-card comparisons at 350 and 250 MHz.
 
 ## API Overview
 

@@ -2,12 +2,12 @@
 
 **Label:** SanDisk Extreme 64GB U3 A2 microSD XC I V30
 **Unique ID:** `SanDisk_SN64G_8.6_7E650771_202211`
-**Test Date:** 2026-02-17 (full re-characterization)
+**Test Date:** 2026-02-17 (full re-characterization + re-benchmark)
 
 ### Card Designator
 
 ```
-SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:$7E65_0771 2022/11
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -142,80 +142,81 @@ SCR: $02 $45 $84 $87 $00 $00 $00 $00
 
 ### Performance Benchmarks (350 MHz sysclk)
 
-**SPI Clock:** 25,000 kHz | **Mount:** 233.3 ms | **Volume:** P2-BENCH | **Free:** 60,901 MB
+**SPI Clock:** 25,000 kHz | **Mount:** 232.7 ms | **Volume:** P2-BENCH | **Free:** 60,903 MB
 
 | Test | Size | Min | Avg | Max | Throughput |
 |------|------|-----|-----|-----|------------|
 | **Raw Single-Sector** | | | | | |
-| Read (1x512B) | 512B | 511 us | 511 us | 512 us | 1,001 KB/s |
-| Write (1x512B) | 512B | 1,532 us | 1,846 us | 4,340 us | 277 KB/s |
+| Read (1x512B) | 512B | 508 us | 509 us | 513 us | 1,005 KB/s |
+| Write (1x512B) | 512B | 1,511 us | 1,545 us | 1,577 us | 331 KB/s |
 | **Raw Multi-Sector Read (CMD18)** | | | | | |
-| 8 sectors | 4 KB | 1,960 us | 1,960 us | 1,961 us | 2,089 KB/s |
-| 32 sectors | 16 KB | 6,949 us | 6,949 us | 6,950 us | 2,357 KB/s |
-| 64 sectors | 32 KB | 13,595 us | 13,595 us | 13,595 us | 2,410 KB/s |
+| 8 sectors | 4 KB | 1,973 us | 1,973 us | 1,973 us | 2,076 KB/s |
+| 32 sectors | 16 KB | 6,961 us | 6,961 us | 6,961 us | 2,353 KB/s |
+| 64 sectors | 32 KB | 13,604 us | 13,604 us | 13,604 us | 2,408 KB/s |
 | **Raw Multi-Sector Write (CMD25)** | | | | | |
-| 8 sectors | 4 KB | 2,434 us | 2,493 us | 2,676 us | 1,643 KB/s |
-| 32 sectors | 16 KB | 7,670 us | 7,740 us | 7,877 us | 2,116 KB/s |
-| 64 sectors | 32 KB | 15,151 us | 15,278 us | 15,404 us | 2,144 KB/s |
+| 8 sectors | 4 KB | 2,457 us | 2,500 us | 2,667 us | 1,638 KB/s |
+| 32 sectors | 16 KB | 7,663 us | 7,745 us | 7,869 us | 2,115 KB/s |
+| 64 sectors | 32 KB | 15,134 us | 15,236 us | 15,344 us | 2,150 KB/s |
 | **File Write** | | | | | |
-| create+write+close | 512B | 8,932 us | 9,064 us | 9,236 us | 56 KB/s |
-| create+write+close | 4 KB | 17,805 us | 18,049 us | 20,042 us | 226 KB/s |
-| create+write+close | 32 KB | 87,817 us | 88,354 us | 89,852 us | 370 KB/s |
+| create+write+close | 512B | 7,332 us | 7,720 us | 7,792 us | 66 KB/s |
+| create+write+close | 4 KB | 16,321 us | 16,463 us | 16,534 us | 248 KB/s |
+| create+write+close | 32 KB | 85,966 us | 86,511 us | 88,303 us | 378 KB/s |
 | **File Read** | | | | | |
-| open+read+close | 4 KB | 5,663 us | 5,664 us | 5,668 us | 723 KB/s |
-| open+read+close | 32 KB | 33,074 us | 33,081 us | 33,087 us | 990 KB/s |
-| open+read+close | 128 KB | 128,282 us | 128,302 us | 128,433 us | 1,021 KB/s |
-| open+read+close | 256 KB | 254,005 us | 254,073 us | 254,512 us | 1,031 KB/s |
+| open+read+close | 4 KB | 4,052 us | 4,099 us | 4,523 us | 999 KB/s |
+| open+read+close | 32 KB | 31,329 us | 31,445 us | 31,877 us | 1,042 KB/s |
+| open+read+close | 128 KB | 125,851 us | 125,957 us | 126,822 us | 1,040 KB/s |
+| open+read+close | 256 KB | 251,805 us | 251,931 us | 252,776 us | 1,040 KB/s |
 | **Overhead** | | | | | |
-| File Open | — | 1,707 us | 1,707 us | 1,708 us | — |
-| File Close | — | 20 us | 20 us | 21 us | — |
-| Unmount | — | — | 3 ms | — | — |
+| File Open | -- | 98 us | 145 us | 575 us | -- |
+| File Close | -- | 20 us | 20 us | 21 us | -- |
+| Unmount | -- | -- | 3 ms | -- | -- |
 
-**Multi-sector gain:** 64x single=32,642 us vs 1x multi=13,590 us → **58% improvement**
+**Multi-sector gain:** 64x single=32,909 us vs 1x multi=13,613 us --> **58% improvement**
 
 ### Performance Benchmarks (250 MHz sysclk)
 
-**SPI Clock:** 25,000 kHz | **Mount:** 235.7 ms | **Volume:** P2-BENCH | **Free:** 60,901 MB
+**SPI Clock:** 25,000 kHz | **Mount:** 235.0 ms | **Volume:** P2-BENCH | **Free:** 60,903 MB
 
 | Test | Size | Min | Avg | Max | Throughput |
 |------|------|-----|-----|-----|------------|
 | **Raw Single-Sector** | | | | | |
-| Read (1x512B) | 512B | 573 us | 573 us | 574 us | 893 KB/s |
-| Write (1x512B) | 512B | 1,591 us | 1,619 us | 1,648 us | 316 KB/s |
+| Read (1x512B) | 512B | 577 us | 577 us | 577 us | 887 KB/s |
+| Write (1x512B) | 512B | 1,594 us | 1,620 us | 1,649 us | 316 KB/s |
 | **Raw Multi-Sector Read (CMD18)** | | | | | |
-| 8 sectors | 4 KB | 2,152 us | 2,152 us | 2,153 us | 1,903 KB/s |
-| 32 sectors | 16 KB | 7,546 us | 7,546 us | 7,546 us | 2,171 KB/s |
-| 64 sectors | 32 KB | 14,731 us | 14,731 us | 14,731 us | 2,224 KB/s |
+| 8 sectors | 4 KB | 2,158 us | 2,158 us | 2,158 us | 1,898 KB/s |
+| 32 sectors | 16 KB | 7,559 us | 7,559 us | 7,559 us | 2,167 KB/s |
+| 64 sectors | 32 KB | 14,754 us | 14,754 us | 14,754 us | 2,220 KB/s |
 | **Raw Multi-Sector Write (CMD25)** | | | | | |
-| 8 sectors | 4 KB | 2,650 us | 2,907 us | 4,769 us | 1,409 KB/s |
-| 32 sectors | 16 KB | 8,291 us | 8,366 us | 8,546 us | 1,958 KB/s |
-| 64 sectors | 32 KB | 16,408 us | 16,510 us | 16,618 us | 1,984 KB/s |
+| 8 sectors | 4 KB | 2,667 us | 2,711 us | 2,880 us | 1,510 KB/s |
+| 32 sectors | 16 KB | 8,305 us | 8,385 us | 8,562 us | 1,953 KB/s |
+| 64 sectors | 32 KB | 16,437 us | 16,543 us | 16,645 us | 1,980 KB/s |
 | **File Write** | | | | | |
-| create+write+close | 512B | 9,546 us | 9,698 us | 9,823 us | 52 KB/s |
-| create+write+close | 4 KB | 18,511 us | 18,656 us | 18,761 us | 219 KB/s |
-| create+write+close | 32 KB | 91,205 us | 91,970 us | 93,718 us | 356 KB/s |
+| create+write+close | 512B | 7,796 us | 8,339 us | 8,525 us | 61 KB/s |
+| create+write+close | 4 KB | 17,297 us | 17,716 us | 20,345 us | 231 KB/s |
+| create+write+close | 32 KB | 90,728 us | 91,246 us | 93,089 us | 359 KB/s |
 | **File Read** | | | | | |
-| open+read+close | 4 KB | 6,394 us | 6,394 us | 6,400 us | 640 KB/s |
-| open+read+close | 32 KB | 36,870 us | 36,873 us | 36,877 us | 888 KB/s |
-| open+read+close | 128 KB | 141,792 us | 141,861 us | 142,338 us | 923 KB/s |
-| open+read+close | 256 KB | 281,920 us | 282,015 us | 282,479 us | 929 KB/s |
+| open+read+close | 4 KB | 4,547 us | 4,600 us | 5,072 us | 890 KB/s |
+| open+read+close | 32 KB | 35,016 us | 35,072 us | 35,540 us | 934 KB/s |
+| open+read+close | 128 KB | 139,908 us | 140,055 us | 140,978 us | 935 KB/s |
+| open+read+close | 256 KB | 279,774 us | 279,945 us | 280,869 us | 936 KB/s |
 | **Overhead** | | | | | |
-| File Open | — | 1,980 us | 1,980 us | 1,981 us | — |
-| File Close | — | 29 us | 29 us | 29 us | — |
-| Unmount | — | — | 3 ms | — | — |
+| File Open | -- | 138 us | 190 us | 662 us | -- |
+| File Close | -- | 29 us | 29 us | 29 us | -- |
+| Unmount | -- | -- | 3 ms | -- | -- |
 
-**Multi-sector gain:** 64x single=36,997 us vs 1x multi=14,737 us → **60% improvement**
+**Multi-sector gain:** 64x single=37,089 us vs 1x multi=14,760 us --> **60% improvement**
 
 ### Sysclk Effect (350 vs 250 MHz, same 25 MHz SPI)
 
 | Metric | 350 MHz | 250 MHz | Delta |
 |--------|---------|---------|-------|
-| Raw read 1x (KB/s) | 1,001 | 893 | +12% |
-| Raw read 64x (KB/s) | 2,410 | 2,224 | +8% |
-| Raw write 64x (KB/s) | 2,144 | 1,984 | +8% |
-| File read 256KB (KB/s) | 1,031 | 929 | +11% |
-| File write 32KB (KB/s) | 370 | 356 | +4% |
-| Multi-sector gain | 58% | 60% | — |
+| Raw read 1x (KB/s) | 1,005 | 887 | +13% |
+| Raw write 1x (KB/s) | 331 | 316 | +5% |
+| Raw read 64x (KB/s) | 2,408 | 2,220 | +8% |
+| Raw write 64x (KB/s) | 2,150 | 1,980 | +9% |
+| File read 256KB (KB/s) | 1,040 | 936 | +11% |
+| File write 32KB (KB/s) | 378 | 359 | +5% |
+| Multi-sector gain | 58% | 60% | -- |
 
 ### Notes
 

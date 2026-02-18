@@ -23,7 +23,7 @@ Class <N>, U<N>, V<N>, SPI <Freq> MHz  [<optional notes>]
 **Label:** SanDisk Extreme 64GB U3 A2 microSD XC I V30
 
 ```
-SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:$7E65_0771 2022/11
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -60,6 +60,15 @@ Class 10, U3, A2, V30, SPI 25 MHz  [formatted by P2FMTER]
 
 ```
 Samsung JD1Y7 SDXC 119GB [FAT32] SD 6.x rev3.0 SN:D27654A6 2025/12
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
+```
+
+### amazon-basics-usd00-64gb
+
+**Label:** Amazon Basics microSD XC I (10) U3 A2 V30
+
+```
+Longsys/Lexar USD00 SDXC 58GB [FAT32] SD 6.x rev2.0 SN:$3584_1E2E 2025/07
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -199,8 +208,8 @@ Class 4, SPI 25 MHz
 **Label:** PNY 16GB microSD HC I
 
 ```
-PNY SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:01CD5CF5 2018/08
-Class 4, SPI 25 MHz  [formatted by P2FMTER]
+Phison SD16G SDHC 14GB [FAT32] SD 3.x rev3.0 SN:$01CD_5CF5 2018/08
+Class 4, U0, V0, SPI 25 MHz  [P2FMTER]
 ```
 
 ---
@@ -211,7 +220,7 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 
 | Card | ACMD13 Status | Line 2 Source | Benchmark |
 |------|:---:|---|:---:|
-| sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
+| sandisk-sn64g-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 (re-run) |
 | sandisk-sn128-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | lexar-mssd0-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) — label says A1; different unit SN:33549024 | 350+250 |
 | lexar-mssd0-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
@@ -227,11 +236,12 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 | sandisk-su08g-8gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
 | samsung-00000-8gb | **verified** | ACMD13 (Class 6, U0, V0) — FAT16, format failed | — |
 | sandisk-ss08g-8gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
-| pny-sd16g-16gb | **verified** | ACMD13 (Class 4, U0, V0) | — |
+| pny-sd16g-16gb | **verified** | ACMD13 (Class 4, U0, V0) | 350+250 |
 | siliconpower-spcc-64gb | **verified** | ACMD13 (Class 10, U3, A1, V30) — label says U1 | **BLOCKED** |
 | samsung-jd1y7-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
+| amazon-basics-usd00-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 
 ---
 
 *Created: 2026-02-15*
-*Cards: 19*
+*Cards: 20*

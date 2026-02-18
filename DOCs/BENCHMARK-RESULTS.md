@@ -26,27 +26,27 @@ Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD
 
 ### Cross-Card Comparison (350 MHz, Best Numbers)
 
-| Metric | SanDisk Industrial 16GB | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB | SanDisk Extreme 64GB | Samsung PRO Endurance 128GB |
-|--------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| **Mount** | 486 ms | 212 ms | 400 ms | **203 ms** | 233 ms | 233 ms | 243 ms |
-| **File Open** | 159 µs | 991 µs | **128 µs** | 151 µs | 146 µs | 1,707 µs | 143 µs |
-| **Raw Read 1×512B** | 792 KB/s | 1,239 KB/s | 819 KB/s | 937 KB/s | 887 KB/s | 1,001 KB/s | **1,283 KB/s** |
-| **Raw Read 64× (32KB)** | 2,393 KB/s | 2,376 KB/s | 2,420 KB/s | 2,353 KB/s | 2,406 KB/s | 2,410 KB/s | **2,427 KB/s** |
-| **Raw Write 1×512B** | 361 KB/s | 674 KB/s | **680 KB/s** | — † | 332 KB/s | 277 KB/s §  | 617 KB/s |
-| **Raw Write 64× (32KB)** | 2,170 KB/s | 2,251 KB/s | 2,275 KB/s | — † | 2,152 KB/s | 2,144 KB/s | **2,319 KB/s** |
-| **File Read 256KB** | 745 KB/s ‡ | 1,378 KB/s | **1,444 KB/s** | 950 KB/s | 1,016 KB/s | 1,031 KB/s | 1,419 KB/s |
-| **File Write 32KB** | 321 KB/s | 433 KB/s | 616 KB/s | 325 KB/s | 378 KB/s | 370 KB/s | **758 KB/s** |
-| **Multi-sector gain** | 67% | 51% | 51% | 63% | 61% | 58% | 46% |
-| **App Perf Class** | — | A2 ★ | A2 | — | A2 | A2 | A2 |
-| **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/lexar-mssd0-128gb.md) | [card page](cards/samsung-gd4qt-128gb.md) | [card page](cards/sandisk-sn128-128gb.md) | [card page](cards/sandisk-sn64g-64gb.md) | [card page](cards/samsung-jd1y7-128gb.md) |
+| Metric | SanDisk Industrial 16GB | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB | SanDisk Extreme 64GB | Samsung PRO Endurance 128GB | Amazon Basics 64GB | PNY 16GB |
+|--------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Mount** | 486 ms | 212 ms | 400 ms | **203 ms** | 233 ms | 233 ms | 243 ms | 233 ms | **202 ms** |
+| **File Open** | 159 µs | 991 µs | **128 µs** | 151 µs | 146 µs | 145 µs | 143 µs | 135 µs | 177 µs |
+| **Raw Read 1×512B** | 792 KB/s | 1,239 KB/s | 819 KB/s | 937 KB/s | 887 KB/s | 1,005 KB/s | **1,283 KB/s** | 1,245 KB/s | 734 KB/s |
+| **Raw Read 64× (32KB)** | 2,393 KB/s | 2,376 KB/s | 2,420 KB/s | 2,353 KB/s | 2,406 KB/s | 2,408 KB/s | **2,427 KB/s** | 2,425 KB/s | 2,376 KB/s |
+| **Raw Write 1×512B** | 361 KB/s | 674 KB/s | 680 KB/s | — † | 332 KB/s | 331 KB/s | 617 KB/s | **846 KB/s** | 50 KB/s ‖ |
+| **Raw Write 64× (32KB)** | 2,170 KB/s | 2,251 KB/s | 2,275 KB/s | — † | 2,152 KB/s | 2,150 KB/s | **2,319 KB/s** | 2,305 KB/s | 1,037 KB/s |
+| **File Read 256KB** | 745 KB/s ‡ | 1,378 KB/s | **1,444 KB/s** | 950 KB/s | 1,016 KB/s | 1,040 KB/s | 1,419 KB/s | 1,386 KB/s | 747 KB/s |
+| **File Write 32KB** | 321 KB/s | 433 KB/s | 616 KB/s | 325 KB/s | 378 KB/s | 378 KB/s | 758 KB/s | **774 KB/s** | 192 KB/s |
+| **Multi-sector gain** | 67% | 51% | 51% | 63% | 61% | 58% | 46% | 54% | 69% |
+| **App Perf Class** | — | A2 ★ | A2 | — | A2 | A2 | A2 | A2 | — |
+| **Detail** | [card page](cards/sandisk-sa16g-16gb.md) | [card page](cards/lexar-mssd0-64gb.md) | [card page](cards/lexar-mssd0-128gb.md) | [card page](cards/samsung-gd4qt-128gb.md) | [card page](cards/sandisk-sn128-128gb.md) | [card page](cards/sandisk-sn64g-64gb.md) | [card page](cards/samsung-jd1y7-128gb.md) | [card page](cards/amazon-basics-usd00-64gb.md) | [card page](cards/pny-sd16g-16gb.md) |
 
 **Best Read**: Samsung PRO Endurance 128GB — fastest single-sector and raw multi-sector reads; Lexar Blue 128GB — fastest file-level reads.
-**Best Write**: Samsung PRO Endurance 128GB — fastest raw multi-sector and file-level writes; Lexar Blue 128GB — fastest single-sector writes.
+**Best Write**: Amazon Basics 64GB — fastest single-sector writes (846 KB/s) and file-level writes (774 KB/s); Samsung PRO Endurance 128GB — fastest raw multi-sector writes.
 
 ★ Lexar Red label says A1; ACMD13 register reports A2 (both physical units).
 † Samsung EVO 350 MHz raw write results affected by flash controller housekeeping pause (wear leveling/GC). 250 MHz run was clean: Write 1×512B = 394 KB/s, Write 64× = 2,003 KB/s. See [card page](cards/samsung-gd4qt-128gb.md).
 ‡ SanDisk Industrial 350 MHz File Read 256KB showed high variance (Max=655 ms outlier); 250 MHz result of 790 KB/s is representative.
-§ SanDisk Extreme 350 MHz single-sector write had high variance (Max=4,340 µs outlier); 250 MHz run was tighter: 316 KB/s.
+‖ PNY single-sector write has enormous variance (Min=2,936, Max=14,654 µs) — Phison controller has unpredictable write commit latency.
 
 ---
 
@@ -54,12 +54,12 @@ Measurements across three levels: raw single-sector, raw multi-sector (CMD18/CMD
 
 Both speeds produce identical 25 MHz SPI clock — differences are purely Spin2 inter-transfer overhead.
 
-| Test | SanDisk Industrial | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB | SanDisk Extreme 64GB | Samsung PRO Endurance |
-|------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| **Raw Read 64×** | +8% | +9% | +8% | +11% | +8% | +8% | +8% |
-| **Raw Write 64×** | +9% | +10% | +9% | — | +12% | +8% | +10% |
-| **File Read 256KB** | -6% ‡ | +16% | +15% | +26% | +11% | +11% | +15% |
-| **File Write 32KB** | +4% | +9% | +12% | +0.3% | +5% | +4% | +7% |
+| Test | SanDisk Industrial | Lexar V30 64GB | Lexar Blue 128GB | Samsung EVO 128GB | SanDisk Switch 128GB | SanDisk Extreme 64GB | Samsung PRO Endurance | Amazon Basics 64GB | PNY 16GB |
+|------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Raw Read 64×** | +8% | +9% | +8% | +11% | +8% | +8% | +8% | +9% | +8% |
+| **Raw Write 64×** | +9% | +10% | +9% | — | +12% | +9% | +10% | +9% | +4% |
+| **File Read 256KB** | -6% ‡ | +16% | +15% | +26% | +11% | +11% | +15% | +15% | +7% |
+| **File Write 32KB** | +4% | +9% | +12% | +0.3% | +5% | +5% | +7% | +13% | +4% |
 
 **Pattern**: Raw multi-sector operations gain ~8-11% from faster Spin2 processing between streamer transfers. File-level reads gain 15-26% from reduced FAT traversal overhead. File-level writes are card-dependent — cards with longer flash programming times (Samsung) are dominated by card latency rather than sysclk speed.
 
@@ -135,7 +135,7 @@ These measurements represent the driver performance **before** Smart Pin optimiz
 #### SanDisk Extreme 64GB (SN64G, MID $03)
 
 ```
-SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:7E650771 2022/11
+SanDisk SN64G SDXC 59GB [FAT32] SD 6.x rev8.6 SN:$7E65_0771 2022/11
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -192,28 +192,30 @@ Write throughput increases with block size due to:
 2. Better alignment with card's internal erase blocks
 3. Reduced FAT update overhead
 
-| Block Size | Baseline Best (SanDisk 64GB) | Current Best (Lexar Blue 128GB) | Improvement |
-|------------|------------------------------|--------------------------------|-------------|
-| 512B | 90 KB/s | 102 KB/s | +13% |
-| 4KB | 302 KB/s | 392 KB/s | +30% |
-| 32KB | 425 KB/s | 616 KB/s | +45% |
+| Block Size | Baseline Best (SanDisk 64GB) | Current Best (Amazon Basics 64GB) | Improvement |
+|------------|------------------------------|----------------------------------|-------------|
+| 512B | 90 KB/s | 121 KB/s | +34% |
+| 4KB | 302 KB/s | 483 KB/s | +60% |
+| 32KB | 425 KB/s | 774 KB/s | +82% |
 
 ### Read Performance
 
 Sequential read performance at file level (current driver, 350 MHz):
 - Lexar Blue 128GB: **1,444 KB/s** (best)
 - Samsung PRO Endurance 128GB: 1,419 KB/s
+- Amazon Basics 64GB: 1,386 KB/s
 - Lexar V30 64GB: 1,378 KB/s
-- SanDisk Extreme 64GB: 1,031 KB/s
+- SanDisk Extreme 64GB: 1,040 KB/s
 - SanDisk Switch 128GB: 1,016 KB/s
 - Samsung EVO 128GB: 950 KB/s
+- PNY 16GB: 747 KB/s
 - SanDisk Industrial 16GB: 745 KB/s (measurement artifact — 790 KB/s at 250 MHz is representative)
 
 ### Multi-Sector Improvement
 
-CMD18/CMD25 multi-sector operations provide 46-67% improvement over repeated single-sector commands:
-- Cards with slower internal controllers benefit more (SanDisk Industrial: 67%, Samsung EVO: 63%)
-- Fast cards benefit less (Samsung PRO Endurance: 46%, Lexar V30: 51%, Lexar Blue: 51%)
+CMD18/CMD25 multi-sector operations provide 46-69% improvement over repeated single-sector commands:
+- Cards with slower internal controllers benefit more (PNY: 69%, SanDisk Industrial: 67%, Samsung EVO: 63%)
+- Fast cards benefit less (Samsung PRO Endurance: 46%, Lexar V30: 51%, Lexar Blue: 51%, Amazon Basics: 54%)
 - The improvement comes from eliminating per-sector command overhead
 
 ### Mount Time Observations
@@ -227,13 +229,14 @@ The Samsung EVO Select 128GB holds the fastest mount time (203 ms) despite being
 
 Without instrumented mount breakdown (ACMD41 loop vs filesystem reads), the leading hypothesis is that older controllers with fewer performance guarantees to set up simply reach ready state faster.
 
-### PNY Phison Controller Anomalies (320 MHz data)
+### PNY Phison Controller Anomalies (350 MHz data)
 
 The PNY card (MID $27 Phison) has distinctive behavior:
-- **File open: 16.9 ms** (85× slower than other cards' ~150 µs)
-- **Raw single-sector write: 57 KB/s** with enormous variance (Min=2,965, Max=11,110 µs)
-- **Multi-sector reads surprisingly fast**: 2,110 KB/s at 32 sectors — competitive with the best cards
-- **Extremely consistent reads**: Min=Max for single-sector (812 µs) at 320 MHz — zero variance
+- **File open: 177 µs avg** on empty directory (clean format) — previously 16.9 ms with many files, showing directory scan dominates open time
+- **Raw single-sector write: 50 KB/s** with enormous variance (Min=2,936, Max=14,654 µs) — slowest writer in collection
+- **Multi-sector reads competitive**: 2,376 KB/s at 64 sectors — matching or exceeding many premium cards
+- **Extremely consistent reads**: Min≈Max for single-sector (697 µs) at 350 MHz — zero variance
+- **Multi-sector writes slow**: 1,037 KB/s at 64 sectors — roughly half of other cards
 
 ---
 
@@ -242,8 +245,8 @@ The PNY card (MID $27 Phison) has distinctive behavior:
 At 350 MHz sysclk with Smart Pin SPI:
 - **SPI clock**: 25.0 MHz (exact — 350/25 = 14, integer divider)
 - **Theoretical byte rate**: ~3,052 KB/s (25 MHz / 8 bits)
-- **Best raw achieved**: 2,420 KB/s read, 2,275 KB/s write (79% / 75% efficiency)
-- **Best file-level achieved**: 1,531 KB/s read, 616 KB/s write
+- **Best raw achieved**: 2,427 KB/s read, 2,319 KB/s write (80% / 76% efficiency)
+- **Best file-level achieved**: 1,444 KB/s read, 774 KB/s write
 
 The raw-to-theoretical gap is due to:
 - Command/response framing per transfer
@@ -264,9 +267,9 @@ The file-to-raw gap is due to:
 |-------|-------------|--------------|--------|---------|
 | Theoretical (25 MHz SPI) | 3,052 | 3,052 | 100% | 100% |
 | Raw multi-sector (best) | 2,427 | 2,319 | 80% | 76% |
-| File-level (best) | 1,444 | 758 | 47% | 25% |
+| File-level (best) | 1,444 | 774 | 47% | 25% |
 
-The raw SPI layer is reasonably efficient (~78% average). File-level write throughput has improved significantly with Samsung PRO Endurance (758 KB/s, 25% of theoretical), though FAT metadata updates still consume most of available bandwidth.
+The raw SPI layer is reasonably efficient (~78% average). File-level write throughput is best with Amazon Basics 64GB (774 KB/s, 25% of theoretical), which edges out Samsung PRO Endurance (758 KB/s). FAT metadata updates still consume most of available bandwidth.
 
 ---
 
@@ -288,6 +291,9 @@ The raw SPI layer is reasonably efficient (~78% average). File-level write throu
 | 2026-02-17 | TX streamer fix (797f913) | Standard protocol | SanDisk Nintendo Switch 128GB @ 350+250 MHz |
 | 2026-02-17 | TX streamer fix (797f913) | Standard protocol | SanDisk Extreme 64GB @ 350+250 MHz |
 | 2026-02-17 | TX streamer fix (797f913) | Standard protocol | Samsung PRO Endurance 128GB @ 350+250 MHz |
+| 2026-02-17 | TX streamer fix (797f913) | Standard protocol | Amazon Basics 64GB @ 350+250 MHz |
+| 2026-02-17 | TX streamer fix (797f913) | Re-benchmark | SanDisk Extreme 64GB @ 350+250 MHz (re-run) |
+| 2026-02-17 | TX streamer fix (797f913) | Re-benchmark | PNY 16GB @ 350+250 MHz (re-run) |
 
 ---
 
