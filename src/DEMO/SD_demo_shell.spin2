@@ -22,8 +22,6 @@
 
 CON { timing }
 
-  DEBUG_DISABLE                                                  ' disable debug() - conflicts with serial on pin 62
-
   CLK_FREQ = 270_000_000                                        ' system freq as a constant
   MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
   US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
@@ -190,6 +188,7 @@ PUB main() | len, eCmd
   serial.fstr0(@"P2 SD Card Filesystem Shell\r\n")
   serial.fstr0(@"- type 'help' for commands\r\n")
   serial.fstr0(@"\r\n")
+  debug("SD Shell: ready for commands")
 
   ' Initialize current working directory
   bytemove(@cwd, @"/", 2)
@@ -199,10 +198,12 @@ PUB main() | len, eCmd
     show_prompt()                                               ' prompt user
     len := get_command()                                        ' get input
     if (len > 0)                                                ' if command entered
-      serial.fstr1(@"%s\r\n", @cliBuf)                          ' echo command
+      ' no echo — pnut-term-ts provides local echo
+      debug("CMD: [", zstr_(@cliBuf), "] len=", udec_(len))
       ntokens := parse()                                        ' parse and count tokens
       if (ntokens)                                              ' if !0 tokens
         eCmd := idCommand(lcstr(token(0)))                      ' lookup command enum
+        debug("  -> enum=", udec_(eCmd), " tokens=", udec_(ntokens))
         run_command(eCmd)                                       ' run command code
 
 
@@ -335,11 +336,13 @@ PUB do_mount() | result
 
   serial.fstr0(@"Mounting SD card...\r\n")
   result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+  debug("mount result=", sdec_(result), " err=", sdec_(sd.error()))
 
   if (result)
     mounted := true
     bytemove(@cwd, @"/", 2)                                     ' reset to root
     serial.fstr0(@"Mounted successfully\r\n")
+    debug("  mounted, SPI=", udec_(sd.getSPIFrequency()), " Hz")
     show_card_summary()
   else
     serial.fstr1(@"Mount failed, error: %d\r\n", sd.error())
@@ -412,6 +415,7 @@ PUB do_dir() | dh, result, count, total_size, attrib, size, p_name
   serial.fstr0(@"  ----  --------  --------------------------------\r\n")
 
   dh := sd.openDirectory(@".")
+  debug("openDir handle=", sdec_(dh))
   if (dh < 0)
     serial.fstr1(@"  Error opening directory: %d\r\n", dh)
     return
@@ -532,6 +536,7 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
 
   p_filename := token(1)
   handle := sd.openFileRead(p_filename)
+  debug("openFileRead handle=", sdec_(handle))
 
   if (handle < 0)
     serial.fstr1(@"File not found: %s\r\n", p_filename)
@@ -561,7 +566,7 @@ PUB do_type() | p_filename, handle, bytes_read, total, c, i
   serial.fstr1(@"\r\n\r\n[%d bytes]\r\n", total)
 
 
-PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
+PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c, fileSize
 
 '' Display file contents in hex format
 
@@ -574,6 +579,7 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
 
   p_filename := token(1)
   handle := sd.openFileRead(p_filename)
+  debug("openFileRead handle=", sdec_(handle))
 
   if (handle < 0)
     serial.fstr1(@"File not found: %s\r\n", p_filename)
@@ -617,8 +623,9 @@ PUB do_hexdump() | p_filename, handle, bytes_read, offset, i, c
       serial.fstr0(@"... (truncated at 512 bytes)\r\n")
       quit
 
+  fileSize := sd.fileSizeHandle(handle)
   sd.closeFileHandle(handle)
-  serial.fstr1(@"\r\n[%d bytes total]\r\n", sd.fileSizeHandle(handle) > 0 ? sd.fileSizeHandle(handle) : offset)
+  serial.fstr1(@"\r\n[%d bytes total]\r\n", fileSize > 0 ? fileSize : offset)
 
 
 PUB do_rename() | p_old, p_new, result
@@ -2519,6 +2526,7 @@ PUB setup()
 '' Configure IO and objects for application
 
   serial.start(BR_TERM)                                         ' start terminal io
+  debug("SD Shell: serial started at ", udec_(BR_TERM), " baud")
 
 
 PUB wait_for_terminal(clear, delay)

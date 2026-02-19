@@ -324,22 +324,27 @@ Formatters are **case-insensitive** -- `UHEX_LONG` and `uhex_long` are equivalen
 
 ### Compile-Time: `DEBUG_DISABLE`
 
-Define `DEBUG_DISABLE` in a CON block to eliminate all `debug()` from the compiled binary. Zero code generated, zero runtime overhead.
+Set `DEBUG_DISABLE` to 0 or 1 in a CON block to control debug compilation **per-file**. Never use the bare form.
 
-**Bare form -- conflicts with serial pins** (P2-uSD-Study, `SD_demo_shell.spin2`):
-```spin2
-CON
-    DEBUG_DISABLE                   ' disable debug() - conflicts with serial on pin 62
-```
+- `DEBUG_DISABLE = 0` — no effect, debug() statements compile normally
+- `DEBUG_DISABLE = 1` — suppresses debug() compilation in that file only. Zero code generated, zero runtime overhead for that file.
 
-**Valued form -- exceeds compiler limit** (P2-uSD-Study, `SD_card_driver.spin2`):
+**Note:** Never use bare `DEBUG_DISABLE` (without a value). Always use the valued form.
+
+**Disabling debug** (P2-uSD-Study, `SD_card_driver.spin2`):
 ```spin2
 CON
     ' V3 driver exceeds 255 debug record limit when debug is fully enabled
     DEBUG_DISABLE = 1
 ```
 
-**Used in:** P2-uSD-Study (3 files: `SD_card_driver.spin2`, `SD_demo_shell.spin2`, `isp_format_utility.spin2`)
+**Enabling debug** (P2-uSD-Study, `isp_format_utility.spin2`):
+```spin2
+CON
+    DEBUG_DISABLE = 0   ' Enable debug output
+```
+
+**Used in:** P2-uSD-Study (`SD_card_driver.spin2`, `isp_format_utility.spin2`)
 
 ### Compile-Time: `DEBUG_MASK` with Channels (v46+)
 
@@ -661,7 +666,7 @@ debug(`s `sdec_long_array_(@drive_u, 3) `sdec_long_array_(@sense_u, 4))
 ### P2-uSD-Study
 - **Unique convention:** `"  [methodName] "` bracketed function name with indentation depth
 - Severity keywords inline: `FAIL:`, `SUCCESS`, `WARNING:`, `TIMEOUT`
-- Compile-time control: `DEBUG_DISABLE`, `#IFDEF SD_INCLUDE_DEBUG`
+- Compile-time control: `DEBUG_DISABLE = 0|1` (per-file), `#IFDEF SD_INCLUDE_DEBUG`
 - Debug throttling with `sp_debug_ctr`
 - Numbered step sequences: `"Step 1: "`, `"Step 2: "`
 - `"cmd-> "` / `"cmd<- "` for command direction
@@ -751,7 +756,7 @@ u/s     dec/hex/bin     _byte/_word/_long     _array     _
 
 6. **Expose `enableDebug(bEnable)` in library objects.** Let callers control debug output per instance. Use `saveDebug()` / `restoreDebug()` when you need to temporarily suppress debug during continuous operations.
 
-7. **Use `DEBUG_DISABLE` when debug conflicts with hardware.** Pin 62/63 serial conflicts or exceeding the 255 debug record compiler limit are the primary reasons.
+7. **Use `DEBUG_DISABLE = 1` per-file to reduce binary size or avoid the 255 debug record compiler limit.** Debug and serial share pin 62 without conflict. Never use bare `DEBUG_DISABLE`.
 
 8. **Throttle debug in tight loops.** Use a counter (`if debug_ctr < 5`) to limit output volume and avoid timing disruption.
 
@@ -765,7 +770,7 @@ u/s     dec/hex/bin     _byte/_word/_long     _array     _
 
 | Mechanism | Type | Projects Using It |
 |-----------|------|-------------------|
-| `DEBUG_DISABLE` | Compile-time | P2-uSD-Study |
+| `DEBUG_DISABLE = 0\|1` | Compile-time (per-file) | P2-uSD-Study |
 | `DEBUG_BAUD` / `DEBUG_PIN_TX/RX` | Compile-time | P2-BLDC-MotorControl (commented), P2-Magnetic-Imaging-Tile |
 | `#IFDEF SD_INCLUDE_DEBUG` | Compile-time preprocessor | P2-uSD-Study |
 | `DEBUG_MASK` + `debug[N]()` | Compile-time channels (v46+) | (Available but not yet used) |

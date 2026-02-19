@@ -1609,6 +1609,25 @@ PRI do_read_h(handle, p_buffer, count) : bytes_read | p_hbuf, available, offset,
   ' Get pointer to handle's buffer
   p_hbuf := getHandleBuffer(handle)
 
+  ' Advance past sector boundary left by previous read that ended exactly at 512-byte boundary.
+  ' Without this, the next read returns stale data from the previous sector's buffer.
+  if (h_position[handle] & 511) == 0 and h_position[handle] > 0 and h_buf_sector[handle] == h_sector[handle]
+    h_buf_sector[handle] := -1
+    h_sector[handle]++
+    if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
+      ' Follow FAT chain to next cluster
+      cluster := h_cluster[handle]
+      if readSector(cluster >> 7 + fat_sec, BUF_FAT) < 0
+        debug("  [do_read_h] FAT chain follow FAILED at boundary advance")
+        return 0
+      fat_addr := @fat_buf + ((cluster << 2) & 511)
+      next_cluster := long[fat_addr]
+      if next_cluster >= $0FFF_FFF8
+        debug("  [do_read_h] End of chain at boundary advance")
+        return 0
+      h_cluster[handle] := next_cluster
+      h_sector[handle] := clus2sec(next_cluster)
+
   bytes_read := 0
   repeat while count > 0
     ' Ensure current sector is loaded into handle's buffer
@@ -1689,6 +1708,24 @@ PRI do_write_h(handle, p_buffer, count) : bytes_written | p_hbuf, offset, to_wri
 
   ' Get pointer to handle's buffer
   p_hbuf := getHandleBuffer(handle)
+
+  ' Advance past sector boundary left by previous write that ended exactly at 512-byte boundary.
+  ' Without this, the next write overwrites the unflushed handle buffer before it reaches disk.
+  if (h_position[handle] & 511) == 0 and h_position[handle] > 0 and h_buf_sector[handle] == h_sector[handle]
+    if h_flags[handle] & HF_DIRTY
+      debug("  [do_write_h] Flushing stale sector ", udec_(h_buf_sector[handle]))
+      bytemove(@buf, p_hbuf, 512)
+      writeSector(h_buf_sector[handle], BUF_DATA)
+      h_flags[handle] &= !HF_DIRTY
+    h_buf_sector[handle] := -1
+    h_sector[handle]++
+    if ((h_sector[handle] - cluster_offset) & (sec_per_clus - 1)) == 0
+      new_cluster := allocateCluster(h_cluster[handle])
+      if new_cluster < 0
+        debug("  [do_write_h] Failed to allocate cluster at boundary advance")
+        return 0
+      h_cluster[handle] := new_cluster
+      h_sector[handle] := clus2sec(new_cluster)
 
   bytes_written := 0
   repeat while count > 0

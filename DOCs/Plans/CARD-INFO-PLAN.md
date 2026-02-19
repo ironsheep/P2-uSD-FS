@@ -180,7 +180,7 @@ All implemented and compiling (shell lines referenced):
 
 The investigation was exploring these angles when the session ended:
 
-1. **Debug system conflict** — Shell compiled with `-d` starts a debug cog that uses pin 62 for output. Serial singleton also uses pin 62 as smart pin TX. When `cogspin()` starts a new cog, the debug system may report "Cog INIT" events on pin 62, conflicting with the serial smart pin. However, regression tests also use `-d` and also call `cogspin()`, so this theory has a hole (unless regression tests don't use smart pin serial).
+1. **Debug system conflict** — This theory was investigated and RULED OUT. Debug and serial share pin 62 without conflict. The P2 debug system and serial smart pins coexist correctly.
 
 2. **Shell binary size / layout shift** — Adding ~420 lines of new code to the shell (new methods, DAT tables) changes the compiled binary layout. All hub memory addresses shift. If there's a subtle pnut-ts compiler issue with address computation, the `@cog_stack` address in `cogspin()` could be wrong. This would explain why the committed version works but ours doesn't.
 

@@ -1,0 +1,551 @@
+'' =================================================================================================
+''
+''   File....... SD_RT_dirhandle_tests.spin2
+''   Purpose.... This object tests V3 directory handle enumeration API
+''   Author..... Stephen M Moraco
+''               -- see below for terms of use
+''   E-mail..... stephen@ironsheep.biz
+''   Started.... FEB 2026
+''   Updated.... 18 FEB 2026
+''
+'' =================================================================================================
+''
+'' Tests the V3 directory handle API:
+''   - openDirectory() with various path arguments
+''   - readDirectoryHandle() enumeration
+''   - closeDirectoryHandle() resource release
+''   - fileName() and attributes() on directory entries
+''   - Error conditions (non-existent dir, file as dir, invalid handle)
+''   - Handle pool interaction (dir handles share file handle pool)
+''   - Path handling (root, absolute, relative, CWD independence)
+''
+'' =================================================================================================
+
+CON
+
+     _CLKFREQ        = 270_000_000
+
+     ' Pin configuration for P2 Edge with SD card
+     SD_CS   = 60
+     SD_MOSI = 59
+     SD_MISO = 58
+     SD_SCK  = 61
+
+     ' Error codes we expect to encounter
+     E_TOO_MANY_FILES    = -90
+     E_INVALID_HANDLE    = -91
+     E_FILE_NOT_FOUND    = -40
+     E_NOT_A_DIR         = -43
+     E_NOT_A_DIR_HANDLE  = -93
+
+     ' Maximum handles (must match driver's MAX_OPEN_FILES)
+     MAX_TEST_HANDLES = 6
+
+OBJ
+    sd    : "SD_card_driver"
+    utils : "SD_RT_utilities"
+
+DAT
+
+' Test directory and file names
+dhTestDir       BYTE    "DHTDIR1", 0
+dhFile1         BYTE    "DH1.TXT", 0
+dhFile2         BYTE    "DH2.TXT", 0
+dhFile3         BYTE    "DH3.TXT", 0
+dhSubDir        BYTE    "DHSUB1", 0
+dhSubFile       BYTE    "DHSUB.TXT", 0
+dhEmptyDir      BYTE    "DHTEMPTY", 0
+dhNonExist      BYTE    "NXDIR999", 0
+dhEmpty         BYTE    0
+
+' Absolute path for tests
+dhAbsPath       BYTE    "/DHTDIR1", 0
+
+' File content
+dhContent       BYTE    "Directory handle test content", 0
+
+' Read buffer
+readBuffer      BYTE    0[256]
+
+PUB go() | result, h1, h2, h3, h4, h5, h6, hDir, hDir2, pEntry, pName, attrs, entryCount, foundFiles, foundDirs
+'' Main entry point for directory handle regression tests
+''
+'' Tests V3 directory handle enumeration API
+
+    debug(" ")
+    debug("==============================================")
+    debug("  SD Card Driver V3 - Directory Handle Tests")
+    debug("==============================================")
+
+    ' Mount the card first
+    result := sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
+    if result == false
+        debug("ERROR: Could not mount SD card!")
+        debug("END_SESSION")
+        return
+
+    ' Show card info
+    debug(" ")
+    debug("* SD Card Information:")
+    debug("   Volume Label: ", zstr_(sd.volumeLabel()))
+    debug("   Free Space: ", udec(sd.freeSpace()), " sectors")
+
+    ' Clean up any existing test items
+    cleanupTestItems()
+
+    ' Create test directory structure
+    createTestStructure()
+
+    ' ======================================================================
+    ' TEST GROUP: Basic Enumeration
+    ' ======================================================================
+    utils.startTestGroup(@"Basic Enumeration")
+
+    ' Test: openDirectory with "." enumerates current directory
+    utils.startTest(@"openDirectory(.) enumerates current directory")
+    hDir := sd.openDirectory(@".")
+    utils.evaluateSubBool(hDir >= 0, @"openDirectory(.) succeeds", true)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            entryCount++
+        utils.evaluateSubBool(entryCount > 0, @"root has entries", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: openDirectory with "" enumerates current directory
+    utils.startTest(@"openDirectory('') enumerates current directory")
+    hDir := sd.openDirectory(@dhEmpty)
+    utils.evaluateSubBool(hDir >= 0, @"openDirectory('') succeeds", true)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            entryCount++
+        utils.evaluateSubBool(entryCount > 0, @"entries found", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: openDirectory with named directory
+    utils.startTest(@"openDirectory(DHTDIR1) enumerates subdirectory")
+    hDir := sd.openDirectory(@dhTestDir)
+    utils.evaluateSubBool(hDir >= 0, @"openDirectory(DHTDIR1) succeeds", true)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            pName := sd.fileName()
+            debug("  Entry: [", zstr_(pName), "]")
+            entryCount++
+        ' Should have: . .. DH1.TXT DH2.TXT DH3.TXT DHSUB1 = at least 4 non-dot entries
+        utils.evaluateSubBool(entryCount >= 4, @"DHTDIR1 has >= 4 entries", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: closeDirectoryHandle releases slot
+    utils.startTest(@"closeDirectoryHandle releases handle slot")
+    hDir := sd.openDirectory(@".")
+    utils.evaluateSubBool(hDir >= 0, @"first open succeeds", true)
+    sd.closeDirectoryHandle(hDir)
+    ' Open again - should get a valid handle (slot was released)
+    hDir := sd.openDirectory(@".")
+    utils.evaluateSubBool(hDir >= 0, @"reopen after close succeeds", true)
+    if hDir >= 0
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: Enumerate returns all expected files
+    utils.startTest(@"Enumerate DHTDIR1 finds all 3 files and subdirectory")
+    utils.setCheckCountPerTest(4)
+    hDir := sd.openDirectory(@dhTestDir)
+    if hDir >= 0
+        foundFiles := 0
+        foundDirs := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            pName := sd.fileName()
+            attrs := sd.attributes()
+            if attrs & $10  ' directory attribute
+                foundDirs++
+            else
+                foundFiles++
+        utils.evaluateSubBool(foundFiles >= 3, @"found >= 3 files", true)
+        utils.evaluateSubBool(foundDirs >= 1, @"found >= 1 subdir", true)
+        sd.closeDirectoryHandle(hDir)
+    else
+        utils.evaluateSubBool(false, @"found >= 3 files", true)
+        utils.evaluateSubBool(false, @"found >= 1 subdir", true)
+    utils.setCheckCountPerTest(1)
+
+    ' ======================================================================
+    ' TEST GROUP: Entry Inspection
+    ' ======================================================================
+    utils.startTestGroup(@"Entry Inspection")
+
+    ' Test: fileName() returns correct name for each entry
+    utils.startTest(@"fileName() returns valid names during enumeration")
+    hDir := sd.openDirectory(@dhTestDir)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            pName := sd.fileName()
+            ' Every filename should be non-empty
+            utils.evaluateSubBool(strsize(pName) > 0, @"filename non-empty", true)
+            entryCount++
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: attributes() distinguishes file from directory
+    utils.startTest(@"attributes() distinguishes file vs directory")
+    hDir := sd.openDirectory(@dhTestDir)
+    if hDir >= 0
+        foundFiles := 0
+        foundDirs := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            attrs := sd.attributes()
+            if attrs & $10
+                foundDirs++
+            else
+                foundFiles++
+        utils.evaluateSubBool(foundFiles > 0, @"has file entries", true)
+        utils.evaluateSubBool(foundDirs > 0, @"has dir entries", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: Empty directory returns only dot entries (. and ..)
+    utils.startTest(@"Empty directory has only dot entries")
+    hDir := sd.openDirectory(@dhEmptyDir)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            entryCount++
+        ' FAT32 empty directories contain . and .. entries (2 entries)
+        utils.evaluateSingleValue(entryCount, @"empty dir entry count", 2)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: Subdirectory enumeration works
+    utils.startTest(@"Subdirectory enumeration finds file")
+    hDir := sd.openDirectory(@"/DHTDIR1/DHSUB1")
+    if hDir >= 0
+        foundFiles := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            attrs := sd.attributes()
+            if (attrs & $10) == 0  ' not a directory
+                foundFiles++
+        utils.evaluateSubBool(foundFiles >= 1, @"subdir has file", true)
+        sd.closeDirectoryHandle(hDir)
+    else
+        utils.evaluateSubBool(false, @"subdir has file", true)
+
+    ' ======================================================================
+    ' TEST GROUP: Error Conditions
+    ' ======================================================================
+    utils.startTestGroup(@"Error Conditions")
+
+    ' Test: Non-existent directory returns E_FILE_NOT_FOUND
+    utils.startTest(@"openDirectory non-existent returns E_FILE_NOT_FOUND")
+    result := sd.openDirectory(@dhNonExist)
+    utils.evaluateSingleValue(result, @"openDirectory(NXDIR999)", E_FILE_NOT_FOUND)
+
+    ' Test: Opening a file as directory returns E_NOT_A_DIR
+    utils.startTest(@"openDirectory on a file returns E_NOT_A_DIR")
+    sd.changeDirectory(@dhTestDir)
+    result := sd.openDirectory(@dhFile1)
+    utils.evaluateSingleValue(result, @"openDirectory(DH1.TXT)", E_NOT_A_DIR)
+    sd.changeDirectory(@"/")
+
+    ' Test: Invalid handle to readDirectoryHandle returns 0
+    utils.startTest(@"readDirectoryHandle(-1) returns 0")
+    result := sd.readDirectoryHandle(-1)
+    utils.evaluateSingleValue(result, @"readDirectoryHandle(-1)", 0)
+
+    ' Test: File handle used with readDirectoryHandle
+    utils.startTest(@"readDirectoryHandle on file handle returns 0")
+    sd.changeDirectory(@dhTestDir)
+    h1 := sd.openFileRead(@dhFile1)
+    if h1 >= 0
+        result := sd.readDirectoryHandle(h1)
+        utils.evaluateSingleValue(result, @"readDirHandle(fileHandle)", 0)
+        sd.closeFileHandle(h1)
+    sd.changeDirectory(@"/")
+
+    ' Test: closeDirectoryHandle on file handle (should be harmless or error)
+    utils.startTest(@"closeDirectoryHandle on invalid handle")
+    ' Close an already-closed handle - should not crash
+    sd.closeDirectoryHandle(-1)
+    utils.recordPass()  ' If we get here without crash, pass
+
+    ' ======================================================================
+    ' TEST GROUP: Handle Pool Interaction
+    ' ======================================================================
+    utils.startTestGroup(@"Handle Pool Interaction")
+
+    ' Test: Dir handle consumes shared pool slot
+    utils.startTest(@"Dir handle shares pool with file handles")
+    utils.setCheckCountPerTest(4)
+    ' Open 5 files + 1 dir = 6 handles (pool full)
+    sd.changeDirectory(@dhTestDir)
+    h1 := sd.openFileRead(@dhFile1)
+    h2 := sd.openFileRead(@dhFile2)
+    h3 := sd.openFileRead(@dhFile3)
+    h4 := sd.openFileRead(@dhFile1)
+    h5 := sd.openFileRead(@dhFile2)
+    utils.evaluateSubBool(h1 >= 0 and h2 >= 0 and h3 >= 0 and h4 >= 0 and h5 >= 0, @"5 file handles OK", true)
+    sd.changeDirectory(@"/")
+    hDir := sd.openDirectory(@".")
+    utils.evaluateSubBool(hDir >= 0, @"6th handle (dir) OK", true)
+    ' 7th should fail
+    result := sd.openDirectory(@dhTestDir)
+    utils.evaluateSubValue(result, @"7th handle fails", E_TOO_MANY_FILES)
+    ' Clean up
+    sd.closeFileHandle(h1)
+    sd.closeFileHandle(h2)
+    sd.closeFileHandle(h3)
+    sd.closeFileHandle(h4)
+    sd.closeFileHandle(h5)
+    sd.closeDirectoryHandle(hDir)
+    utils.setCheckCountPerTest(1)
+
+    ' Test: Multiple dir handles simultaneously
+    utils.startTest(@"Multiple directory handles simultaneously")
+    hDir := sd.openDirectory(@".")
+    hDir2 := sd.openDirectory(@dhTestDir)
+    utils.evaluateSubBool(hDir >= 0, @"first dir handle OK", true)
+    utils.evaluateSubBool(hDir2 >= 0, @"second dir handle OK", true)
+    utils.evaluateSubBool(hDir <> hDir2, @"handles are different", true)
+    if hDir >= 0
+        sd.closeDirectoryHandle(hDir)
+    if hDir2 >= 0
+        sd.closeDirectoryHandle(hDir2)
+
+    ' Test: File + dir handles coexist
+    utils.startTest(@"File and dir handles coexist")
+    sd.changeDirectory(@dhTestDir)
+    h1 := sd.openFileRead(@dhFile1)
+    sd.changeDirectory(@"/")
+    hDir := sd.openDirectory(@dhTestDir)
+    utils.evaluateSubBool(h1 >= 0, @"file handle valid", true)
+    utils.evaluateSubBool(hDir >= 0, @"dir handle valid", true)
+    ' Read from file handle
+    if h1 >= 0
+        result := sd.readHandle(h1, @readBuffer, 10)
+        utils.evaluateSubBool(result > 0, @"file read works", true)
+        sd.closeFileHandle(h1)
+    ' Read from dir handle
+    if hDir >= 0
+        pEntry := sd.readDirectoryHandle(hDir)
+        utils.evaluateSubBool(pEntry <> 0, @"dir read works", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: Restart enumeration requires close + reopen
+    utils.startTest(@"Restart enumeration requires close and reopen")
+    hDir := sd.openDirectory(@dhTestDir)
+    if hDir >= 0
+        ' Read some entries
+        entryCount := 0
+        repeat 2
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry <> 0
+                entryCount++
+        utils.evaluateSubBool(entryCount > 0, @"partial read OK", true)
+        ' Close and reopen to restart
+        sd.closeDirectoryHandle(hDir)
+        hDir := sd.openDirectory(@dhTestDir)
+        ' Should start from beginning again
+        pEntry := sd.readDirectoryHandle(hDir)
+        utils.evaluateSubBool(pEntry <> 0, @"restart has entries", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' ======================================================================
+    ' TEST GROUP: Path Handling
+    ' ======================================================================
+    utils.startTestGroup(@"Path Handling")
+
+    ' Test: openDirectory("/") enumerates root
+    utils.startTest(@"openDirectory(/) enumerates root")
+    hDir := sd.openDirectory(@"/")
+    utils.evaluateSubBool(hDir >= 0, @"openDirectory(/) succeeds", true)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            entryCount++
+        utils.evaluateSubBool(entryCount > 0, @"root has entries", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: Absolute path works
+    utils.startTest(@"openDirectory with absolute path")
+    hDir := sd.openDirectory(@dhAbsPath)
+    utils.evaluateSubBool(hDir >= 0, @"openDirectory(/DHTDIR1) OK", true)
+    if hDir >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            entryCount++
+        utils.evaluateSubBool(entryCount >= 4, @"abs path has entries", true)
+        sd.closeDirectoryHandle(hDir)
+
+    ' Test: After changeDirectory, "." reflects new CWD
+    utils.startTest(@"After changeDirectory, . reflects new CWD")
+    sd.changeDirectory(@dhTestDir)
+    hDir := sd.openDirectory(@".")
+    if hDir >= 0
+        foundFiles := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(hDir)
+            if pEntry == 0
+                quit
+            foundFiles++
+        ' DHTDIR1 has files + subdir, different count from root
+        utils.evaluateSubBool(foundFiles >= 4, @"CWD entries match subdir", true)
+        sd.closeDirectoryHandle(hDir)
+    sd.changeDirectory(@"/")
+
+    ' Test: openDirectory does NOT change CWD
+    utils.startTest(@"openDirectory does not change CWD")
+    ' We are at root. Open DHTDIR1 for enumeration
+    hDir := sd.openDirectory(@dhTestDir)
+    if hDir >= 0
+        sd.closeDirectoryHandle(hDir)
+    ' CWD should still be root - verify by creating file in root
+    h1 := sd.openDirectory(@".")
+    if h1 >= 0
+        entryCount := 0
+        repeat
+            pEntry := sd.readDirectoryHandle(h1)
+            if pEntry == 0
+                quit
+            pName := sd.fileName()
+            if strcomp(pName, @dhTestDir)
+                entryCount++  ' Found DHTDIR1 in root listing
+        utils.evaluateSubBool(entryCount > 0, @"CWD still at root", true)
+        sd.closeDirectoryHandle(h1)
+
+    ' ======================================================================
+    ' Cleanup and Summary
+    ' ======================================================================
+    cleanupTestItems()
+
+    sd.unmount()
+
+    utils.ShowTestEndCounts()
+
+    debug(" ")
+    debug("END_SESSION")
+
+PRI createTestStructure() | h
+' Create test directory structure:
+'   /DHTDIR1/DH1.TXT, DH2.TXT, DH3.TXT, DHSUB1/DHSUB.TXT
+'   /DHTEMPTY/   (empty directory)
+
+    debug(" ")
+    debug("* Creating test directory structure...")
+
+    ' Create main test directory
+    sd.newDirectory(@dhTestDir)
+    sd.changeDirectory(@dhTestDir)
+
+    ' Create files in test directory
+    h := sd.createFileNew(@dhFile1)
+    if h >= 0
+        sd.writeHandle(h, @dhContent, strsize(@dhContent))
+        sd.closeFileHandle(h)
+
+    h := sd.createFileNew(@dhFile2)
+    if h >= 0
+        sd.writeHandle(h, @dhContent, strsize(@dhContent))
+        sd.closeFileHandle(h)
+
+    h := sd.createFileNew(@dhFile3)
+    if h >= 0
+        sd.writeHandle(h, @dhContent, strsize(@dhContent))
+        sd.closeFileHandle(h)
+
+    ' Create subdirectory with a file
+    sd.newDirectory(@dhSubDir)
+    sd.changeDirectory(@dhSubDir)
+    h := sd.createFileNew(@dhSubFile)
+    if h >= 0
+        sd.writeHandle(h, @dhContent, strsize(@dhContent))
+        sd.closeFileHandle(h)
+    sd.changeDirectory(@"..")
+
+    sd.changeDirectory(@"/")
+
+    ' Create empty directory
+    sd.newDirectory(@dhEmptyDir)
+
+    debug("* Test structure created")
+    debug(" ")
+
+PRI cleanupTestItems()
+' Delete all test files and directories (deepest first)
+
+    sd.changeDirectory(@"/")
+
+    ' Clean subdirectory contents
+    sd.changeDirectory(@dhTestDir)
+    sd.changeDirectory(@dhSubDir)
+    sd.deleteFile(@dhSubFile)
+    sd.changeDirectory(@"..")
+    sd.deleteFile(@dhSubDir)
+
+    ' Clean test directory files
+    sd.deleteFile(@dhFile1)
+    sd.deleteFile(@dhFile2)
+    sd.deleteFile(@dhFile3)
+    sd.changeDirectory(@"/")
+
+    ' Delete test directories
+    sd.deleteFile(@dhTestDir)
+    sd.deleteFile(@dhEmptyDir)
+
+
+con { license }
+
+{{
+  =================================================================================================
+
+  Terms of Use: MIT License
+
+  Copyright (c) 2026 Iron Sheep Productions, LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+  =================================================================================================
+}}
