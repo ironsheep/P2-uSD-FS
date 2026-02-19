@@ -70,7 +70,7 @@ So SMART is always in control once the mode is running. The OUT fallback would o
 
 **Open question for our SPI driver:** When P_SYNC_TX is in start-stop mode and has finished shifting its last byte (idle between transfers), does SMART still hold the output? Or does it revert to OUT? This determines the idle-HIGH behavior we observe.
 
-## Relevance to SPI Driver (SD_card_driver.spin2)
+## Relevance to SPI Driver (micro_sd_fat32_fs.spin2)
 
 Our current MOSI configuration:
 ```

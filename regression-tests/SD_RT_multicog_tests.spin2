@@ -33,8 +33,8 @@ CON
      STATUS_FAIL      = -1
 
 OBJ
-    sd    : "SD_card_driver"
-    utils : "SD_RT_utilities"
+    sd    : "micro_sd_fat32_fs"
+    utils : "isp_rt_utilities"
 
 DAT
 

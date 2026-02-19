@@ -11,7 +11,7 @@ sd-card-driver/
 ├── CHANGELOG.md                        Release history
 │
 ├── src/                                Driver and application source
-│   ├── SD_card_driver.spin2               The SD card driver
+│   ├── micro_sd_fat32_fs.spin2            The SD card driver
 │   ├── DEMO/                              Interactive terminal shell
 │   │   ├── README.md                         Build and usage guide
 │   │   ├── SD_demo_shell.spin2               Shell application
@@ -31,7 +31,7 @@ sd-card-driver/
 │
 ├── regression-tests/                   Automated test suite (251 tests)
 │   ├── README.md                          Test documentation
-│   ├── SD_RT_utilities.spin2              Shared test framework
+│   ├── isp_rt_utilities.spin2             Shared test framework
 │   ├── SD_RT_*_tests.spin2                Test files (11 suites)
 │   └── TestCard/                          Test card setup
 │       ├── TEST-CARD-SPECIFICATION.md        Card requirements
@@ -55,11 +55,11 @@ sd-card-driver/
 
 ### Using the Driver in Your Project
 
-Copy `src/SD_card_driver.spin2` into your project directory, then:
+Copy `src/micro_sd_fat32_fs.spin2` into your project directory, then:
 
 ```spin2
 OBJ
-    sd : "SD_card_driver"
+    sd : "micro_sd_fat32_fs"
 
 CON
     SD_BASE = 56                      ' Base pin of 8-pin header group

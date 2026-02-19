@@ -1,6 +1,6 @@
 '' =================================================================================================
 ''
-''   File....... SD_RT_utilities.spin2
+''   File....... isp_rt_utilities.spin2
 ''   Purpose.... This object provides commonly used regression test parts for SD card driver tests
 ''   Author..... Stephen M Moraco
 ''               -- see below for terms of use

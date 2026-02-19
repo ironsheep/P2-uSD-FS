@@ -27,7 +27,7 @@ debug(zstr(@buffer))
    #PRAGMA EXPORTDEF SD_INCLUDE_SPEED      ' High-speed mode control
    #PRAGMA EXPORTDEF SD_INCLUDE_DEBUG      ' Debug/diagnostic methods & CRC getters
    OBJ
-       sd : "SD_card_driver"
+       sd : "micro_sd_fat32_fs"
  Or define SD_INCLUDE_ALL to include everything:
    #PRAGMA EXPORTDEF SD_INCLUDE_ALL
  ═══════════════════════════════════════════════════════════════════════════════
@@ -37,7 +37,7 @@ debug(zstr(@buffer))
  All structs are packed (Spin2 default) - offsets match hardware/on-disk layouts.
  ═══════════════════════════════════════════════════════════════════════════
 
-Object "SD_card_driver" Interface:
+Object "micro_sd_fat32_fs" Interface:
   (Requires Spin2 Language v45)
 
 PUB null()

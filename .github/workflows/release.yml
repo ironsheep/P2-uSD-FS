@@ -64,7 +64,7 @@ jobs:
 
           # src/ - driver
           mkdir -p "${DEST}/src"
-          cp src/SD_card_driver.spin2 "${DEST}/src/"
+          cp src/micro_sd_fat32_fs.spin2 "${DEST}/src/"
 
           # src/DEMO/ - demo shell and support files
           mkdir -p "${DEST}/src/DEMO"
@@ -89,7 +89,7 @@ jobs:
           # regression-tests/ - test framework and test files
           mkdir -p "${DEST}/regression-tests"
           cp regression-tests/README.md "${DEST}/regression-tests/"
-          cp regression-tests/SD_RT_utilities.spin2 "${DEST}/regression-tests/"
+          cp regression-tests/isp_rt_utilities.spin2 "${DEST}/regression-tests/"
           cp regression-tests/SD_RT_mount_tests.spin2 "${DEST}/regression-tests/"
           cp regression-tests/SD_RT_file_ops_tests.spin2 "${DEST}/regression-tests/"
           cp regression-tests/SD_RT_read_write_tests.spin2 "${DEST}/regression-tests/"

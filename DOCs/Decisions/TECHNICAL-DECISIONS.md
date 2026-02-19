@@ -88,7 +88,7 @@ This analysis examines Smart Pins for SPI against five criteria:
 - Audio applications need precise sample rates
 - Power-sensitive applications may run slower
 
-**Current code dependency** (SD_card_driver.spin2 line 721):
+**Current code dependency** (micro_sd_fat32_fs.spin2 line 721):
 ```spin2
 bit_delay := clkfreq / 100_000    ' ~50kHz for init
 ' Later (line 847):
@@ -185,7 +185,7 @@ The P2 Streamer provides DMA-like functionality with:
 - NCO-driven timing for autonomous transfers
 - Direct pin output modes
 
-**Current code already uses FIFO** (SD_card_driver.spin2 lines 891, 928):
+**Current code already uses FIFO** (micro_sd_fat32_fs.spin2 lines 891, 928):
 ```pasm2
 wrfast    ##$8000_0000,ptr    ' Setup write FIFO for readSector
 rdfast    ##8000_0000,ptr     ' Setup read FIFO for writeSector
@@ -221,7 +221,7 @@ rflong    data                 ' Stream from hub
 | `readSector()` data transfer | **NO** | REP loop runs to completion |
 | `writeSector()` data transfer | **NO** | REP loop runs to completion |
 
-**THE BUG** (SD_card_driver.spin2 lines 893-898):
+**THE BUG** (micro_sd_fat32_fs.spin2 lines 893-898):
 ```pasm2
 .startloop
                 drvh      _sck

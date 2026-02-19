@@ -46,7 +46,7 @@ This project provides a robust, high-performance SD card driver for the P2 micro
 
 ```spin2
 OBJ
-    sd : "SD_card_driver"
+    sd : "micro_sd_fat32_fs"
 
 CON
     SD_CS   = 60
@@ -145,7 +145,7 @@ Use `readDirectory()` for simple CWD listing. Use `openDirectory()`/`readDirecto
 ```
 P2-uSD-Study/
 ├── src/                        # Driver and application source
-│   ├── SD_card_driver.spin2        # The SD card driver
+│   ├── micro_sd_fat32_fs.spin2     # The SD card driver
 │   ├── UTILS/                      # Standalone utility programs
 │   │   ├── SD_format_card.spin2           # FAT32 card formatter
 │   │   ├── SD_card_characterize.spin2  # Card register reader (CID/CSD/SCR)
@@ -158,7 +158,7 @@ P2-uSD-Study/
 │
 ├── regression-tests/           # Regression test suite
 │   ├── SD_RT_*.spin2               # Test files (mount, file ops, seek, etc.)
-│   └── SD_RT_utilities.spin2       # Shared test framework
+│   └── isp_rt_utilities.spin2      # Shared test framework
 │
 ├── tools/                      # Build and test scripts
 │   ├── run_test.sh                 # Test runner (compile + download + capture)

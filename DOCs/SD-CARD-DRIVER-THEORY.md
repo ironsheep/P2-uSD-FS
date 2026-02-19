@@ -1,4 +1,4 @@
-# SD_card_driver.spin2 - Theory of Operations
+# micro_sd_fat32_fs.spin2 - Theory of Operations
 
 ## Overview
 
@@ -326,7 +326,7 @@ CON
   MAX_OPEN_FILES = 8          ' 3 cogs doing file copy + headroom
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 ```
 
 ## Exported STRUCT Types
@@ -356,7 +356,7 @@ Structs are overlaid onto buffers via typed pointers:
 
 ```spin2
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 
 PRI parseCID(p_buf)
   ' Overlay struct onto raw buffer
@@ -483,7 +483,7 @@ Flags are exported from the top-level file using `#PRAGMA EXPORTDEF` before the 
 #PRAGMA EXPORTDEF SD_INCLUDE_REGISTERS
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 ```
 
 Or enable everything:
@@ -492,7 +492,7 @@ Or enable everything:
 #PRAGMA EXPORTDEF SD_INCLUDE_ALL
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 ```
 
 ### Build Sizes (approximate, with DEBUG enabled)

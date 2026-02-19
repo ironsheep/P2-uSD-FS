@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-The regression test suite validates the `SD_card_driver.spin2` — a Propeller 2 SD card driver that uses smart pins for SPI communication, the P2 streamer for bulk data transfer, and a dedicated worker cog for all card I/O. The suite currently contains **15 core test files** producing an estimated **325 test assertions**. The original 10 files (236 tests) are joined by 5 new files covering directory handles, volume operations, register access, speed/CMD6, and CRC diagnostics, plus 9 additional tests added to the existing read/write file for large-file multi-cluster verification. Three additional test files (error handling, card info, card display) provide supplementary coverage outside the core count.
+The regression test suite validates the `micro_sd_fat32_fs.spin2` — a Propeller 2 SD card driver that uses smart pins for SPI communication, the P2 streamer for bulk data transfer, and a dedicated worker cog for all card I/O. The suite currently contains **15 core test files** producing an estimated **325 test assertions**. The original 10 files (236 tests) are joined by 5 new files covering directory handles, volume operations, register access, speed/CMD6, and CRC diagnostics, plus 9 additional tests added to the existing read/write file for large-file multi-cluster verification. Three additional test files (error handling, card info, card display) provide supplementary coverage outside the core count.
 
 The tests exercise the driver from low-level raw sector I/O through the full FAT32 filesystem stack, including multi-cog concurrent access, multi-handle file operations, and card formatting validation. Every test runs on real hardware (P2 Edge + physical SD card) via the `run_test.sh` headless test runner.
 
@@ -14,7 +14,7 @@ The tests exercise the driver from low-level raw sector I/O through the full FAT
 
 ## 2. Test Framework Architecture
 
-### 2.1 Shared Framework: SD_RT_utilities.spin2
+### 2.1 Shared Framework: isp_rt_utilities.spin2
 
 All core test files use a shared utilities object that provides:
 
@@ -110,7 +110,7 @@ Each test is identified by:
 
 | File | Purpose |
 |------|---------|
-| `SD_RT_utilities.spin2` | Shared test assertion framework, pattern generation, memory dump utilities |
+| `isp_rt_utilities.spin2` | Shared test assertion framework, pattern generation, memory dump utilities |
 
 ---
 
@@ -1167,5 +1167,5 @@ cd /path/to/P2-uSD-Study/tools
 ---
 
 *Document updated: 2026-02-18*
-*Based on: SD_card_driver.spin2 (100+ public methods, 46 worker cog commands)*
+*Based on: micro_sd_fat32_fs.spin2 (100+ public methods, 46 worker cog commands)*
 *Test suite: 15 core files, ~325 assertions, 3 supplementary files*

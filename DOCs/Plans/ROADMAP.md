@@ -6,7 +6,7 @@ Project roadmap for SD card driver development and testing.
 
 ## Driver Architecture
 
-The project has a **single unified driver**: `src/SD_card_driver.spin2`
+The project has a **single unified driver**: `src/micro_sd_fat32_fs.spin2`
 
 This driver includes all features from the original development phases:
 - Smart pin SPI with hardware-accelerated CRC-16
@@ -75,7 +75,7 @@ This driver includes all features from the original development phases:
 - [x] Worker cog pattern for serialized SPI access
 
 ### Phase 6: Driver Consolidation (2026-02-04)
-- [x] Merged all driver variants into single `SD_card_driver.spin2`
+- [x] Merged all driver variants into single `micro_sd_fat32_fs.spin2`
 - [x] Single `regression-tests/` directory for all tests
 - [x] Conditional compilation: `SD_MINIMAL`, `SD_INCLUDE_RAW`, `SD_INCLUDE_REGISTERS`, `SD_INCLUDE_SPEED`
 - [x] Feature matrix documented for minimal vs full builds

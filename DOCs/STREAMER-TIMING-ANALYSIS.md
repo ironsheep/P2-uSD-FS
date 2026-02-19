@@ -1,7 +1,7 @@
 # Streamer/FIFO Timing Analysis
 
 **Date:** 2026-01-30 (updated 2026-02-13)
-**Driver:** SD_card_driver.spin2
+**Driver:** micro_sd_fat32_fs.spin2
 **Purpose:** Technical analysis of streamer-based sector transfers and sysclk dependencies
 
 ---

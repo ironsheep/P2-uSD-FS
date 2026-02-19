@@ -174,7 +174,7 @@ SCR: $02 $45 $84 $8F $33 $33 $30 $39
 
 **Register contradiction:** The card's CCC register ($DB5) includes Class 2 (block read commands), which explicitly covers CMD18. The card advertises CMD18 support. The SCR CMD_SUPPORT field ($03) also indicates CMD23 (SET_BLOCK_COUNT) support — a command specifically designed for defined-length multi-block transfers.
 
-**Mount failure chain:** The driver's `do_mount()` function (SD_card_driver.spin2:1173) issues a CMD18 warmup read after successfully reading MBR, VBR, and FSInfo. Because CMD18 times out, mount returns E_IO_ERROR (-7) even though all single-sector reads succeeded. The mount test confirmed: volumeLabel() returns "P2-BENCH" (VBR was cached before the warmup), but mount() returns failure.
+**Mount failure chain:** The driver's `do_mount()` function (micro_sd_fat32_fs.spin2:1173) issues a CMD18 warmup read after successfully reading MBR, VBR, and FSInfo. Because CMD18 times out, mount returns E_IO_ERROR (-7) even though all single-sector reads succeeded. The mount test confirmed: volumeLabel() returns "P2-BENCH" (VBR was cached before the warmup), but mount() returns failure.
 
 **Investigation leads:**
 1. Does this card require CMD23 (SET_BLOCK_COUNT) before CMD18? Some cards that advertise CMD23 support may require it.

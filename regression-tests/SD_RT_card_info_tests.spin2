@@ -1,4 +1,4 @@
-{Spin2_v45}
+{Spin2_v49}
 '' =================================================================================================
 ''
 ''   File....... SD_RT_card_info_tests.spin2
@@ -40,7 +40,7 @@ CON
 #PRAGMA EXPORTDEF SD_INCLUDE_ALL
 
 OBJ
-    sd : "SD_card_driver"
+    sd : "micro_sd_fat32_fs"
 
 DAT
 

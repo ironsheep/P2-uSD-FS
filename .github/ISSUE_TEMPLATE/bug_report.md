@@ -47,7 +47,7 @@ If possible, provide a minimal code example that reproduces the issue:
 ```spin2
 ' Minimal example that reproduces the bug
 OBJ
-    sd : "SD_card_driver"
+    sd : "micro_sd_fat32_fs"
 
 PUB go()
     ' Your code here

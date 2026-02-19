@@ -2,13 +2,13 @@
 
 **Date**: 2026-02-15
 **Status**: In Progress — Root cause analysis phase
-**Backup**: `src/SD_card_driver.spin2.backup-20260215-*` (pre-investigation snapshot)
+**Backup**: `src/micro_sd_fat32_fs.spin2.backup-20260215-*` (pre-investigation snapshot)
 
 ---
 
 ## 1. Problem Statement
 
-After making changes to `SD_card_driver.spin2`, a subset of SD cards that previously passed all regression tests now fail. Passing cards are budget/older spec (SD 3.x), failing cards are name-brand/newer spec (SD 5.x/6.x).
+After making changes to `micro_sd_fat32_fs.spin2`, a subset of SD cards that previously passed all regression tests now fail. Passing cards are budget/older spec (SD 3.x), failing cards are name-brand/newer spec (SD 5.x/6.x).
 
 ## 2. Cards Tested
 

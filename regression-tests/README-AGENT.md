@@ -32,7 +32,7 @@ The regression test suite consists of **11 specialized test files** covering dif
 ```
 P2-SD-Card-Driver/
 ├── regression-tests/               # Test source files
-│   ├── SD_RT_utilities.spin2           # Test framework (shared)
+│   ├── isp_rt_utilities.spin2          # Test framework (shared)
 │   ├── SD_RT_mount_tests.spin2
 │   ├── SD_RT_file_ops_tests.spin2
 │   ├── SD_RT_read_write_tests.spin2
@@ -55,7 +55,7 @@ P2-SD-Card-Driver/
 │   └── logs/                           # Archived test logs
 │
 └── src/                            # Driver under test
-    ├── SD_card_driver.spin2            # The SD card driver
+    ├── micro_sd_fat32_fs.spin2         # The SD card driver
     └── UTILS/                          # Utility programs
         ├── SD_format_card.spin2              # FAT32 card formatter
         ├── SD_card_characterize.spin2      # Card register reader
@@ -88,13 +88,13 @@ cd tools/
 - `3` - Timeout (END_SESSION not found)
 - `4` - Usage error
 
-### Test Utilities Framework (`SD_RT_utilities.spin2`)
+### Test Utilities Framework (`isp_rt_utilities.spin2`)
 
 The test utilities provide a consistent framework for all test files:
 
 ```spin2
 OBJ
-    utils : "SD_RT_utilities"
+    utils : "isp_rt_utilities"
 
 PUB testExample()
     utils.startTestGroup(@"Group Name")
@@ -523,7 +523,7 @@ This indicates a mismatch between `startTest()` calls and `evaluate*()` calls. U
 ### Adding a New Test File
 
 1. Create `regression-tests/SD_RT_<name>_tests.spin2`
-2. Include the utilities object: `utils : "SD_RT_utilities"`
+2. Include the utilities object: `utils : "isp_rt_utilities"`
 3. Follow the test pattern with `startTestGroup()`, `startTest()`, `evaluate*()`
 4. End with `utils.ShowTestEndCounts()` and `debug("END_SESSION")`
 

@@ -29,8 +29,8 @@ CON
 #PRAGMA EXPORTDEF SD_INCLUDE_DEBUG
 
 OBJ
-    sd    : "SD_card_driver"
-    utils : "SD_RT_utilities"
+    sd    : "micro_sd_fat32_fs"
+    utils : "isp_rt_utilities"
 
 DAT
 

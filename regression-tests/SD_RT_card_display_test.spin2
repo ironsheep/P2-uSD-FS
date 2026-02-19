@@ -1,4 +1,4 @@
-{Spin2_v45}
+{Spin2_v49}
 '' =================================================================================================
 ''
 ''   File....... SD_RT_card_display_test.spin2
@@ -43,7 +43,7 @@ CON
 
 OBJ
 
-  sd     : "SD_card_driver"
+  sd     : "micro_sd_fat32_fs"
   serial : "isp_serial_singleton"
 
 

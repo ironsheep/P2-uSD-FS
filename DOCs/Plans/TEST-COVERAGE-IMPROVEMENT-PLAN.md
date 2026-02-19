@@ -202,7 +202,7 @@ Dedicated file for error conditions requiring specific setup:
 
 ### 4.1 Driver Modification: Test Hooks
 
-Add to `SD_card_driver.spin2`:
+Add to `micro_sd_fat32_fs.spin2`:
 
 ```spin2
 CON '' test hooks (regression testing only)
@@ -360,6 +360,6 @@ Modify `readSector()` to optionally force CRC mismatch and return E_CRC_ERROR.
 ## References
 
 - Audit performed: 2026-01-31, updated 2026-02-07
-- Driver: `src/SD_card_driver.spin2` (unified driver with GETCRC-based CRC)
-- Test framework: `regression-tests/SD_RT_utilities.spin2`
+- Driver: `src/micro_sd_fat32_fs.spin2` (unified driver with GETCRC-based CRC)
+- Test framework: `regression-tests/isp_rt_utilities.spin2`
 - Test runner: `tools/run_test.sh` (execute from `tools/` directory)

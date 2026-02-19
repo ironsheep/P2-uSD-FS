@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document tracks issues discovered during multi-card regression testing of the V3 driver (SD_card_driver.spin2). The goal is to understand card-specific behaviors and stabilize the driver across all supported cards.
+This document tracks issues discovered during multi-card regression testing of the V3 driver (micro_sd_fat32_fs.spin2). The goal is to understand card-specific behaviors and stabilize the driver across all supported cards.
 
 ---
 
@@ -292,4 +292,4 @@ The fix corrects the FIRST writeSector call but not subsequent ones. Between wri
 - **Connection**: SPI mode via smart pins + streamer
 - **Compiler**: pnut-ts v1.52.1
 - **Serial**: 2 Mbps via pnut-term-ts v0.9.6
-- **Test Framework**: SD_RT_utilities.spin2 (10 test suites, 236 total tests)
+- **Test Framework**: isp_rt_utilities.spin2 (10 test suites, 236 total tests)

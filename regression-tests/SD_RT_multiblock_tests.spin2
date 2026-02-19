@@ -44,7 +44,7 @@ CON
 #PRAGMA EXPORTDEF SD_INCLUDE_ALL
 
 OBJ
-    sd : "SD_card_driver"
+    sd : "micro_sd_fat32_fs"
 
 VAR
     ' Buffers for multi-sector operations

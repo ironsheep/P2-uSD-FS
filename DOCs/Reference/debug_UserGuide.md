@@ -213,7 +213,7 @@ The indentation depth reflects call depth -- `"  "` for top-level public methods
 
 Trace multi-step initialization processes.
 
-**From P2-uSD-Study** (`SD_card_driver.spin2`):
+**From P2-uSD-Study** (`micro_sd_fat32_fs.spin2`):
 ```spin2
 debug("    [initCard] Step 1: Power-on delay (100ms)...")
 debug("    [initCard] Step 2: SPI config, bit_delay=", udec(bit_delay), " (~50kHz)")
@@ -231,7 +231,7 @@ debug("    Init step 19: Display ON", 13, 10)
 
 ### Command Direction Arrows
 
-**From P2-uSD-Study** (`SD_card_driver.spin2`):
+**From P2-uSD-Study** (`micro_sd_fat32_fs.spin2`):
 ```spin2
 debug("cmd->", udec_(op_cmd))       ' command sent
 debug("cmd<-")                       ' response received
@@ -254,7 +254,7 @@ debug("TEST state [", zstr_(pFrom), "] -> [", zstr_(pTo), "]")
 
 ### Structured Test Framework Output
 
-**From P2-uSD-Study** (`SD_RT_utilities.spin2`):
+**From P2-uSD-Study** (`isp_rt_utilities.spin2`):
 ```spin2
 debug("* Test Group: ", zstr_(pDescription))
 debug("* Test #", udec_(numberTests), ": ", zstr_(pDescription))
@@ -331,7 +331,7 @@ Set `DEBUG_DISABLE` to 0 or 1 in a CON block to control debug compilation **per-
 
 **Note:** Never use bare `DEBUG_DISABLE` (without a value). Always use the valued form.
 
-**Disabling debug** (P2-uSD-Study, `SD_card_driver.spin2`):
+**Disabling debug** (P2-uSD-Study, `micro_sd_fat32_fs.spin2`):
 ```spin2
 CON
     ' V3 driver exceeds 255 debug record limit when debug is fully enabled
@@ -344,7 +344,7 @@ CON
     DEBUG_DISABLE = 0   ' Enable debug output
 ```
 
-**Used in:** P2-uSD-Study (`SD_card_driver.spin2`, `isp_format_utility.spin2`)
+**Used in:** P2-uSD-Study (`micro_sd_fat32_fs.spin2`, `isp_format_utility.spin2`)
 
 ### Compile-Time: `DEBUG_MASK` with Channels (v46+)
 
@@ -395,7 +395,7 @@ CON
 
 Conditionally compile entire debug methods and constants. Only used in P2-uSD-Study.
 
-**From P2-uSD-Study** (`SD_card_driver.spin2`):
+**From P2-uSD-Study** (`micro_sd_fat32_fs.spin2`):
 ```spin2
 '' Enable in your top-level file:
 ''   #PRAGMA EXPORTDEF SD_INCLUDE_DEBUG
@@ -560,7 +560,7 @@ PUB getDebugData() : nGroups, pGroupTitles, pGroupNames, pGroupVarCts, pGroupVar
 
 Limit debug output volume in tight loops with a counter.
 
-**From P2-uSD-Study** (`SD_card_driver.spin2`):
+**From P2-uSD-Study** (`micro_sd_fat32_fs.spin2`):
 ```spin2
 DAT
     sp_debug_ctr    LONG    0

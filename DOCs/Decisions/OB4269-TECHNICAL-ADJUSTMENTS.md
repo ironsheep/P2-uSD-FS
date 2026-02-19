@@ -231,9 +231,9 @@ After applying fixes, verify:
 
 | Fix | Lines Added | Lines Modified | Files |
 |-----|-------------|----------------|-------|
-| FAT2 mirroring | 1 | 0 | SD_card_driver.spin2 |
-| High 4 bits | 0 | 1 | SD_card_driver.spin2 |
-| FSInfo support | ~45 | ~5 | SD_card_driver.spin2 |
+| FAT2 mirroring | 1 | 0 | micro_sd_fat32_fs.spin2 |
+| High 4 bits | 0 | 1 | micro_sd_fat32_fs.spin2 |
+| FSInfo support | ~45 | ~5 | micro_sd_fat32_fs.spin2 |
 | **Total** | **~46** | **~6** | **1 file** |
 
 ---

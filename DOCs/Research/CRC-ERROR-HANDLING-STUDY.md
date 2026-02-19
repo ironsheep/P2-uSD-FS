@@ -81,7 +81,7 @@ CRC can be enabled with CMD59 (CRC_ON_OFF). When CRC is off:
 
 ## 2. Current Driver Implementation
 
-Source: `src/SD_card_driver.spin2`
+Source: `src/micro_sd_fat32_fs.spin2`
 
 ### 2.1 Read Path — `readSector()` (line 4920)
 

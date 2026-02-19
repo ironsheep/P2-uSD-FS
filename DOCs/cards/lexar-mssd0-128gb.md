@@ -309,7 +309,7 @@ Both cards tested at identical conditions: 350 MHz sysclk, 25,000 kHz SPI — tr
 
 ### Regression Test Results
 
-**Test Date:** 2026-02-14 | **Driver:** SD_card_driver.spin2 (smart pin SPI + worker cog)
+**Test Date:** 2026-02-14 | **Driver:** micro_sd_fat32_fs.spin2 (smart pin SPI + worker cog)
 
 | Test Suite | 270 MHz | 350 MHz | Notes |
 |------------|---------|---------|-------|

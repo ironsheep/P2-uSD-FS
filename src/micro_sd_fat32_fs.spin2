@@ -32,7 +32,7 @@
 ''   #PRAGMA EXPORTDEF SD_INCLUDE_DEBUG      ' Debug/diagnostic methods & CRC getters
 ''
 ''   OBJ
-''       sd : "SD_card_driver"
+''       sd : "micro_sd_fat32_fs"
 ''
 '' Or define SD_INCLUDE_ALL to include everything:
 ''   #PRAGMA EXPORTDEF SD_INCLUDE_ALL

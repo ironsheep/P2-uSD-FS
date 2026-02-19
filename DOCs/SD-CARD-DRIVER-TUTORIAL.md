@@ -31,7 +31,7 @@ This tutorial shows how to perform common filesystem operations using the SD car
 
 ```spin2
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 
 CON
   ' SD card pins - offsets from 8-pin header base pin
@@ -741,7 +741,7 @@ CON
   MAX_LINE = 80
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 
 VAR
   byte line_buffer[MAX_LINE]
@@ -786,7 +786,7 @@ CON
   SD_BASE = 56, SD_SCK = SD_BASE + 5, SD_CS = SD_BASE + 4, SD_MOSI = SD_BASE + 3, SD_MISO = SD_BASE + 2
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 
 VAR
   byte log_name[13]
@@ -855,7 +855,7 @@ CON
   RECORD_SIZE = 32
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 
 PUB readRecord(filename, record_num, p_dest) : success | handle
   if not sd.mount(SD_CS, SD_MOSI, SD_MISO, SD_SCK)
@@ -912,8 +912,8 @@ The driver uses a singleton pattern: all object instances share the same worker 
 
 ```spin2
 OBJ
-  sd1 : "SD_card_driver"    ' First instance
-  sd2 : "SD_card_driver"    ' Second instance - shares same driver!
+  sd1 : "micro_sd_fat32_fs"    ' First instance
+  sd2 : "micro_sd_fat32_fs"    ' Second instance - shares same driver!
 
 PUB example()
   sd1.mount(CS, MOSI, MISO, SCK)
@@ -1039,7 +1039,7 @@ To enable a module, add the pragma **before** the OBJ declaration:
 #PRAGMA EXPORTDEF SD_INCLUDE_REGISTERS
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 ```
 
 To enable all modules at once:
@@ -1048,7 +1048,7 @@ To enable all modules at once:
 #PRAGMA EXPORTDEF SD_INCLUDE_ALL
 
 OBJ
-  sd : "SD_card_driver"
+  sd : "micro_sd_fat32_fs"
 ```
 
 ### SD_INCLUDE_RAW - Raw Sector Access

@@ -1,4 +1,4 @@
-{Spin2_v45}
+{Spin2_v49}
 '' =================================================================================================
 ''
 ''   File....... SD_demo_shell.spin2
@@ -115,7 +115,7 @@ CON { command enums }
 
 OBJ
 
-  sd     : "SD_card_driver"                                     '   SD card filesystem driver
+  sd     : "micro_sd_fat32_fs"                                  '   SD card filesystem driver
   serial : "isp_serial_singleton"                               '   serial IO for terminal (singleton)
 
 

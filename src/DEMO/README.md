@@ -12,7 +12,7 @@ An interactive command-line shell for exploring the P2 SD card filesystem driver
 | `isp_stack_check.spin2` | Stack usage monitoring and reporting |
 | `jm_nstr.spin2` | Number-to-string conversion utilities |
 
-The shell also uses `SD_card_driver.spin2` from the parent directory (included via `-I ..`).
+The shell also uses `micro_sd_fat32_fs.spin2` from the parent directory (included via `-I ..`).
 
 ## Building and Running
 
@@ -30,7 +30,7 @@ pnut-ts -d -I .. SD_demo_shell.spin2
 pnut-term-ts -r SD_demo_shell.bin
 ```
 
-The `-I ..` flag tells the compiler to find `SD_card_driver.spin2` in the parent directory.
+The `-I ..` flag tells the compiler to find `micro_sd_fat32_fs.spin2` in the parent directory.
 
 ## Terminal Setup
 

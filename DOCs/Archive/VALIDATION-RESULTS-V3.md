@@ -1,7 +1,7 @@
 # V3 Driver Validation Results
 
 **Date:** 2026-01-30
-**Driver:** SD_card_driver_v3.spin2
+**Driver:** micro_sd_fat32_fs.spin2
 **Test Hardware:** P2 Edge Module with SD slot
 
 ---
@@ -200,7 +200,7 @@ The following bugs were fixed in the test framework (not the driver):
 
 2. **SD_RT_multicog_tests.spin2**: Fixed test accounting - added `recordPass()` calls for worker launch tests and added missing `startTest()` for singleton verification.
 
-3. **SD_RT_utilities.spin2**: Added missing `recordPass()` and `recordFail()` methods for tests that verify success implicitly without evaluate functions.
+3. **isp_rt_utilities.spin2**: Added missing `recordPass()` and `recordFail()` methods for tests that verify success implicitly without evaluate functions.
 
 4. **SD_RT_format_card.spin2**: Fixed to use V3 format utility (`SD_format_utility_v3`) instead of V2.
 

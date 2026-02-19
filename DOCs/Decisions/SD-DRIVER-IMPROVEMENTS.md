@@ -46,7 +46,7 @@ writeSector(p_cluster >> 7 + fat2_sec)    ' ADD THIS
 - If FAT1 corrupts, recovery from FAT2 would show deleted files as allocated
 - Some OS filesystem checks may flag inconsistency
 
-**Files Modified**: `SD_card_driver.spin2`
+**Files Modified**: `micro_sd_fat32_fs.spin2`
 **Functions Modified**: `deleteFile()`
 
 ---
@@ -78,7 +78,7 @@ long[@buf + idx] := (long[@buf + idx] & $F000_0000) | new_value
 - Some OS implementations or future specs may use those bits
 - Could trigger filesystem repair warnings
 
-**Files Modified**: `SD_card_driver.spin2`
+**Files Modified**: `micro_sd_fat32_fs.spin2`
 **Functions Modified**: `deleteFile()`, `allocateCluster()`
 
 ---
@@ -123,7 +123,7 @@ Offset   Size   Value           Description
 - Slower cluster allocation (always searches from cluster 2)
 - Stale metadata visible to users
 
-**Files Modified**: `SD_card_driver.spin2`
+**Files Modified**: `micro_sd_fat32_fs.spin2`
 **Functions Modified**: `mount()`, new `unmount()`, `allocateCluster()`, `freeSpace()`
 
 ---
@@ -156,7 +156,7 @@ PUB unmount() : result
 - No clean shutdown path
 - Users must remember to call closeFile()
 
-**Files Modified**: `SD_card_driver.spin2`
+**Files Modified**: `micro_sd_fat32_fs.spin2`
 **Functions Added**: `unmount()`, `updateFSInfo()`
 
 ---
@@ -187,7 +187,7 @@ PUB sync() : result
 - No way to checkpoint data without closing file
 - Higher risk of data loss on power failure during long writes
 
-**Files Modified**: `SD_card_driver.spin2`
+**Files Modified**: `micro_sd_fat32_fs.spin2`
 **Functions Added**: `sync()`
 
 ---

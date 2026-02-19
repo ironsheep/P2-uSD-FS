@@ -1,7 +1,7 @@
 '' =================================================================================================
 ''
 ''   File....... isp_format_utility.spin2
-''   Purpose.... FAT32 format utility for SD cards using the SD_card_driver
+''   Purpose.... FAT32 format utility for SD cards using the micro_sd_fat32_fs
 ''   Author..... Stephen M Moraco
 ''               -- see below for terms of use
 ''   E-mail..... stephen@ironsheep.biz
@@ -56,7 +56,7 @@ CON
 
 OBJ
 
-    sd : "SD_card_driver"                ' Use V3 driver with smart pins for formatting
+    sd : "micro_sd_fat32_fs"             ' Use V3 driver with smart pins for formatting
 
 VAR
 

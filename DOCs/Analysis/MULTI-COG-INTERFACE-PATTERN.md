@@ -19,7 +19,7 @@ The pattern provides:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     SD_card_driver.spin2                             │
+│                     micro_sd_fat32_fs.spin2                          │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  DAT Block (singleton - shared across all object instances)          │
@@ -392,5 +392,5 @@ The `SD_RT_multicog_tests.spin2` test file verifies:
 ---
 
 *Document created: 2026-01-17*
-*Based on: SD_card_driver.spin2*
+*Based on: micro_sd_fat32_fs.spin2*
 *For use in: P2-FLASH-FileSystem, P2-FLASH-RAM-FileSystem driver transformations*

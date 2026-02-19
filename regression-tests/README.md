@@ -37,7 +37,7 @@ pnut-ts -d -I ../src SD_RT_mount_tests.spin2
 pnut-term-ts -r SD_RT_mount_tests.bin
 ```
 
-The `-I ../src` flag tells the compiler to find `SD_card_driver.spin2` in the `src/` directory.
+The `-I ../src` flag tells the compiler to find `micro_sd_fat32_fs.spin2` in the `src/` directory.
 
 ### Running All Test Suites
 
@@ -149,11 +149,11 @@ END_SESSION
 
 ## Test Utilities Framework
 
-All test files use the shared `SD_RT_utilities.spin2` framework:
+All test files use the shared `isp_rt_utilities.spin2` framework:
 
 ```spin2
 OBJ
-    utils : "SD_RT_utilities"
+    utils : "isp_rt_utilities"
 
 PUB testExample()
     utils.startTestGroup(@"Group Name")
