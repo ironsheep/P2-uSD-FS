@@ -146,6 +146,7 @@ This section documents ALL fields available from SD card registers and indicates
 | SanDisk_SS08G_3.0_DAAEE8AD_201509 | SanDisk ($03) - Taiwan | SS08G | ~7 GB | **C** | PASS |
 | SharedOEM_SPCC_0.7_00940105_202507 | Silicon Power (Shared OEM $9F) | SPCC | ~57 GB | **B** | **BLOCKED** |
 | Longsys/Lexar_USD00_2.0_35841E2E_202507 | Amazon Basics (Longsys $AD) | USD00 | ~58 GB | **A** | PASS |
+| SanDisk_SH32G_8.0_5BFECCD8_202508 | SanDisk ($03) | SH32G | ~29 GB | **A** | PASS |
 | Phison_SD16G_3.0_01CD5CF5_201808 | PNY (Phison $27) | SD16G | ~14 GB | **D** | PASS |
 
 ---
@@ -183,9 +184,10 @@ Cards tested with `SD_speed_characterize.spin2` have measured internal throughpu
 | Samsung_00000 | Chinese #2 ($1B) | ~7 GB | — | — | — | not yet tested |
 | SanDisk_SS08G | SanDisk Taiwan ($03) | ~7 GB | — | — | — | not yet tested |
 | SharedOEM_SPCC | Silicon Power ($9F) | ~57 GB | — | — | — | CMD18 blocked (see punch list) |
+| SanDisk_SH32G | SanDisk ($03) | ~29 GB | **~951 KB/s** | 0.54 ms | HIGH | 25 MHz |
 | Phison_SD16G | PNY ($27) | ~14 GB | **31.3 KB/s** | 16.0 ms | LOW | 25 MHz |
 
-**Tested: 8 of 20 cards** (1 blocked)
+**Tested: 9 of 21 cards** (1 blocked)
 
 **Key Observations:**
 1. **Lexar V30 U3 64GB** - **Fastest card tested** (1,059 KB/s), 12% faster than Gigastone
@@ -239,6 +241,12 @@ Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 **Amazon Basics 64GB SDXC** — [amazon-basics-usd00-64gb.md](cards/amazon-basics-usd00-64gb.md)
 ```
 Longsys/Lexar USD00 SDXC 58GB [FAT32] SD 6.x rev2.0 SN:$3584_1E2E 2025/07
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
+```
+
+**SanDisk MAX Endurance 32GB SDHC** — [sandisk-sh32g-32gb.md](cards/sandisk-sh32g-32gb.md)
+```
+SanDisk SH32G SDHC 29GB [FAT32] SD 6.x rev8.0 SN:$5BFE_CCD8 2025/08
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
@@ -425,5 +433,5 @@ SCR: [8 bytes hex]
 ---
 
 *Catalog created: 2026-01-20*
-*Last updated: 2026-02-17*
-*Cards cataloged: 20 (individual card pages in [DOCs/cards/](cards/))*
+*Last updated: 2026-02-18*
+*Cards cataloged: 21 (individual card pages in [DOCs/cards/](cards/))*

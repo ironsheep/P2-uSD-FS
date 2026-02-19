@@ -72,6 +72,15 @@ Longsys/Lexar USD00 SDXC 58GB [FAT32] SD 6.x rev2.0 SN:$3584_1E2E 2025/07
 Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
 ```
 
+### sandisk-sh32g-32gb
+
+**Label:** SanDisk MAX ENDURANCE microSD HC I U3 V30 (10)
+
+```
+SanDisk SH32G SDHC 29GB [FAT32] SD 6.x rev8.0 SN:$5BFE_CCD8 2025/08
+Class 10, U3, A2, V30, SPI 25 MHz  [P2FMTER]
+```
+
 ---
 
 ## Rating B — Fast
@@ -240,8 +249,9 @@ Cards that need to be re-run through the updated `SD_card_characterize.spin2` to
 | siliconpower-spcc-64gb | **verified** | ACMD13 (Class 10, U3, A1, V30) — label says U1 | **BLOCKED** |
 | samsung-jd1y7-128gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 | amazon-basics-usd00-64gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
+| sandisk-sh32g-32gb | **verified** | ACMD13 (Class 10, U3, A2, V30) | 350+250 |
 
 ---
 
 *Created: 2026-02-15*
-*Cards: 20*
+*Cards: 21*
