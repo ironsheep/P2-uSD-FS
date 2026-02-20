@@ -71,7 +71,7 @@ CON { pst formatting }
 
 OBJ
 
-  nstr : "jm_nstr"                                              ' number-to-string
+  mstr : "isp_mem_strings"                                      ' number-to-string
 
 
 DAT
@@ -82,8 +82,6 @@ baud            long  0
 
 byteMask        long  0
 byteExtraBits   long  0
-
-pbuf            byte  0[80]                                     ' padded strings
 
 sLock           long  -1                                       ' hardware lock for format() serialization
 
@@ -316,7 +314,7 @@ PUB padstr(p_str, width, pad)
 '' @param width - field width (positive for right align, negative for left align)
 '' @param pad - character to use to fill out field
 
-  str(nstr.padstr(p_str, width, pad))
+  str(mstr.padstr(p_str, width, pad))
 
 
 CON { formatted strings }
@@ -495,19 +493,19 @@ debug("FMT: [", zstr_(p_str), "]")
       p_str, fld, digits := get_nargs(p_str)
       chr := byte[p_str++]
       if (chr == "f")
-        str(nstr.fmt_number(long[p_args][idx++], 99, digits, fld, " "))
+        str(mstr.fmt_number(long[p_args][idx++], 99, digits, fld, " "))
       elseif (chr == "d")
-        str(nstr.fmt_number(long[p_args][idx++], 10, digits, fld, " "))
+        str(mstr.fmt_number(long[p_args][idx++], 10, digits, fld, " "))
       elseif (chr == "x")
-        str(nstr.fmt_number(long[p_args][idx++], 16, digits, fld, " "))
+        str(mstr.fmt_number(long[p_args][idx++], 16, digits, fld, " "))
       elseif (chr == "o")
-        str(nstr.fmt_number(long[p_args][idx++], 08, digits, fld, " "))
+        str(mstr.fmt_number(long[p_args][idx++], 08, digits, fld, " "))
       elseif (chr == "q")
-        str(nstr.fmt_number(long[p_args][idx++], 04, digits, fld, " "))
+        str(mstr.fmt_number(long[p_args][idx++], 04, digits, fld, " "))
       elseif (chr == "b")
-        str(nstr.fmt_number(long[p_args][idx++], 02, digits, fld, " "))
+        str(mstr.fmt_number(long[p_args][idx++], 02, digits, fld, " "))
       elseif (chr == "s")
-        str(nstr.padstr(long[p_args][idx++], fld, " "))
+        str(mstr.padstr(long[p_args][idx++], fld, " "))
       elseif (chr == "c")
         txn(long[p_args][idx++], (abs fld) #> 1)
 
@@ -565,7 +563,7 @@ PUB fmt_number(value, base, digits, width, pad)
 '' @param width - width of final field (max)
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, base, digits, width, pad))
+  str(mstr.fmt_number(value, base, digits, width, pad))
 
 
 PUB dec(value)
@@ -573,7 +571,7 @@ PUB dec(value)
 ''
 '' @param value - value to emit
 
-  str(nstr.itoa(value, 10, 0))
+  str(mstr.itoa(value, 10, 0))
 
 
 PUB fwdec(value, digits)
@@ -582,7 +580,7 @@ PUB fwdec(value, digits)
 '' @param value - value to emit
 '' @param digits - fixed number of digits to use
 
-  str(nstr.itoa(value, 10, digits))
+  str(mstr.itoa(value, 10, digits))
 
 
 PUB jdec(value, digits, width, pad)
@@ -593,7 +591,7 @@ PUB jdec(value, digits, width, pad)
 '' @param width - width of final field (negative to left-align)
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, 10, digits, width, pad))
+  str(mstr.fmt_number(value, 10, digits, width, pad))
 
 
 PUB dpdec(value, dp)
@@ -602,7 +600,7 @@ PUB dpdec(value, dp)
 '' @param value - value to emit
 '' @param dp - number of digits after decimal point
 
-  str(nstr.dpdec(value, dp))
+  str(mstr.dpdec(value, dp))
 
 
 PUB jdpdec(value, dp, width, pad)
@@ -613,7 +611,7 @@ PUB jdpdec(value, dp, width, pad)
 '' @param width - width of final field (negative to left-align)
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, 99, dp, width, pad))
+  str(mstr.fmt_number(value, 99, dp, width, pad))
 
 
 PUB hex(value)
@@ -621,7 +619,7 @@ PUB hex(value)
 ''
 '' @param value - value to emit
 
-  str(nstr.itoa(value, 16, 0))
+  str(mstr.itoa(value, 16, 0))
 
 
 PUB fwhex(value, digits)
@@ -630,7 +628,7 @@ PUB fwhex(value, digits)
 '' @param value - value to emit
 '' @param digits - fixed number of digits to use
 
-  str(nstr.itoa(value, 16, digits))
+  str(mstr.itoa(value, 16, digits))
 
 
 PUB jhex(value, digits, width, pad)
@@ -641,7 +639,7 @@ PUB jhex(value, digits, width, pad)
 '' @param width - width of final field
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, 16, digits, width, pad))
+  str(mstr.fmt_number(value, 16, digits, width, pad))
 
 
 PUB oct(value)
@@ -649,7 +647,7 @@ PUB oct(value)
 ''
 '' @param value - value to emit
 
-  str(nstr.itoa(value, 8, 0))
+  str(mstr.itoa(value, 8, 0))
 
 
 PUB foct(value, digits)
@@ -658,7 +656,7 @@ PUB foct(value, digits)
 '' @param value - value to emit
 '' @param digits - fixed number of digits to use
 
-  str(nstr.itoa(value, 8, digits))
+  str(mstr.itoa(value, 8, digits))
 
 
 PUB joct(value, digits, width, pad)
@@ -669,7 +667,7 @@ PUB joct(value, digits, width, pad)
 '' @param width - width of final field
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, 8, digits, width, pad))
+  str(mstr.fmt_number(value, 8, digits, width, pad))
 
 
 PUB qrt(value)
@@ -677,7 +675,7 @@ PUB qrt(value)
 ''
 '' @param value - value to emit
 
-  str(nstr.itoa(value, 4, 0))
+  str(mstr.itoa(value, 4, 0))
 
 
 PUB fqrt(value, digits)
@@ -686,7 +684,7 @@ PUB fqrt(value, digits)
 '' @param value - value to emit
 '' @param digits - fixed number of digits to use
 
-  str(nstr.itoa(value, 4, digits))
+  str(mstr.itoa(value, 4, digits))
 
 
 PUB jqrt(value, digits, width, pad)
@@ -697,7 +695,7 @@ PUB jqrt(value, digits, width, pad)
 '' @param width - width of final field
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, 4, digits, width, pad))
+  str(mstr.fmt_number(value, 4, digits, width, pad))
 
 
 PUB bin(value)
@@ -705,7 +703,7 @@ PUB bin(value)
 ''
 '' @param value - value to emit
 
-  str(nstr.itoa(value, 2, 0))
+  str(mstr.itoa(value, 2, 0))
 
 
 PUB fwbin(value, digits)
@@ -714,7 +712,7 @@ PUB fwbin(value, digits)
 '' @param value - value to emit
 '' @param digits - fixed number of digits to use
 
-  str(nstr.itoa(value, 2, digits))
+  str(mstr.itoa(value, 2, digits))
 
 
 PUB jbin(value, digits, width, pad)
@@ -725,7 +723,7 @@ PUB jbin(value, digits, width, pad)
 '' @param width - width of final field
 '' @param pad - character that fills out field
 
-  str(nstr.fmt_number(value, 2, digits, width, pad))
+  str(mstr.fmt_number(value, 2, digits, width, pad))
 
 PUB memDump(pBytes, lenBytes, pMessage) | rowCount, rowLen, pCurrByte, lastRowByteCount, bytesSoFar
 '' Dump rows of hex values with address preceeding

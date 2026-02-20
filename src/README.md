@@ -16,8 +16,7 @@ sd-card-driver/
 │   │   ├── README.md                         Build and usage guide
 │   │   ├── SD_demo_shell.spin2               Shell application
 │   │   ├── isp_serial_singleton.spin2        Serial terminal driver
-│   │   ├── isp_mem_strings.spin2             String formatting utilities
-│   │   └── jm_nstr.spin2                    Number-to-string conversion
+│   │   └── isp_mem_strings.spin2             String formatting utilities
 │   └── UTILS/                             Standalone utility programs
 │       ├── README.md                         Full utility documentation
 │       ├── SD_format_card.spin2              FAT32 card formatter

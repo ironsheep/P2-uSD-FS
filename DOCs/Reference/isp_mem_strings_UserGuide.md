@@ -4,7 +4,7 @@ A `sprintf()`-like string formatting object for Spin2 on the Parallax Propeller 
 
 - **Author:** Stephen M. Moraco (leveraged from `jm_serial.spin2` by Jon McPhalen)
 - **License:** MIT
-- **Dependency:** `jm_nstrings.spin2` (number-to-string conversions)
+- **Dependency:** None (number-to-string conversions are inlined)
 
 ---
 

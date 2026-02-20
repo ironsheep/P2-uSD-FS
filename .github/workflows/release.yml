@@ -72,7 +72,6 @@ jobs:
           cp src/DEMO/SD_demo_shell.spin2 "${DEST}/src/DEMO/"
           cp src/DEMO/isp_serial_singleton.spin2 "${DEST}/src/DEMO/"
           cp src/DEMO/isp_mem_strings.spin2 "${DEST}/src/DEMO/"
-          cp src/DEMO/jm_nstr.spin2 "${DEST}/src/DEMO/"
 
           # src/UTILS/ - utility programs
           mkdir -p "${DEST}/src/UTILS"
