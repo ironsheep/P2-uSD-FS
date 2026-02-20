@@ -33,10 +33,10 @@ CON { fixed io pins }
   SF_SDI   = 58  { I }
 
 
-CON { smart pin modes }
+CON { debug control }
 
-  TX_MODE = %0000_0000_000_0000000000000_01_11110_0
-  RX_MODE = %0000_0000_000_0000000000000_00_11111_0
+    DEBUG_DISABLE = 1                                              ' suppress debug() — we own pin 62 for serial TX
+
 
 CON { serial configuration }
 
@@ -101,6 +101,28 @@ PUB start(baudrate)
   startx(RX1, TX1, baudrate, PU_NONE)                            ' use programming port
 
 
+PUB startDebugShared(baudrate)
+'' Start serial coms using pins already configured by the debug system.
+'' Only initializes data variables and lock — does NOT reconfigure pins.
+'' Use when sharing pin 62/63 with debug output on the programming port.
+''
+'' @param baudrate - baud rate for serial communication (must match debug baud rate)
+
+  rxp := RX1
+  txp := TX1
+  baud := baudrate
+
+  byteMask := $FF
+  if (DATA_BITS == 7)
+    byteMask := $7f
+
+  byteExtraBits := 0
+  if (STOP_BITS == 2)
+    byteExtraBits |= $100
+
+  sLock := locknew()                                             ' allocate hardware lock for serial output
+
+
 PUB startx(rxpin, txpin, baudrate, txPullup) | bitperiod, txbitmode, rxbitmode, databits
 '' Start simple serial coms on rxpin and txpin at baud
 ''
@@ -139,12 +161,12 @@ PUB startx(rxpin, txpin, baudrate, txPullup) | bitperiod, txbitmode, rxbitmode, 
       byteExtraBits |= $100
 
   pinf(txp)
-  wrpin(txp, TX_MODE | txPullup)
+  wrpin(txp, P_ASYNC_TX | P_OE | txPullup)
   wxpin(txp, txbitmode)
   pinl(txp)
 
   pinf(rxp)
-  wrpin(rxp, RX_MODE)
+  wrpin(rxp, P_ASYNC_RX)
   wxpin(rxp, rxbitmode)
   pinl(rxp)
 
@@ -176,11 +198,11 @@ PUB rxcheck() : rxbyte | check
     rxbyte := rdpin(rxp) >> 24
     rxbyte &= byteMask  ' handle 7bit data (e.g., 7N1 vs. 8N1)
 
-PUB rxtime(ms) : b | mstix, t
+PUB rxtime(ms) : chr | mstix, t
 '' Wait ms milliseconds for a byte to be received
 ''
 '' @param ms - maximum time to wait in milliseconds
-'' @returns b - received byte ($00..$FF), or -1 if no byte received
+'' @returns chr - received byte ($00..$FF), or -1 if no byte received
 '' @local mstix - clock ticks per millisecond
 '' @local t - start time
 
@@ -188,7 +210,7 @@ PUB rxtime(ms) : b | mstix, t
 
   t := getct()
   repeat
-  until ((b := rxcheck()) >= 0) or (((getct() - t) / mstix) > ms)
+  until ((chr := rxcheck()) >= 0) or (((getct() - t) / mstix) > ms)
 
 
 PUB rx() : rxbyte
@@ -201,7 +223,7 @@ PUB rx() : rxbyte
   until (rxbyte >= 0)
 
 
-PUB rxline(p_dest, maxLen) : len | c
+PUB rxline(p_dest, maxLen) : len | chr
 '' Receive characters into buffer until CR (tight loop for high baud rates)
 '' Handles backspace editing. Ignores LF. Null-terminates buffer.
 ''
@@ -213,44 +235,44 @@ PUB rxline(p_dest, maxLen) : len | c
 
   repeat
     repeat until pinr(rxp)                                         ' wait for byte (tight!)
-    c := (rdpin(rxp) >> 24) & byteMask                            ' read and mask
+    chr := (rdpin(rxp) >> 24) & byteMask                            ' read and mask
 
-    if (c == 13)                                                   ' CR = end of line
+    if (chr == 13)                                                   ' CR = end of line
       BYTE[p_dest][len] := 0
       return
 
-    if (c == 10)                                                   ' LF = ignore
+    if (chr == 10)                                                   ' LF = ignore
       next
 
-    if (c == 8)                                                    ' backspace
+    if (chr == 8)                                                    ' backspace
       if (len > 0)
         len--
       next
 
     if (len < maxLen - 2)                                          ' room in buffer?
-      BYTE[p_dest][len++] := c
+      BYTE[p_dest][len++] := chr
 
 
-PUB tx(b)
+PUB tx(chr)
 '' Emit byte
 ''
-'' @param b - byte to transmit
+'' @param chr - byte to transmit
 
-  b &= byteMask
-  b |= byteExtraBits
+  chr &= byteMask
+  chr |= byteExtraBits
 
-  wypin(txp, b)
+  wypin(txp, chr)
   txflush()
 
 
-PUB txn(b, n)
-'' Emit byte n times
+PUB txn(chr, chrCt)
+'' Emit byte chrCt times
 ''
-'' @param b - byte to transmit
-'' @param n - number of times to transmit
+'' @param chr - byte to transmit
+'' @param chrCt - number of times to transmit
 
-  repeat n
-    tx(b)
+  repeat chrCt
+    tx(chr)
 
 
 PUB txflush() | check
@@ -272,17 +294,17 @@ PUB str(p_str)
     tx(byte[p_str++])
 
 
-PUB substr(p_str, len) | b
+PUB substr(p_str, len) | chr
 '' Emit len characters of string at p_str (aborts if end of string detected)
 ''
 '' @param p_str - pointer to string
 '' @param len - number of characters to emit
-'' @local b - current byte
+'' @local chr - current byte
 
   repeat len
-    b := byte[p_str++]
-    if (b > 0)
-      tx(b)
+    chr := byte[p_str++]
+    if (chr > 0)
+      tx(chr)
     else
       quit
 
@@ -425,16 +447,17 @@ PUB fstr7(p_str, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
   format(p_str, @arg1)
 
 
-PUB format(p_str, p_args) | idx, c, asc, fld, digits
+PUB format(p_str, p_args) | idx, chr, asc, fld, digits
 '' Emit formatted string with escape sequences and embedded values
 ''
 '' @param p_str - pointer to the format control string
 '' @param p_args - pointer to array of longs that hold field values (numbers, characters, or pointers to strings)
 '' @local idx - value index
-'' @local c - current character
+'' @local chr - current character
 '' @local asc - ASCII value for escape sequences
 '' @local fld - field width
 '' @local digits - precision digits
+debug("FMT: [", zstr_(p_str), "]")
 
   if sLock <> -1
     repeat until locktry(sLock)
@@ -442,91 +465,91 @@ PUB format(p_str, p_args) | idx, c, asc, fld, digits
   idx := 0                                                     ' value index
 
   repeat
-    c := byte[p_str++]
-    if (c == 0)
+    chr := byte[p_str++]
+    if (chr == 0)
       quit
 
-    elseif (c == "\")
-      c := byte[p_str++]
-      if (c == "\")
+    elseif (chr == "\")
+      chr := byte[p_str++]
+      if (chr == "\")
         tx("\")
-      elseif (c == "%")
+      elseif (chr == "%")
         tx("%")
-      elseif (c == "q")
+      elseif (chr == "q")
         tx(34)
-      elseif (c == "b")
+      elseif (chr == "b")
         tx(BKSP)
-      elseif (c == "t")
+      elseif (chr == "t")
         tx(TAB)
-      elseif (c == "n")
+      elseif (chr == "n")
         tx(LF)
-      elseif (c == "r")
+      elseif (chr == "r")
         tx(CR)
-      elseif ((c >= "0") and (c <= "9"))
+      elseif ((chr >= "0") and (chr <= "9"))
         --p_str
         p_str, asc, _ := get_nargs(p_str)
         if ((asc >= 0) and (asc <= 255))
           tx(asc)
 
-    elseif (c == "%")
+    elseif (chr == "%")
       p_str, fld, digits := get_nargs(p_str)
-      c := byte[p_str++]
-      if (c == "f")
+      chr := byte[p_str++]
+      if (chr == "f")
         str(nstr.fmt_number(long[p_args][idx++], 99, digits, fld, " "))
-      elseif (c == "d")
+      elseif (chr == "d")
         str(nstr.fmt_number(long[p_args][idx++], 10, digits, fld, " "))
-      elseif (c == "x")
+      elseif (chr == "x")
         str(nstr.fmt_number(long[p_args][idx++], 16, digits, fld, " "))
-      elseif (c == "o")
+      elseif (chr == "o")
         str(nstr.fmt_number(long[p_args][idx++], 08, digits, fld, " "))
-      elseif (c == "q")
+      elseif (chr == "q")
         str(nstr.fmt_number(long[p_args][idx++], 04, digits, fld, " "))
-      elseif (c == "b")
+      elseif (chr == "b")
         str(nstr.fmt_number(long[p_args][idx++], 02, digits, fld, " "))
-      elseif (c == "s")
+      elseif (chr == "s")
         str(nstr.padstr(long[p_args][idx++], fld, " "))
-      elseif (c == "c")
+      elseif (chr == "c")
         txn(long[p_args][idx++], (abs fld) #> 1)
 
     else
-      tx(c)
+      tx(chr)
 
   if sLock <> -1
     lockrel(sLock)
 
+  debug("FMT: done")
 
-
-PRI get_nargs(p_str) : p_str1, val1, val2 | c, sign
+PRI get_nargs(p_str) : p_str1, val1, val2 | chr, sign
 ' Parse one or two numbers from string in n, -n, n.n, or -n.n format
 '
 ' @param p_str - pointer to string to parse
 ' @returns p_str1 - pointer to 1st char after value(s)
 ' @returns val1 - first parsed value (may be negative)
 ' @returns val2 - second parsed value (after decimal point)
-' @local c - current character
+' @local chr - current character
 ' @local sign - sign flag for first value
 
-  c := byte[p_str]                                              ' check for negative on first value
-  if (c == "-")
+  chr := byte[p_str]                                              ' check for negative on first value
+  if (chr == "-")
     sign := -1
     ++p_str
   else
     sign := 0
 
   repeat                                                        ' get first value
-    c := byte[p_str++]
-    if ((c >= "0") and (c <= "9"))
-      val1 := (val1 * 10) + (c - "0")
+    chr := byte[p_str++]
+    if ((chr >= "0") and (chr <= "9"))
+      val1 := (val1 * 10) + (chr - "0")
     else
       if (sign)
         val1 := -val1
       quit
 
-  if (c == ".")                                                 ' if dpoint
+  if (chr == ".")                                                 ' if dpoint
     repeat                                                      '  get second value
-      c := byte[p_str++]
-      if ((c >= "0") and (c <= "9"))
-        val2 := (val2 * 10) + (c - "0")
+      chr := byte[p_str++]
+      if ((chr >= "0") and (chr <= "9"))
+        val2 := (val2 * 10) + (chr - "0")
       else
         quit
 

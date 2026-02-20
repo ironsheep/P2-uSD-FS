@@ -34,6 +34,9 @@ CON { terminal }
 '  BR_TERM  = 230_400                                            ' terminal baud rate
   BR_TERM  = 2_000_000                                            ' terminal baud rate
 
+  DEBUG_BAUD = BR_TERM                                             ' debug baud must match terminal
+  DEBUG_DISABLE = 1                                                ' suppress debug() in this file
+
 
 CON { SD card pins - P2 Edge Module }
 
@@ -179,7 +182,7 @@ VAR { parser }
 
 PUB main() | len, eCmd
 
-  setup()
+  serial.start(BR_TERM)                                           ' full pin init (debug disabled in this file)
   serial.tx(serial.CLS)
   serial.fstr0(@"* Press return to start...\r\n")
   wait_for_terminal(false, 0)
@@ -2518,21 +2521,13 @@ DAT { card type strings }
   ctSDHC          byte    "SDHC", 0
   ctSDXC          byte    "SDXC", 0
 
-CON { setup }
+CON { init routines }
 
-
-PUB setup()
-
-'' Configure IO and objects for application
-
-  serial.start(BR_TERM)                                         ' start terminal io
-  debug("SD Shell: serial started at ", udec_(BR_TERM), " baud")
-
-
-PUB wait_for_terminal(clear, delay)
+PRI wait_for_terminal(clear, delay)
 
 '' Wait for terminal to be open and key pressed
 
+  debug("SD Shell: wait for CR")
   serial.rxflush()
   serial.rx()
   if (clear)
