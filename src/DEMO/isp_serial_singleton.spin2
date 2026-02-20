@@ -85,7 +85,7 @@ byteExtraBits   long  0
 
 pbuf            byte  0[80]                                     ' padded strings
 
-kLock           byte  0
+sLock           long  -1                                       ' hardware lock for format() serialization
 
 PUB null()
 '' This is not a top level object
@@ -147,6 +147,8 @@ PUB startx(rxpin, txpin, baudrate, txPullup) | bitperiod, txbitmode, rxbitmode, 
   wrpin(rxp, RX_MODE)
   wxpin(rxp, rxbitmode)
   pinl(rxp)
+
+  sLock := locknew()                                             ' allocate hardware lock for serial output
 
 PUB getBaudrate() : baudrate
 '' Return the configured baud rate
@@ -423,7 +425,7 @@ PUB fstr7(p_str, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
   format(p_str, @arg1)
 
 
-PUB format(p_str, p_args) | idx, c, asc, fld, digits, kindaLock
+PUB format(p_str, p_args) | idx, c, asc, fld, digits
 '' Emit formatted string with escape sequences and embedded values
 ''
 '' @param p_str - pointer to the format control string
@@ -433,22 +435,16 @@ PUB format(p_str, p_args) | idx, c, asc, fld, digits, kindaLock
 '' @local asc - ASCII value for escape sequences
 '' @local fld - field width
 '' @local digits - precision digits
-'' @local kindaLock - lock state
 
-    repeat
-        kindaLock := kLock
-        kLock := 1
-        if kindaLock == 1
-            waitms(1)
-    while kindaLock == 1
-
+  if sLock <> -1
+    repeat until locktry(sLock)
 
   idx := 0                                                     ' value index
 
   repeat
     c := byte[p_str++]
     if (c == 0)
-      return
+      quit
 
     elseif (c == "\")
       c := byte[p_str++]
@@ -495,7 +491,8 @@ PUB format(p_str, p_args) | idx, c, asc, fld, digits, kindaLock
     else
       tx(c)
 
-    kLock := 0  ' clear our lock
+  if sLock <> -1
+    lockrel(sLock)
 
 
 
